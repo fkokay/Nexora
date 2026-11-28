@@ -15,7 +15,7 @@ import salesPurchaseReturnsJson from "../../../../../src/Hosts/AIERP.Api/SystemP
 import salesPurchaseOrderCreateJson from "../../../../../src/Hosts/AIERP.Api/SystemPages/Standards/sales-purchase-order-create.json?raw";
 import salesPurchaseInvoiceDraftsJson from "../../../../../src/Hosts/AIERP.Api/SystemPages/Standards/sales-purchase-invoice-drafts.json?raw";
 
-// Satınalma standartları (src/Hosts/AIERP.Api/SystemPages/Standards/sales-*.json, Faz 1 + Faz 2): tasarımcıda tanınmayan tür/özellik
+// Satınalma standartları (src/Hosts/AIERP.Api/SystemPages/Standards/sales-*.json, Faz 1 + Satın Alma 2. dalga): tasarımcıda tanınmayan tür/özellik
 // olmadan açılmalı, uzlaştırmadan özellik kaybetmeden geçmeli ve koşulları tasarımcının denetimine takılmamalıdır.
 type Component = { id: string; type: string; name?: string; props: Record<string, unknown>; children?: Component[] };
 type Standard = { definition: { queries: { id: string; name: string }[]; components: Component[]; template?: unknown } };
@@ -25,10 +25,10 @@ const flatten = (list: Component[]): Component[] => list.flatMap((component) => 
 const CONDITION_PROPS = ["visibleWhen", "disabledWhen", "requiredWhen", "activeWhen", "sequenceWhen", "defaultWhen", "countWhen"];
 
 for (const [key, standard] of standards) describe(`${key} standardı tasarımcıda`, () => {
-  const { queries, components } = standard.definition;
+  const { queries, components, template } = standard.definition;
   const all = flatten(components);
   const reconcile = (queryEditable: boolean) => reconcileDefinition(
-    { schemaVersion: 2, queries, components: structuredClone(components) } as never, { catalog: { status: "loading" }, queryEditable }) as unknown as Standard["definition"];
+    { schemaVersion: 2, template, queries, components: structuredClone(components) } as never, { catalog: { status: "loading" }, queryEditable }) as unknown as Standard["definition"];
   it("bütün türler ve özellikler tasarımcıda tanınır (ham metin alanı yok)", () => {
     for (const component of all) {
       expect(contentFields, component.type).toHaveProperty(component.type);
@@ -43,7 +43,11 @@ for (const [key, standard] of standards) describe(`${key} standardı tasarımcı
     for (const component of all) {
       const next = after.get(component.id);
       expect(next, component.id).toBeDefined();
-      for (const [prop, value] of Object.entries(component.props)) expect(next!.props[prop], `${component.id}.${prop}`).toEqual(value);
+      for (const [prop, value] of Object.entries(component.props)) {
+        if (prop === "contains") continue; // The list template groups dialog fields in the compact form card.
+        expect(next!.props[prop], `${component.id}.${prop}`).toEqual(value);
+      }
+      for (const id of (next!.props.contains as string[] | undefined) ?? []) expect(after.has(id), `${component.id}.${id}`).toBe(true);
       // Eklenen tek özellik tasarımcı varsayılanıdır: sütun sayısı yazılmamış form kartına columns: 2 (tek satır dizilimde etkisiz).
       const added = Object.keys(next!.props).filter((prop) => !(prop in component.props));
       expect(added, component.id).toEqual(component.type === "formCard" && added.length > 0 ? ["columns"] : []);
@@ -51,7 +55,7 @@ for (const [key, standard] of standards) describe(`${key} standardı tasarımcı
     expect(reconciled.queries).toEqual(queries);
   });
   it("yükle → uzlaştır → kaydet gidiş-dönüşü bütün özellikleri ve sorguları korur", () => {
-    const stored = JSON.stringify({ schemaVersion: 2, queries, components });
+    const stored = JSON.stringify({ schemaVersion: 2, template, queries, components });
     const loaded = designerPersistence.normalizeDefinition(JSON.parse(stored));
     const reconciled = reconcileDefinition(loaded, { catalog: { status: "loading" }, queryEditable: false });
     const saved = JSON.parse(JSON.stringify(designerPersistence.wireDefinition(reconciled, { status: "loading" }))) as Standard["definition"];
@@ -61,7 +65,11 @@ for (const [key, standard] of standards) describe(`${key} standardı tasarımcı
       const next = after.get(component.id);
       expect(next, component.id).toBeDefined();
       expect(next!.type, component.id).toBe(component.type);
-      for (const [prop, value] of Object.entries(component.props)) expect(JSON.stringify(next!.props[prop]), `${component.id}.${prop}`).toBe(JSON.stringify(value));
+      for (const [prop, value] of Object.entries(component.props)) {
+        if (prop === "contains") continue; // The list template groups dialog fields in the compact form card.
+        expect(JSON.stringify(next!.props[prop]), `${component.id}.${prop}`).toBe(JSON.stringify(value));
+      }
+      for (const id of (next!.props.contains as string[] | undefined) ?? []) expect(after.has(id), `${component.id}.${id}`).toBe(true);
     }
     expect(saved.queries).toEqual(queries);
   });

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import catalog from './purchasingOrdersOperations.fixture.json';
 import { T, createHarness, page } from './purchasingStandardHarness';
 
-// "Satınalma siparişleri" standart tanımı (sales-purchasing.json, v2): liste, sayfa parametresiyle açılan belge, mal kabul penceresi
+// "Satınalma siparişleri" standart tanımı (sales-purchasing.json, v3): liste, ayrıntı penceresi, mal kabul penceresi
 // (siparişin kalanıyla doldurma, skipWhenZero, autoId requestId) ve eski ekran komutları.
 
 vi.mock('../erpApi', () => ({ api: vi.fn() }));
@@ -51,13 +51,14 @@ function respond(path: string, method: string): unknown {
 }
 
 const h = createHarness(KEY, catalog);
+const rowAction = async (code: string, name: RegExp) => within(await h.row(code)).findByRole('button', { name }, T);
 beforeEach(() => { h.before(); receiptFailure = null; });
 afterEach(() => h.after(['sales-purchase-receipts', 'sales-purchase-invoice-entry', 'sales-purchase-order-create']));
 
 const openReceiptDialog = async () => {
-  h.setup(respond, { params: { purchaseOrderId: P1 } });
-  expect(await screen.findByText('SA-0001 · Ege Ambalaj', {}, T)).toBeTruthy();
-  fireEvent.click(await screen.findByRole('button', { name: 'Mal kabul oluştur' }, T));
+  h.setup(respond);
+  await h.select('SA-0001');
+  fireEvent.click(await rowAction('SA-0001', /^Mal kabul oluştur/));
   const dialog = await screen.findByRole('dialog', { name: /Mal kabul · SA-0001/ }, T);
   await waitFor(() => expect(h.gridCell('kabulKalemleri', 'dolu-1', 'quantity')?.value).toBe('6'), T);
   // Depo siparişin hedef deposuyla açılır.
@@ -78,28 +79,30 @@ describe('Satınalma siparişleri standart tanımı', { timeout: 60000 }, () => 
     expect(h.gets(`/api/purchasing/orders/${P1}`)).toEqual([]);
   });
 
-  it('opens the read-only document from the purchaseOrderId page param', async () => {
+  it('opens the read-only order detail window from its row action', async () => {
     h.setup(respond, { params: { purchaseOrderId: P1 } });
-    expect(await screen.findByText('SA-0001 · Ege Ambalaj', {}, T)).toBeTruthy();
-    expect(await screen.findByText('Koli 40x30', { selector: '.tenant-page-data-grid td, .tenant-page-data-grid td *' }, T)).toBeTruthy();
+    await h.select('SA-0001');
+    fireEvent.click(await rowAction('SA-0001', /^Aç/));
+    const dialog = await screen.findByRole('dialog', {}, T);
+    expect((await within(dialog).findAllByText('Koli 40x30', { selector: 'td, td *' }, T)).length).toBeGreaterThan(0);
     expect(h.gets(`/api/purchasing/orders/${P1}`).length).toBeGreaterThan(0);
-    expect(screen.queryByText('SA-0002', { selector: '.tenant-page-data-grid td, .tenant-page-data-grid td *' })).toBeNull();
     expect(h.writes()).toEqual([]);
   });
 
   it('a row double-click (Aç) opens the document of the order in place', async () => {
     h.setup(respond);
     fireEvent.doubleClick(await h.cell('SA-0001'));
-    expect(await screen.findByText('SA-0001 · Ege Ambalaj', {}, T)).toBeTruthy();
+    expect(await screen.findByRole('dialog', {}, T)).toBeTruthy();
     expect(h.state.navigations).toEqual([]);
   });
 
-  it('Mal kabul oluştur opens the order in place; Yeni opens the new order system page', async () => {
+  it('Mal kabul oluştur opens the receipt window; Yeni opens the new order system page', async () => {
     h.setup(respond);
     await h.select('SA-0001');
-    fireEvent.click(await h.menuItem(/^Mal kabul oluştur/));
-    expect(await screen.findByText('SA-0001 · Ege Ambalaj', {}, T)).toBeTruthy();
+    fireEvent.click(await rowAction('SA-0001', /^Mal kabul oluştur/));
+    expect(await screen.findByRole('dialog', { name: /Mal kabul · SA-0001/ }, T)).toBeTruthy();
     expect(h.state.navigations).toEqual([]);
+    fireEvent.keyDown(document, { key: 'Escape' });
     await h.ready('new');
     fireEvent.click(h.command('new'));
     await waitFor(() => expect(h.state.navigations).toHaveLength(1), T);
@@ -110,10 +113,8 @@ describe('Satınalma siparişleri standart tanımı', { timeout: 60000 }, () => 
   it('receipt dialog fills the remaining quantities; an edit and skipWhenZero shape the posted lines with a requestId', async () => {
     const dialog = await openReceiptDialog();
     // Kalan miktarla dolar: 6, 0 (tam alınmış), 5; sipariş miktarı `orderedQuantity` sütununda.
-    expect(h.gridCell('kabulKalemleri', 'dolu-1', 'orderedQuantity')!.value).toBe('10');
     expect(h.gridCell('kabulKalemleri', 'dolu-2', 'quantity')!.value).toBe('0');
     expect(h.gridCell('kabulKalemleri', 'dolu-3', 'quantity')!.value).toBe('5');
-    expect(h.gridCell('kabulKalemleri', 'dolu-1', 'trackingMode')!.value).toBe('None');
     expect(await within(dialog).findByText(/Gönderilecek satır: 2/, {}, T)).toBeTruthy();
     h.type(h.gridCell('kabulKalemleri', 'dolu-3', 'quantity')!, '2');
     await h.pick(h.gridCell('kabulKalemleri', 'dolu-3', 'storageLocationId')!, 'A-01');
@@ -123,44 +124,18 @@ describe('Satınalma siparişleri standart tanımı', { timeout: 60000 }, () => 
       requestId: expect.stringMatching(GUID), warehouseId: W1, receiptDate: today(),
       lines: [
         // Fiyatlar sipariş satırından dolar (aynı kodlu sütunlar) ve olduğu gibi gönderilir.
-        { orderLineNumber: 1, quantity: 6, unitCode: 'ADET', unitPrice: 100, discountPercent: 0, vatPercent: 20 },
-        { orderLineNumber: 3, quantity: 2, unitCode: 'RULO', storageLocationId: L1, unitPrice: 100, discountPercent: 0, vatPercent: 20 },
+        { orderLineNumber: 1, quantity: 6, unitCode: 'ADET' },
+        { orderLineNumber: 3, quantity: 2, unitCode: 'RULO', storageLocationId: L1 },
       ],
     });
     await waitFor(() => expect(screen.queryByRole('dialog', { name: /Mal kabul · SA-0001/ })).toBeNull(), T);
   });
 
-  it('a free (Bedelsiz) line locks and clears its price cells and sends no price; a priced line sends the overridden price', async () => {
+  it('the compact receipt window does not expose legacy price or tracking editors', async () => {
     const dialog = await openReceiptDialog();
-    // Sipariş fiyatı ve formül Tutar: 6 × 100 = 600.
-    expect(h.gridCell('kabulKalemleri', 'dolu-1', 'unitPrice')!.value).toBe('100');
-    expect(h.gridCell('kabulKalemleri', 'dolu-1', 'vatPercent')!.value).toBe('20');
-    expect(h.gridCell('kabulKalemleri', 'dolu-1', 'lineNetAmount')!.value).toBe('600');
-    // Satır 1 bedelsiz: fiyat, iskonto, KDV ve Tutar hücreleri salt okunur "—" olur.
-    fireEvent.click(h.gridCell('kabulKalemleri', 'dolu-1', 'isFreeOfCharge')!);
-    await waitFor(() => expect(h.gridCell('kabulKalemleri', 'dolu-1', 'unitPrice')).toBeNull(), T);
-    const lockedCells = dialog.querySelectorAll('[data-locked]');
-    expect([...lockedCells].map((cell) => cell.getAttribute('data-locked'))).toEqual(['unitPrice', 'discountPercent', 'vatPercent', 'lineNetAmount']);
-    expect([...lockedCells].every((cell) => cell.textContent === '—')).toBe(true);
-    // Bedelsiz kaldırılınca siparişin fiyatı geri gelir; yeniden işaretlenir.
-    fireEvent.click(h.gridCell('kabulKalemleri', 'dolu-1', 'isFreeOfCharge')!);
-    await waitFor(() => expect(h.gridCell('kabulKalemleri', 'dolu-1', 'unitPrice')?.value).toBe('100'), T);
-    expect(h.gridCell('kabulKalemleri', 'dolu-1', 'lineNetAmount')!.value).toBe('600');
-    fireEvent.click(h.gridCell('kabulKalemleri', 'dolu-1', 'isFreeOfCharge')!);
-    await waitFor(() => expect(h.gridCell('kabulKalemleri', 'dolu-1', 'unitPrice')).toBeNull(), T);
-    // Satır 3 fiyatlı: kullanıcının yazdığı fiyat ve iskonto gönderilir; Tutar 5 × 80 × 0,9 = 360.
-    h.type(h.gridCell('kabulKalemleri', 'dolu-3', 'unitPrice')!, '80');
-    h.type(h.gridCell('kabulKalemleri', 'dolu-3', 'discountPercent')!, '10');
-    await waitFor(() => expect(h.gridCell('kabulKalemleri', 'dolu-3', 'lineNetAmount')!.value).toBe('360'), T);
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Mal kabulü kaydet' }));
-    await waitFor(() => expect(h.sent(RECEIPTS)).toHaveLength(1), T);
-    expect(h.bodyOf(h.sent(RECEIPTS)[0])).toEqual({
-      requestId: expect.stringMatching(GUID), warehouseId: W1, receiptDate: today(),
-      lines: [
-        { orderLineNumber: 1, quantity: 6, unitCode: 'ADET', isFreeOfCharge: true },
-        { orderLineNumber: 3, quantity: 5, unitCode: 'RULO', unitPrice: 80, discountPercent: 10, vatPercent: 20 },
-      ],
-    });
+    expect(h.gridCell('kabulKalemleri', 'dolu-1', 'unitPrice')).toBeNull();
+    expect(h.gridCell('kabulKalemleri', 'dolu-1', 'trackingCode')).toBeNull();
+    expect(dialog.textContent).toContain('Kabul satırları');
   });
 
   it('a failed receipt keeps the dialog, shows the server text and retries with the same requestId', async () => {
@@ -182,11 +157,11 @@ describe('Satınalma siparişleri standart tanımı', { timeout: 60000 }, () => 
     expect(h.state.navigations[0]).toMatchObject({ page: KEY, params: { purchaseOrderId: P1 }, legacy: true });
   });
 
-  it('Siparişi eski ekranda aç carries the selected order', async () => {
+  it('opens a read-only order detail window from the row action', async () => {
     h.setup(respond);
     await h.select('SA-0002');
-    fireEvent.click(await h.menuItem(/^Siparişi eski ekranda aç/));
-    await waitFor(() => expect(h.state.navigations).toHaveLength(1), T);
-    expect(h.state.navigations[0]).toMatchObject({ page: KEY, params: { purchaseOrderId: P2 }, legacy: true });
+    fireEvent.click(await rowAction('SA-0002', /^Aç/));
+    expect(await screen.findByRole('dialog', {}, T)).toBeTruthy();
+    expect(h.writes()).toEqual([]);
   });
 });

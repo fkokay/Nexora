@@ -1,537 +1,2294 @@
 {
-  "screenKey": "sales-requests", "title": "Satınalma talepleri",
-  "description": "İhtiyaçları kaydedin, onayları ve tedarikçi tekliflerini takip edin.", "module": "Satın Alma",
-  "version": 2, "stage": "preview",
+  "screenKey": "sales-requests",
+  "title": "Satınalma talepleri",
+  "description": "İhtiyaçları kaydedin, onayları ve tedarikçi tekliflerini takip edin.",
+  "module": "Satın Alma",
+  "version": 3,
+  "stage": "preview",
   "items": {
-    "component:komutlar": {"since": 1, "label": "İşlem çubuğu", "requires": ["component:suzgec", "component:liste", "component:yeniTalepDugmesi", "component:acDugmesi", "component:onaylaDugmesi", "component:reddetDugmesi", "component:teklifEkleDugmesi", "component:siparisOlusturDugmesi", "component:siparisiAcDugmesi", "component:alanlarDugmesi", "query:talepler"]},
-    "component:onayBekliyorGostergesi": {"since": 1, "label": "Onay bekliyor göstergesi", "requires": ["component:durumSecimi", "query:sayOnayBekliyor"]},
-    "component:onaylandiGostergesi": {"since": 1, "label": "Onaylandı göstergesi", "requires": ["component:durumSecimi", "query:sayOnaylandi"]},
-    "component:siparisGostergesi": {"since": 1, "label": "Siparişe dönüştü göstergesi", "requires": ["component:durumSecimi", "query:sayDonustu"]},
-    "component:reddedildiGostergesi": {"since": 1, "label": "Reddedildi göstergesi", "requires": ["component:durumSecimi", "query:sayReddedildi"]},
-    "component:durumOnayBekliyor": {"since": 1, "label": "Sayaç durumu: Onay bekliyor (gizli)"},
-    "component:durumOnaylandi": {"since": 1, "label": "Sayaç durumu: Onaylandı (gizli)"},
-    "component:durumDonustu": {"since": 1, "label": "Sayaç durumu: Siparişe dönüştü (gizli)"},
-    "component:durumReddedildi": {"since": 1, "label": "Sayaç durumu: Reddedildi (gizli)"},
-    "component:sayacSayfaBoyutu": {"since": 1, "label": "Sayaç sayfa boyutu (gizli)"},
-    "component:suzgec": {"since": 1, "label": "Süzgeç alanı (arama)", "requires": ["component:liste"]},
-    "component:secimCipleri": {"since": 1, "label": "Durum seçimi çipleri", "requires": ["component:durumSecimi"]},
-    "component:suzgecSecimleri": {"since": 1, "label": "Süzgeç seçimleri kartı", "requires": ["component:durumSecimi"]},
-    "component:durumSecimi": {"since": 1, "label": "Durum seçimi"},
-    "component:detayPaneli": {"since": 1, "label": "Detay paneli anahtarı"},
-    "component:liste": {"since": 1, "label": "Talep listesi", "requires": ["component:detayPaneli", "component:acDugmesi", "query:talepler"]},
-    "component:acDugmesi": {"since": 1, "label": "Talebi aç (eski ekran)", "requires": ["component:liste"]},
-    "component:detayKarti": {"since": 1, "label": "Detay paneli", "requires": ["component:detayPaneli", "component:liste", "component:ozetPaneli", "component:enIyiTeklif", "component:kalemTablosu", "component:teklifTablosu", "component:alanTablosu", "component:panelOnayla", "component:panelReddet", "query:teklifler"]},
-    "component:ozetPaneli": {"since": 1, "label": "Detay: Özet", "requires": ["component:liste"]},
-    "component:enIyiTeklif": {"since": 1, "label": "Detay: En iyi teklif", "requires": ["query:teklifler"]},
-    "component:kalemTablosu": {"since": 1, "label": "Detay: Kalemler", "requires": ["query:kalemler"]},
-    "component:teklifTablosu": {"since": 1, "label": "Detay: Teklifler", "requires": ["query:teklifler", "component:tekliftenSiparisDugmesi"]},
-    "component:alanTablosu": {"since": 1, "label": "Detay: Özel alanlar", "requires": ["query:ozelDegerler"]},
-    "component:panelOnayla": {"since": 1, "label": "Detay: Onayla", "requires": ["component:liste", "query:panelOnay", "query:talepler"]},
-    "component:panelReddet": {"since": 1, "label": "Detay: Reddet", "requires": ["component:liste", "query:panelRet", "query:talepler"]},
-    "component:yeniTalepDugmesi": {"since": 1, "label": "Yeni talep komutu", "requires": ["component:yeniTalepPenceresi"]},
-    "component:onaylaDugmesi": {"since": 1, "label": "Onayla komutu", "requires": ["component:liste", "query:onay", "query:talepler"]},
-    "component:reddetDugmesi": {"since": 1, "label": "Reddet komutu", "requires": ["component:liste", "query:ret", "query:talepler"]},
-    "component:teklifEkleDugmesi": {"since": 1, "label": "Teklif ekle komutu", "requires": ["component:liste", "component:teklifPenceresi"]},
-    "component:siparisOlusturDugmesi": {"since": 1, "label": "Siparişe dönüştür komutu (teklifsiz)", "requires": ["component:liste", "component:siparisPenceresi"]},
-    "component:tedarikciTuru": {"since": 2, "label": "Tedarikçi seçici: cari türü (gizli)"},
-    "component:tedarikciDurumu": {"since": 2, "label": "Tedarikçi seçici: durum (gizli)"},
-    "component:yeniTalepPenceresi": {"since": 2, "label": "Yeni talep penceresi",
-      "requires": ["component:talepBilgileri", "component:talepKalemleri", "component:talepNotu", "query:talepOlustur", "query:talepler", "query:sayOnayBekliyor"]},
-    "component:talepBilgileri": {"since": 2, "label": "Talep bilgileri", "requires": ["component:talepNo", "component:talepTarihi", "component:ihtiyacTarihi", "component:talepAciklamasi"]},
-    "component:talepNo": {"since": 2, "label": "Talep alanı: Talep no"},
-    "component:talepTarihi": {"since": 2, "label": "Talep alanı: Talep tarihi"},
-    "component:ihtiyacTarihi": {"since": 2, "label": "Talep alanı: İhtiyaç tarihi"},
-    "component:talepAciklamasi": {"since": 2, "label": "Talep alanı: Açıklama"},
-    "component:talepKalemleri": {"since": 2, "label": "Talep kalemleri", "requires": ["query:stoklar", "query:birimler"]},
-    "component:talepNotu": {"since": 2, "label": "Talep kalem sayacı", "requires": ["component:talepKalemleri"]},
-    "component:teklifPenceresi": {"since": 2, "label": "Teklif girişi penceresi",
-      "requires": ["component:liste", "component:teklifBilgileri", "component:teklifKalemleri", "component:teklifToplami", "query:teklifKaydet",
-                   "query:teklifler", "query:talepler", "query:kalemler"]},
-    "component:teklifBilgileri": {"since": 2, "label": "Teklif bilgileri",
-      "requires": ["component:teklifTedarikci", "component:teklifNo", "component:teklifTarihi", "component:teklifGecerlilik", "component:teklifNotlari"]},
-    "component:teklifTedarikci": {"since": 2, "label": "Teklif alanı: Tedarikçi", "requires": ["query:teklifTedarikcileri"]},
-    "component:teklifNo": {"since": 2, "label": "Teklif alanı: Teklif no"},
-    "component:teklifTarihi": {"since": 2, "label": "Teklif alanı: Teklif tarihi"},
-    "component:teklifGecerlilik": {"since": 2, "label": "Teklif alanı: Geçerlilik"},
-    "component:teklifNotlari": {"since": 2, "label": "Teklif alanı: Not"},
-    "component:teklifKalemleri": {"since": 2, "label": "Teklif satırları (talep kalemlerinden)", "requires": ["query:kalemler"]},
-    "component:teklifToplami": {"since": 2, "label": "Teklif toplamları", "requires": ["component:teklifKalemleri"]},
-    "component:siparisPenceresi": {"since": 2, "label": "Talepten sipariş penceresi (teklifsiz)",
-      "requires": ["component:liste", "component:siparisBilgileri", "component:siparisKalemleri", "component:siparisToplami", "query:siparisOlustur",
-                   "query:talepler", "query:sayOnaylandi", "query:sayDonustu", "query:kalemler"]},
-    "component:siparisBilgileri": {"since": 2, "label": "Sipariş bilgileri",
-      "requires": ["component:siparisTedarikci", "component:siparisNo", "component:siparisTarihi", "component:siparisTeslimTarihi", "component:siparisDepo",
-                   "component:siparisNotlari"]},
-    "component:siparisTedarikci": {"since": 2, "label": "Sipariş alanı: Tedarikçi", "requires": ["query:siparisTedarikcileri"]},
-    "component:siparisNo": {"since": 2, "label": "Sipariş alanı: Sipariş no"},
-    "component:siparisTarihi": {"since": 2, "label": "Sipariş alanı: Sipariş tarihi"},
-    "component:siparisTeslimTarihi": {"since": 2, "label": "Sipariş alanı: Beklenen teslim"},
-    "component:siparisDepo": {"since": 2, "label": "Sipariş alanı: Hedef depo", "requires": ["query:depolar"]},
-    "component:siparisNotlari": {"since": 2, "label": "Sipariş alanı: Not"},
-    "component:siparisKalemleri": {"since": 2, "label": "Sipariş satırları (talep kalemlerinden)", "requires": ["query:kalemler"]},
-    "component:siparisToplami": {"since": 2, "label": "Sipariş toplamları", "requires": ["component:siparisKalemleri"]},
-    "component:tekliftenSiparisDugmesi": {"since": 2, "label": "Tekliften sipariş satır düğmesi", "requires": ["component:liste", "component:teklifSiparisPenceresi"]},
-    "component:teklifSiparisPenceresi": {"since": 2, "label": "Tekliften sipariş penceresi",
-      "requires": ["component:liste", "component:teklifTablosu", "component:teklifSiparisBilgileri", "component:teklifSiparisKalemleri",
-                   "component:teklifSiparisToplami", "query:teklifliSiparisOlustur", "query:talepler", "query:sayOnaylandi", "query:sayDonustu",
-                   "query:teklifler", "query:teklifKalemKaynak"]},
-    "component:teklifSiparisBilgileri": {"since": 2, "label": "Tekliften sipariş bilgileri",
-      "requires": ["component:tsSiparisNo", "component:tsSiparisTarihi", "component:tsTeslimTarihi", "component:tsDepo", "component:tsNotlari"]},
-    "component:tsSiparisNo": {"since": 2, "label": "Tekliften sipariş alanı: Sipariş no"},
-    "component:tsSiparisTarihi": {"since": 2, "label": "Tekliften sipariş alanı: Sipariş tarihi"},
-    "component:tsTeslimTarihi": {"since": 2, "label": "Tekliften sipariş alanı: Beklenen teslim"},
-    "component:tsDepo": {"since": 2, "label": "Tekliften sipariş alanı: Hedef depo", "requires": ["query:depolar"]},
-    "component:tsNotlari": {"since": 2, "label": "Tekliften sipariş alanı: Not"},
-    "component:teklifSiparisKalemleri": {"since": 2, "label": "Tekliften sipariş satırları (salt okunur)", "requires": ["query:teklifKalemKaynak"]},
-    "component:teklifSiparisToplami": {"since": 2, "label": "Tekliften sipariş toplamı", "requires": ["component:teklifSiparisKalemleri"]},
-    "component:siparisiAcDugmesi": {"since": 1, "label": "Siparişi aç komutu", "requires": ["component:liste"]},
-    "component:alanlarDugmesi": {"since": 1, "label": "Alanlar komutu (eski ekran)"},
-    "query:talepler": {"since": 1, "label": "Satınalma taleplerini listele", "requires": ["component:suzgec", "component:durumSecimi", "component:liste"]},
-    "query:sayOnayBekliyor": {"since": 1, "label": "Onay bekleyen talep sayısı", "requires": ["component:suzgec", "component:durumOnayBekliyor", "component:sayacSayfaBoyutu"]},
-    "query:sayOnaylandi": {"since": 1, "label": "Onaylanan talep sayısı", "requires": ["component:suzgec", "component:durumOnaylandi", "component:sayacSayfaBoyutu"]},
-    "query:sayDonustu": {"since": 1, "label": "Siparişe dönüşen talep sayısı", "requires": ["component:suzgec", "component:durumDonustu", "component:sayacSayfaBoyutu"]},
-    "query:sayReddedildi": {"since": 1, "label": "Reddedilen talep sayısı", "requires": ["component:suzgec", "component:durumReddedildi", "component:sayacSayfaBoyutu"]},
-    "query:kalemler": {"since": 1, "label": "Seçili talebin kalemleri", "requires": ["component:liste"]},
-    "query:teklifler": {"since": 1, "label": "Seçili talebin tedarikçi teklifleri", "requires": ["component:liste"]},
-    "query:ozelDegerler": {"since": 1, "label": "Seçili talebin özel alanları", "requires": ["component:liste"]},
-    "query:onay": {"since": 1, "label": "Talebi onayla (komut)", "requires": ["component:liste", "component:onaylaDugmesi"]},
-    "query:ret": {"since": 1, "label": "Talebi reddet (komut)", "requires": ["component:liste", "component:reddetDugmesi"]},
-    "query:panelOnay": {"since": 1, "label": "Talebi onayla (panel)", "requires": ["component:liste", "component:panelOnayla"]},
-    "query:panelRet": {"since": 1, "label": "Talebi reddet (panel)", "requires": ["component:liste", "component:panelReddet"]},
-    "query:stoklar": {"since": 2, "label": "Stok kartı arama", "requires": ["component:talepKalemleri"]},
-    "query:birimler": {"since": 2, "label": "Satırdaki stok kartının birimleri", "requires": ["component:talepKalemleri"]},
-    "query:talepOlustur": {"since": 2, "label": "Satınalma talebi oluştur",
-      "requires": ["component:talepNo", "component:talepTarihi", "component:ihtiyacTarihi", "component:talepAciklamasi", "component:talepKalemleri"]},
-    "query:teklifTedarikcileri": {"since": 2, "label": "Teklif tedarikçi seçenekleri", "requires": ["component:teklifTedarikci", "component:tedarikciTuru", "component:tedarikciDurumu"]},
-    "query:teklifKaydet": {"since": 2, "label": "Talebe tedarikçi teklifi kaydet",
-      "requires": ["component:liste", "component:teklifTedarikci", "component:teklifNo", "component:teklifTarihi", "component:teklifGecerlilik",
-                   "component:teklifNotlari", "component:teklifKalemleri"]},
-    "query:siparisTedarikcileri": {"since": 2, "label": "Sipariş tedarikçi seçenekleri", "requires": ["component:siparisTedarikci", "component:tedarikciTuru", "component:tedarikciDurumu"]},
-    "query:depolar": {"since": 2, "label": "Depoları listele"},
-    "query:siparisOlustur": {"since": 2, "label": "Talepten sipariş oluştur (teklifsiz)",
-      "requires": ["component:liste", "component:siparisTedarikci", "component:siparisNo", "component:siparisTarihi", "component:siparisTeslimTarihi",
-                   "component:siparisDepo", "component:siparisNotlari", "component:siparisKalemleri"]},
-    "query:teklifKalemKaynak": {"since": 2, "label": "Seçili teklifin kalemleri", "requires": ["component:teklifTablosu"]},
-    "query:teklifliSiparisOlustur": {"since": 2, "label": "Tekliften sipariş oluştur",
-      "requires": ["component:liste", "component:teklifTablosu", "component:tsSiparisNo", "component:tsSiparisTarihi", "component:tsTeslimTarihi",
-                   "component:tsDepo", "component:tsNotlari", "component:teklifSiparisKalemleri"]}
+    "component:siparisiAcDugmesi": {
+      "since": 1,
+      "label": "Siparişi aç komutu",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:komutlar": {
+      "since": 1,
+      "label": "İşlem çubuğu",
+      "requires": [
+        "component:liste",
+        "component:suzgec",
+        "component:yeniTalepDugmesi",
+        "query:talepler"
+      ]
+    },
+    "component:siparisTeslimTarihi": {
+      "since": 2,
+      "label": "siparisTeslimTarihi",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:teklifSiparisBilgileri": {
+      "since": 2,
+      "label": "Tekliften sipariş bilgileri",
+      "requires": [
+        "component:tsDepo",
+        "component:tsNotlari",
+        "component:tsSiparisNo",
+        "component:tsSiparisTarihi",
+        "component:tsTeslimTarihi"
+      ]
+    },
+    "component:teklifGecerlilik": {
+      "since": 2,
+      "label": "teklifGecerlilik"
+    },
+    "component:reddetDugmesi": {
+      "since": 1,
+      "label": "Reddet komutu",
+      "requires": [
+        "component:liste",
+        "query:ret",
+        "query:sayOnayBekliyor",
+        "query:sayReddedildi",
+        "query:talepler"
+      ]
+    },
+    "component:tsDepo": {
+      "since": 2,
+      "label": "tsDepo",
+      "requires": [
+        "query:depolar"
+      ]
+    },
+    "component:teklifEkleDugmesi": {
+      "since": 1,
+      "label": "Teklif ekle komutu",
+      "requires": [
+        "component:liste",
+        "component:teklifPenceresi"
+      ]
+    },
+    "component:durumDonustu": {
+      "since": 1,
+      "label": "Sayaç durumu: Siparişe dönüştü (gizli)"
+    },
+    "component:yeniTalepPenceresi": {
+      "since": 2,
+      "label": "Yeni talep penceresi",
+      "requires": [
+        "component:ihtiyacTarihi",
+        "component:talepAciklamasi",
+        "component:talepBilgileri",
+        "component:talepKalemleri",
+        "component:talepNo",
+        "component:talepNotu",
+        "component:talepTarihi",
+        "query:sayOnayBekliyor",
+        "query:talepOlustur",
+        "query:talepler"
+      ]
+    },
+    "component:teklifSiparisToplami": {
+      "since": 2,
+      "label": "Tekliften sipariş toplamı",
+      "requires": [
+        "component:teklifSiparisKalemleri",
+        "component:teklifTablosu"
+      ]
+    },
+    "component:tedarikciDurumu": {
+      "since": 2,
+      "label": "Tedarikçi seçici: durum (gizli)"
+    },
+    "component:detayKarti": {
+      "since": 1,
+      "label": "Detay paneli",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:teklifBilgileri": {
+      "since": 2,
+      "label": "Teklif bilgileri",
+      "requires": [
+        "component:teklifGecerlilik",
+        "component:teklifNo",
+        "component:teklifNotlari",
+        "component:teklifTarihi",
+        "component:teklifTedarikci"
+      ]
+    },
+    "component:teklifToplami": {
+      "since": 2,
+      "label": "Teklif toplamları",
+      "requires": [
+        "component:teklifKalemleri"
+      ]
+    },
+    "component:siparisNo": {
+      "since": 2,
+      "label": "siparisNo"
+    },
+    "component:siparisOlusturDugmesi": {
+      "since": 1,
+      "label": "Siparişe dönüştür komutu (teklifsiz)",
+      "requires": [
+        "component:liste",
+        "component:siparisPenceresi"
+      ]
+    },
+    "component:tekliftenSiparisDugmesi": {
+      "since": 2,
+      "label": "Tekliften sipariş satır düğmesi",
+      "requires": [
+        "component:liste",
+        "component:teklifSiparisPenceresi"
+      ]
+    },
+    "component:acDugmesi": {
+      "since": 1,
+      "label": "Talebi aç (eski ekran)",
+      "requires": [
+        "component:liste",
+        "component:talepDetayPenceresi"
+      ]
+    },
+    "component:suzgec": {
+      "since": 1,
+      "label": "Süzgeç alanı (arama)"
+    },
+    "component:teklifNotlari": {
+      "since": 2,
+      "label": "teklifNotlari"
+    },
+    "component:talepKalemleri": {
+      "since": 2,
+      "label": "Talep kalemleri",
+      "requires": [
+        "query:stoklar"
+      ]
+    },
+    "component:teklifKalemleri": {
+      "since": 2,
+      "label": "Teklif satırları (talep kalemlerinden)",
+      "requires": [
+        "query:kalemler"
+      ]
+    },
+    "component:siparisPenceresi": {
+      "since": 2,
+      "label": "Talepten sipariş penceresi (teklifsiz)",
+      "requires": [
+        "component:liste",
+        "component:siparisBilgileri",
+        "component:siparisDepo",
+        "component:siparisKalemleri",
+        "component:siparisNo",
+        "component:siparisNotlari",
+        "component:siparisTarihi",
+        "component:siparisTedarikci",
+        "component:siparisTeslimTarihi",
+        "component:siparisToplami",
+        "query:kalemler",
+        "query:sayDonustu",
+        "query:sayOnaylandi",
+        "query:siparisOlustur",
+        "query:talepler",
+        "query:teklifler"
+      ]
+    },
+    "component:siparisKalemleri": {
+      "since": 2,
+      "label": "Sipariş satırları (talep kalemlerinden)",
+      "requires": [
+        "query:kalemler"
+      ]
+    },
+    "component:teklifSiparisKalemleri": {
+      "since": 2,
+      "label": "Tekliften sipariş satırları (salt okunur)",
+      "requires": [
+        "query:teklifKalemKaynak"
+      ]
+    },
+    "component:yeniTalepDugmesi": {
+      "since": 1,
+      "label": "Yeni talep komutu",
+      "requires": [
+        "component:yeniTalepPenceresi"
+      ]
+    },
+    "component:teklifSiparisPenceresi": {
+      "since": 2,
+      "label": "Tekliften sipariş penceresi",
+      "requires": [
+        "component:teklifSiparisBilgileri",
+        "component:teklifSiparisKalemleri",
+        "component:teklifSiparisToplami",
+        "component:teklifTablosu",
+        "component:tsDepo",
+        "component:tsNotlari",
+        "component:tsSiparisNo",
+        "component:tsSiparisTarihi",
+        "component:tsTeslimTarihi",
+        "query:sayDonustu",
+        "query:sayOnaylandi",
+        "query:talepler",
+        "query:teklifKalemKaynak",
+        "query:teklifler",
+        "query:teklifliSiparisOlustur"
+      ]
+    },
+    "component:tedarikciTuru": {
+      "since": 2,
+      "label": "Tedarikçi seçici: cari türü (gizli)"
+    },
+    "component:talepDetayPenceresi": {
+      "since": 3,
+      "label": "talepDetayPenceresi",
+      "requires": [
+        "component:kalemTablosu",
+        "component:talepDetayBasligi",
+        "component:talepDetaySekmeleri",
+        "component:teklifTablosu",
+        "component:tekliftenSiparisDugmesi",
+        "query:talepler"
+      ]
+    },
+    "component:talepDetayBasligi": {
+      "since": 3,
+      "label": "talepDetayBasligi",
+      "requires": [
+        "query:talepler"
+      ]
+    },
+    "component:durumOnaylandi": {
+      "since": 1,
+      "label": "Sayaç durumu: Onaylandı (gizli)"
+    },
+    "component:onayBekliyorGostergesi": {
+      "since": 1,
+      "label": "Onay bekliyor göstergesi",
+      "requires": [
+        "query:sayOnayBekliyor"
+      ]
+    },
+    "component:durumOnayBekliyor": {
+      "since": 1,
+      "label": "Sayaç durumu: Onay bekliyor (gizli)"
+    },
+    "component:siparisBilgileri": {
+      "since": 2,
+      "label": "Sipariş bilgileri",
+      "requires": [
+        "component:siparisDepo",
+        "component:siparisNo",
+        "component:siparisNotlari",
+        "component:siparisTarihi",
+        "component:siparisTedarikci",
+        "component:siparisTeslimTarihi"
+      ]
+    },
+    "component:siparisToplami": {
+      "since": 2,
+      "label": "Sipariş toplamları",
+      "requires": [
+        "component:siparisKalemleri"
+      ]
+    },
+    "component:siparisDepo": {
+      "since": 2,
+      "label": "siparisDepo",
+      "requires": [
+        "query:depolar"
+      ]
+    },
+    "component:talepNotu": {
+      "since": 2,
+      "label": "Talep kalem sayacı",
+      "requires": [
+        "component:talepKalemleri"
+      ]
+    },
+    "component:siparisNotlari": {
+      "since": 2,
+      "label": "siparisNotlari"
+    },
+    "component:tsTeslimTarihi": {
+      "since": 2,
+      "label": "tsTeslimTarihi",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:teklifTarihi": {
+      "since": 2,
+      "label": "teklifTarihi"
+    },
+    "component:onaylaDugmesi": {
+      "since": 1,
+      "label": "Onayla komutu",
+      "requires": [
+        "component:liste",
+        "query:onay",
+        "query:sayOnayBekliyor",
+        "query:sayOnaylandi",
+        "query:talepler"
+      ]
+    },
+    "component:sayacSayfaBoyutu": {
+      "since": 1,
+      "label": "Sayaç sayfa boyutu (gizli)"
+    },
+    "component:kalemTablosu": {
+      "since": 1,
+      "label": "kalemTablosu",
+      "requires": [
+        "query:kalemler"
+      ]
+    },
+    "component:ihtiyacTarihi": {
+      "since": 2,
+      "label": "ihtiyacTarihi"
+    },
+    "component:teklifTedarikci": {
+      "since": 2,
+      "label": "teklifTedarikci",
+      "requires": [
+        "query:teklifTedarikcileri"
+      ]
+    },
+    "component:talepTarihi": {
+      "since": 2,
+      "label": "talepTarihi"
+    },
+    "component:teklifNo": {
+      "since": 2,
+      "label": "teklifNo"
+    },
+    "component:onaylandiGostergesi": {
+      "since": 1,
+      "label": "Onaylandı göstergesi",
+      "requires": [
+        "query:sayOnaylandi"
+      ]
+    },
+    "component:talepBilgileri": {
+      "since": 2,
+      "label": "Talep bilgileri",
+      "requires": [
+        "component:ihtiyacTarihi",
+        "component:talepAciklamasi",
+        "component:talepNo",
+        "component:talepTarihi"
+      ]
+    },
+    "component:talepAciklamasi": {
+      "since": 2,
+      "label": "talepAciklamasi"
+    },
+    "component:tsNotlari": {
+      "since": 2,
+      "label": "tsNotlari"
+    },
+    "component:talepDetaySekmeleri": {
+      "since": 3,
+      "label": "talepDetaySekmeleri",
+      "requires": [
+        "component:kalemTablosu",
+        "component:teklifTablosu"
+      ]
+    },
+    "component:reddedildiGostergesi": {
+      "since": 1,
+      "label": "Reddedildi göstergesi",
+      "requires": [
+        "query:sayReddedildi"
+      ]
+    },
+    "component:liste": {
+      "since": 1,
+      "label": "Talep listesi",
+      "requires": [
+        "component:acDugmesi",
+        "component:onaylaDugmesi",
+        "component:reddetDugmesi",
+        "component:siparisOlusturDugmesi",
+        "component:siparisiAcDugmesi",
+        "component:teklifEkleDugmesi",
+        "query:talepler"
+      ]
+    },
+    "component:siparisTedarikci": {
+      "since": 2,
+      "label": "siparisTedarikci",
+      "requires": [
+        "query:siparisTedarikcileri"
+      ]
+    },
+    "component:tsSiparisTarihi": {
+      "since": 2,
+      "label": "tsSiparisTarihi"
+    },
+    "component:talepNo": {
+      "since": 2,
+      "label": "talepNo"
+    },
+    "component:siparisGostergesi": {
+      "since": 1,
+      "label": "Siparişe dönüştü göstergesi",
+      "requires": [
+        "query:sayDonustu"
+      ]
+    },
+    "component:durumSecimi": {
+      "since": 1,
+      "label": "durumSecimi"
+    },
+    "component:siparisTarihi": {
+      "since": 2,
+      "label": "siparisTarihi"
+    },
+    "component:teklifPenceresi": {
+      "since": 2,
+      "label": "Teklif girişi penceresi",
+      "requires": [
+        "component:liste",
+        "component:teklifBilgileri",
+        "component:teklifGecerlilik",
+        "component:teklifKalemleri",
+        "component:teklifNo",
+        "component:teklifNotlari",
+        "component:teklifTarihi",
+        "component:teklifTedarikci",
+        "component:teklifToplami",
+        "query:kalemler",
+        "query:talepler",
+        "query:teklifKaydet",
+        "query:teklifler"
+      ]
+    },
+    "component:tsSiparisNo": {
+      "since": 2,
+      "label": "tsSiparisNo"
+    },
+    "component:durumReddedildi": {
+      "since": 1,
+      "label": "Sayaç durumu: Reddedildi (gizli)"
+    },
+    "component:teklifTablosu": {
+      "since": 1,
+      "label": "teklifTablosu",
+      "requires": [
+        "query:teklifler"
+      ]
+    },
+    "query:talepler": {
+      "since": 1,
+      "label": "Satınalma taleplerini listele",
+      "requires": [
+        "component:durumSecimi",
+        "component:liste",
+        "component:suzgec"
+      ]
+    },
+    "query:sayOnayBekliyor": {
+      "since": 1,
+      "label": "Onay bekleyen talep sayısı",
+      "requires": [
+        "component:durumOnayBekliyor",
+        "component:sayacSayfaBoyutu",
+        "component:suzgec"
+      ]
+    },
+    "query:sayOnaylandi": {
+      "since": 1,
+      "label": "Onaylanan talep sayısı",
+      "requires": [
+        "component:durumOnaylandi",
+        "component:sayacSayfaBoyutu",
+        "component:suzgec"
+      ]
+    },
+    "query:sayDonustu": {
+      "since": 1,
+      "label": "Siparişe dönüşen talep sayısı",
+      "requires": [
+        "component:durumDonustu",
+        "component:sayacSayfaBoyutu",
+        "component:suzgec"
+      ]
+    },
+    "query:sayReddedildi": {
+      "since": 1,
+      "label": "Reddedilen talep sayısı",
+      "requires": [
+        "component:durumReddedildi",
+        "component:sayacSayfaBoyutu",
+        "component:suzgec"
+      ]
+    },
+    "query:kalemler": {
+      "since": 1,
+      "label": "Seçili talebin kalemleri",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:teklifler": {
+      "since": 1,
+      "label": "Seçili talebin tedarikçi teklifleri",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:onay": {
+      "since": 1,
+      "label": "Talebi onayla (komut)",
+      "requires": [
+        "component:liste",
+        "component:onaylaDugmesi"
+      ]
+    },
+    "query:ret": {
+      "since": 1,
+      "label": "Talebi reddet (komut)",
+      "requires": [
+        "component:liste",
+        "component:reddetDugmesi"
+      ]
+    },
+    "query:stoklar": {
+      "since": 2,
+      "label": "Stok kartı arama",
+      "requires": [
+        "component:talepKalemleri"
+      ]
+    },
+    "query:birimler": {
+      "since": 2,
+      "label": "Satırdaki stok kartının birimleri",
+      "requires": [
+        "component:talepKalemleri"
+      ]
+    },
+    "query:talepOlustur": {
+      "since": 2,
+      "label": "Satınalma talebi oluştur",
+      "requires": [
+        "component:ihtiyacTarihi",
+        "component:talepAciklamasi",
+        "component:talepKalemleri",
+        "component:talepNo",
+        "component:talepTarihi"
+      ]
+    },
+    "query:teklifTedarikcileri": {
+      "since": 2,
+      "label": "Teklif tedarikçi seçenekleri",
+      "requires": [
+        "component:tedarikciDurumu",
+        "component:tedarikciTuru",
+        "component:teklifTedarikci"
+      ]
+    },
+    "query:teklifKaydet": {
+      "since": 2,
+      "label": "Talebe tedarikçi teklifi kaydet",
+      "requires": [
+        "component:liste",
+        "component:teklifGecerlilik",
+        "component:teklifKalemleri",
+        "component:teklifNo",
+        "component:teklifNotlari",
+        "component:teklifTarihi",
+        "component:teklifTedarikci"
+      ]
+    },
+    "query:siparisTedarikcileri": {
+      "since": 2,
+      "label": "Sipariş tedarikçi seçenekleri",
+      "requires": [
+        "component:siparisTedarikci",
+        "component:tedarikciDurumu",
+        "component:tedarikciTuru"
+      ]
+    },
+    "query:depolar": {
+      "since": 2,
+      "label": "Depoları listele"
+    },
+    "query:siparisOlustur": {
+      "since": 2,
+      "label": "Talepten sipariş oluştur (teklifsiz)",
+      "requires": [
+        "component:liste",
+        "component:siparisDepo",
+        "component:siparisKalemleri",
+        "component:siparisNo",
+        "component:siparisNotlari",
+        "component:siparisTarihi",
+        "component:siparisTedarikci",
+        "component:siparisTeslimTarihi"
+      ]
+    },
+    "query:teklifKalemKaynak": {
+      "since": 2,
+      "label": "Seçili teklifin kalemleri",
+      "requires": [
+        "component:teklifTablosu"
+      ]
+    },
+    "query:teklifliSiparisOlustur": {
+      "since": 2,
+      "label": "Tekliften sipariş oluştur",
+      "requires": [
+        "component:liste",
+        "component:teklifSiparisKalemleri",
+        "component:teklifTablosu",
+        "component:tsDepo",
+        "component:tsNotlari",
+        "component:tsSiparisNo",
+        "component:tsSiparisTarihi",
+        "component:tsTeslimTarihi"
+      ]
+    },
+    "component:alanTablosu": {
+      "since": 1,
+      "label": "Detay: Özel alanlar",
+      "requires": [
+        "query:ozelDegerler"
+      ]
+    },
+    "query:ozelDegerler": {
+      "since": 1,
+      "label": "Seçili talebin özel alanları",
+      "requires": [
+        "component:liste"
+      ]
+    }
   },
-  "screenViews": [ { "key": "purchase-requests", "component": "liste",
-                     "fields": { "code": "code", "description": "description", "requestedByName": "requestedByName", "requestDate": "requestDate",
-                                 "neededByDate": "neededByDate", "lineCount": "lineCount", "status": "status",
-                                 "purchaseOrderCode": "purchaseOrderCode" } } ],
+  "screenViews": [
+    {
+      "key": "purchase-requests",
+      "component": "liste",
+      "fields": {
+        "code": "code",
+        "description": "description",
+        "requestedByName": "requestedByName",
+        "requestDate": "requestDate",
+        "neededByDate": "neededByDate",
+        "lineCount": "lineCount",
+        "status": "status",
+        "purchaseOrderCode": "purchaseOrderCode"
+      }
+    }
+  ],
   "definition": {
     "schemaVersion": 2,
     "components": [
-      { "id": "komutlar", "type": "actionBar", "name": "komutlar",
-        "props": { "newButton": "yeniTalepDugmesi", "openButton": "acDugmesi", "focusInput": "suzgec", "exportTable": "liste",
-                   "titleCount": "{{talepler.meta.totalCount}}",
-                   "moreButtons": ["onaylaDugmesi", "reddetDugmesi", "teklifEkleDugmesi", "siparisOlusturDugmesi", "siparisiAcDugmesi", "alanlarDugmesi"],
-                   "hiddenCommands": ["save", "delete", "print"] } },
-
-      { "id": "onayBekliyorGostergesi", "type": "metric", "name": "onayBekliyorGostergesi",
-        "props": { "title": "Onay bekliyor", "value": "{{sayOnayBekliyor.meta.totalCount}}", "format": "number", "width": 3, "icon": "hourglass",
-                   "variant": "warning", "description": "tıkla: süz", "filterInput": "durumSecimi", "filterValue": "Submitted" } },
-      { "id": "onaylandiGostergesi", "type": "metric", "name": "onaylandiGostergesi",
-        "props": { "title": "Onaylandı", "value": "{{sayOnaylandi.meta.totalCount}}", "format": "number", "width": 3, "icon": "check",
-                   "description": "tıkla: süz", "filterInput": "durumSecimi", "filterValue": "Approved" } },
-      { "id": "siparisGostergesi", "type": "metric", "name": "siparisGostergesi",
-        "props": { "title": "Siparişe dönüştü", "value": "{{sayDonustu.meta.totalCount}}", "format": "number", "width": 3, "icon": "shopping-cart",
-                   "variant": "success", "description": "tıkla: süz", "filterInput": "durumSecimi", "filterValue": "Ordered" } },
-      { "id": "reddedildiGostergesi", "type": "metric", "name": "reddedildiGostergesi",
-        "props": { "title": "Reddedildi", "value": "{{sayReddedildi.meta.totalCount}}", "format": "number", "width": 3, "icon": "x-circle",
-                   "description": "tıkla: süz", "filterInput": "durumSecimi", "filterValue": "Rejected" } },
-      { "id": "durumOnayBekliyor", "type": "input", "name": "durumOnayBekliyor",
-        "props": { "inputType": "text", "label": "Sayaç durumu", "hidden": true, "defaultValue": "Submitted" } },
-      { "id": "durumOnaylandi", "type": "input", "name": "durumOnaylandi",
-        "props": { "inputType": "text", "label": "Sayaç durumu", "hidden": true, "defaultValue": "Approved" } },
-      { "id": "durumDonustu", "type": "input", "name": "durumDonustu",
-        "props": { "inputType": "text", "label": "Sayaç durumu", "hidden": true, "defaultValue": "Ordered" } },
-      { "id": "durumReddedildi", "type": "input", "name": "durumReddedildi",
-        "props": { "inputType": "text", "label": "Sayaç durumu", "hidden": true, "defaultValue": "Rejected" } },
-      { "id": "sayacSayfaBoyutu", "type": "input", "name": "sayacSayfaBoyutu",
-        "props": { "inputType": "text", "label": "Sayaç sayfa boyutu", "hidden": true, "defaultValue": "1" } },
-
-      { "id": "suzgec", "type": "filterBar", "name": "suzgec",
-        "props": { "table": "liste", "width": 8, "search": true, "searchPlaceholder": "Talep no, açıklama veya talep sahibi ile ara", "searchParam": "search" } },
-      { "id": "suzgecSecimleri", "type": "formCard", "name": "suzgecSecimleri",
-        "props": { "title": "Süzgeçler", "layout": "inline", "width": 4, "inputs": ["durumSecimi"] } },
-      { "id": "durumSecimi", "type": "input", "name": "durumSecimi",
-        "props": { "inputType": "select", "label": "Durum",
-                   "staticOptions": ["=Tümü", "Submitted=Onay bekliyor", "Approved=Onaylandı", "Ordered=Siparişe dönüştü", "Rejected=Reddedildi"] } },
-      { "id": "detayPaneli", "type": "input", "name": "detayPaneli",
-        "props": { "inputType": "checkbox", "label": "Detay paneli", "icon": "panel", "defaultWhen": "sayfa.genis == true" } },
-      { "id": "secimCipleri", "type": "filterChips", "name": "secimCipleri",
-        "props": { "width": 12, "inputs": ["durumSecimi"] } },
-
-      { "id": "liste", "type": "dataTable", "name": "liste",
-        "props": { "title": "Satınalma talepleri", "query": "talepler", "paging": "server", "pageSize": 25, "width": 12,
-                   "widthWhen": "8=detayPaneli.value == true && liste.seciliSatir.id != null",
-                   "detailToggleInput": "detayPaneli",
-                   "columns": ["code", "description", "requestedByName", "requestDate", "neededByDate", "neededByDays", "lineCount", "quoteCount", "status"],
-                   "columnLabels": ["code=Talep no", "description=Açıklama", "requestedByName=Talep sahibi", "requestDate=Talep tarihi",
-                                    "neededByDate=İhtiyaç tarihi", "neededByDays=Kalan gün", "lineCount=Kalem", "quoteCount=Teklif",
-                                    "status=Durum", "purchaseOrderCode=Bağlı sipariş", "reviewedByName=Karar veren", "createdAt=Oluşturulma"],
-                   "columnFormats": ["code=code", "requestDate=date", "neededByDate=date", "neededByDays=number", "lineCount=number",
-                                     "quoteCount=number", "status=status", "purchaseOrderCode=code", "createdAt=date"],
-                   "valueLabels": ["status:Submitted=Onay bekliyor", "status:Approved=Onaylandı", "status:Ordered=Siparişe dönüştü",
-                                   "status:Rejected=Reddedildi"],
-                   "toneMap": ["Onay bekliyor=warning", "Onaylandı=info", "Siparişe dönüştü=success", "Reddedildi=danger"],
-                   "rowOpenAction": "acDugmesi",
-                   "emptyText": "Filtrelerle eşleşen satın alma talebi yok." } },
-      { "id": "acDugmesi", "type": "button", "name": "acDugmesi",
-        "props": { "text": "Aç", "icon": "open", "actionType": "erpPage", "pageKey": "sales-requests", "legacyScreen": true,
-                   "params": ["requestId={{liste.seciliSatir.id}}"],
-                   "disabledWhen": "liste.seciliSatir.id == null", "disabledReason": "Önce bir kayıt seçin" } },
-
-      { "id": "detayKarti", "type": "card", "name": "detayKarti",
-        "props": { "variant": "panel", "title": "{{liste.seciliSatir.code}}", "description": "{{liste.seciliSatir.requestedByName}}",
-                   "closeInput": "detayPaneli", "width": 4,
-                   "visibleWhen": "detayPaneli.value == true && liste.seciliSatir.id != null" },
+      {
+        "id": "komutlar",
+        "type": "actionBar",
+        "name": "komutlar",
+        "props": {
+          "focusInput": "suzgec",
+          "exportTable": "liste",
+          "titleCount": "{{talepler.meta.totalCount}}",
+          "hiddenCommands": [
+            "save",
+            "delete",
+            "print"
+          ],
+          "slot": "commands",
+          "newButton": "yeniTalepDugmesi"
+        }
+      },
+      {
+        "id": "onayBekliyorGostergesi",
+        "type": "metric",
+        "name": "onayBekliyorGostergesi",
+        "props": {
+          "title": "Onay bekliyor",
+          "value": "{{sayOnayBekliyor.meta.totalCount}}",
+          "format": "number",
+          "icon": "hourglass",
+          "variant": "warning",
+          "description": "tıkla: süz",
+          "filterInput": "durumSecimi",
+          "filterValue": "Submitted",
+          "slot": "indicators"
+        }
+      },
+      {
+        "id": "onaylandiGostergesi",
+        "type": "metric",
+        "name": "onaylandiGostergesi",
+        "props": {
+          "title": "Onaylandı",
+          "value": "{{sayOnaylandi.meta.totalCount}}",
+          "format": "number",
+          "icon": "check",
+          "description": "tıkla: süz",
+          "filterInput": "durumSecimi",
+          "filterValue": "Approved",
+          "slot": "indicators"
+        }
+      },
+      {
+        "id": "siparisGostergesi",
+        "type": "metric",
+        "name": "siparisGostergesi",
+        "props": {
+          "title": "Siparişe dönüştü",
+          "value": "{{sayDonustu.meta.totalCount}}",
+          "format": "number",
+          "icon": "shopping-cart",
+          "variant": "success",
+          "description": "tıkla: süz",
+          "filterInput": "durumSecimi",
+          "filterValue": "Ordered",
+          "slot": "indicators"
+        }
+      },
+      {
+        "id": "reddedildiGostergesi",
+        "type": "metric",
+        "name": "reddedildiGostergesi",
+        "props": {
+          "title": "Reddedildi",
+          "value": "{{sayReddedildi.meta.totalCount}}",
+          "format": "number",
+          "icon": "x-circle",
+          "description": "tıkla: süz",
+          "filterInput": "durumSecimi",
+          "filterValue": "Rejected",
+          "slot": "indicators"
+        }
+      },
+      {
+        "id": "suzgec",
+        "type": "filterBar",
+        "name": "suzgec",
+        "props": {
+          "table": "liste",
+          "search": true,
+          "searchPlaceholder": "Talep no, açıklama veya talep sahibi ile ara",
+          "searchParam": "search",
+          "slot": "filters"
+        }
+      },
+      {
+        "id": "liste",
+        "type": "dataTable",
+        "name": "liste",
+        "props": {
+          "title": "Satınalma talepleri",
+          "query": "talepler",
+          "paging": "server",
+          "pageSize": 25,
+          "columns": [
+            "code",
+            "description",
+            "requestedByName",
+            "requestDate",
+            "neededByDate",
+            "neededByDays",
+            "lineCount",
+            "quoteCount",
+            "status"
+          ],
+          "columnLabels": [
+            "code=Talep no",
+            "description=Açıklama",
+            "requestedByName=Talep sahibi",
+            "requestDate=Talep tarihi",
+            "neededByDate=İhtiyaç tarihi",
+            "neededByDays=Kalan gün",
+            "lineCount=Kalem",
+            "quoteCount=Teklif",
+            "status=Durum",
+            "purchaseOrderCode=Bağlı sipariş",
+            "reviewedByName=Karar veren",
+            "createdAt=Oluşturulma"
+          ],
+          "columnFormats": [
+            "code=code",
+            "requestDate=date",
+            "neededByDate=date",
+            "neededByDays=number",
+            "lineCount=number",
+            "quoteCount=number",
+            "status=status",
+            "purchaseOrderCode=code",
+            "createdAt=date"
+          ],
+          "valueLabels": [
+            "status:Submitted=Onay bekliyor",
+            "status:Approved=Onaylandı",
+            "status:Ordered=Siparişe dönüştü",
+            "status:Rejected=Reddedildi"
+          ],
+          "toneMap": [
+            "Onay bekliyor=warning",
+            "Onaylandı=info",
+            "Siparişe dönüştü=success",
+            "Reddedildi=danger"
+          ],
+          "rowOpenAction": "acDugmesi",
+          "emptyText": "Filtrelerle eşleşen satın alma talebi yok.",
+          "slot": "list",
+          "rowActions": [
+            "acDugmesi",
+            "onaylaDugmesi",
+            "reddetDugmesi",
+            "teklifEkleDugmesi",
+            "siparisOlusturDugmesi",
+            "siparisiAcDugmesi"
+          ]
+        }
+      },
+      {
+        "id": "acDugmesi",
+        "type": "button",
+        "name": "acDugmesi",
+        "props": {
+          "text": "Aç",
+          "icon": "open",
+          "actionType": "openDialog",
+          "disabledWhen": "liste.seciliSatir.id == null",
+          "disabledReason": "Önce bir kayıt seçin",
+          "slot": "rowActions",
+          "dialogId": "talepDetayPenceresi"
+        }
+      },
+      {
+        "id": "yeniTalepDugmesi",
+        "type": "button",
+        "name": "yeniTalepDugmesi",
+        "props": {
+          "text": "Yeni talep",
+          "actionType": "openDialog",
+          "dialogId": "yeniTalepPenceresi",
+          "slot": "actions"
+        }
+      },
+      {
+        "id": "onaylaDugmesi",
+        "type": "button",
+        "name": "onaylaDugmesi",
+        "props": {
+          "text": "Onayla",
+          "actionType": "query",
+          "queryId": "onay",
+          "promptLabel": "Karar notu (isteğe bağlı)",
+          "promptMaxLength": 500,
+          "promptText": "{{liste.seciliSatir.code}} talebi onaylansın mı? Talep sahibi kendi talebini onaylayamaz.",
+          "successMessage": "{{liste.seciliSatir.code}} talebi onaylandı.",
+          "refreshQueries": [
+            "talepler",
+            "sayOnayBekliyor",
+            "sayOnaylandi"
+          ],
+          "disabledWhen": "liste.seciliSatir.status != 'Submitted'",
+          "disabledReason": "Yalnız onay bekleyen talep karara bağlanır.",
+          "slot": "rowActions"
+        }
+      },
+      {
+        "id": "reddetDugmesi",
+        "type": "button",
+        "name": "reddetDugmesi",
+        "props": {
+          "text": "Reddet",
+          "actionType": "query",
+          "queryId": "ret",
+          "promptLabel": "Ret gerekçesi",
+          "promptRequired": true,
+          "promptMaxLength": 500,
+          "promptText": "{{liste.seciliSatir.code}} talebi reddedilsin mi? Ret için açıklama zorunludur.",
+          "successMessage": "{{liste.seciliSatir.code}} talebi reddedildi.",
+          "refreshQueries": [
+            "talepler",
+            "sayOnayBekliyor",
+            "sayReddedildi"
+          ],
+          "disabledWhen": "liste.seciliSatir.status != 'Submitted'",
+          "disabledReason": "Yalnız onay bekleyen talep karara bağlanır.",
+          "slot": "rowActions"
+        }
+      },
+      {
+        "id": "teklifEkleDugmesi",
+        "type": "button",
+        "name": "teklifEkleDugmesi",
+        "props": {
+          "text": "Teklif ekle",
+          "actionType": "openDialog",
+          "dialogId": "teklifPenceresi",
+          "disabledWhen": "liste.seciliSatir.status != 'Approved' || kullanici.rol != 'TenantAdmin'",
+          "disabledReason": "Teklif yalnız onaylanmış talebe, firma yöneticisi tarafından eklenir.",
+          "slot": "rowActions"
+        }
+      },
+      {
+        "id": "siparisOlusturDugmesi",
+        "type": "button",
+        "name": "siparisOlusturDugmesi",
+        "props": {
+          "text": "Siparişe dönüştür",
+          "actionType": "openDialog",
+          "dialogId": "siparisPenceresi",
+          "disabledWhen": "liste.seciliSatir.status != 'Approved' || liste.seciliSatir.purchaseOrderId != null || kullanici.rol != 'TenantAdmin'",
+          "disabledReason": "Yalnız siparişi olmayan onaylı talep, firma yöneticisi tarafından siparişe dönüştürülür.",
+          "slot": "rowActions"
+        }
+      },
+      {
+        "id": "tekliftenSiparisDugmesi",
+        "type": "button",
+        "name": "tekliftenSiparisDugmesi",
+        "props": {
+          "text": "Tekliften sipariş",
+          "actionType": "openDialog",
+          "dialogId": "teklifSiparisPenceresi",
+          "visibleWhen": "liste.seciliSatir.status == 'Approved' && liste.seciliSatir.purchaseOrderId == null",
+          "disabledWhen": "kullanici.rol != 'TenantAdmin'",
+          "disabledReason": "Siparişi firma yöneticisi oluşturur.",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "siparisiAcDugmesi",
+        "type": "button",
+        "name": "siparisiAcDugmesi",
+        "props": {
+          "text": "Siparişi aç",
+          "actionType": "erpPage",
+          "pageKey": "sales-purchasing",
+          "params": [
+            "purchaseOrderId={{liste.seciliSatir.purchaseOrderId}}"
+          ],
+          "disabledWhen": "liste.seciliSatir.purchaseOrderId == null",
+          "disabledReason": "Bu talebin siparişi yok.",
+          "slot": "rowActions"
+        }
+      },
+      {
+        "id": "detayKarti",
+        "type": "card",
+        "name": "detayKarti",
+        "props": {
+          "variant": "panel",
+          "title": "{{liste.seciliSatir.code}}",
+          "description": "{{liste.seciliSatir.requestedByName}}",
+          "slot": "detail"
+        },
         "children": [
-          { "id": "detayAc", "type": "button", "name": "detayAc",
-            "props": { "text": "Talep belgesini aç ›", "actionType": "erpPage", "pageKey": "sales-requests", "legacyScreen": true,
-                       "params": ["requestId={{liste.seciliSatir.id}}"] } },
-          { "id": "durumOnayBekliyorRozeti", "type": "badge", "name": "durumOnayBekliyorRozeti",
-            "props": { "text": "Onay bekliyor", "variant": "warning", "visibleWhen": "liste.seciliSatir.status == 'Submitted'" } },
-          { "id": "durumOnaylandiRozeti", "type": "badge", "name": "durumOnaylandiRozeti",
-            "props": { "text": "Onaylandı", "variant": "info", "visibleWhen": "liste.seciliSatir.status == 'Approved'" } },
-          { "id": "durumSiparisRozeti", "type": "badge", "name": "durumSiparisRozeti",
-            "props": { "text": "Siparişe dönüştü", "variant": "success", "visibleWhen": "liste.seciliSatir.status == 'Ordered'" } },
-          { "id": "durumRetRozeti", "type": "badge", "name": "durumRetRozeti",
-            "props": { "text": "Reddedildi", "variant": "danger", "visibleWhen": "liste.seciliSatir.status == 'Rejected'" } },
-          { "id": "detaySekmeleri", "type": "tabs", "name": "detaySekmeleri",
-            "props": { "tabs": ["Özet=ozetPaneli,enIyiTeklif,panelOnayla,panelReddet", "Kalemler=kalemTablosu",
-                                "Teklifler {{teklifler.satirSayisi}}=teklifTablosu", "Alanlar=alanTablosu"] } }
-        ] },
-      { "id": "ozetPaneli", "type": "contextPanel", "name": "ozetPaneli",
-        "props": { "table": "liste", "width": 12,
-                   "fields": ["requestDate=Talep tarihi", "neededByDate=İhtiyaç tarihi", "neededByDays=Kalan gün", "lineCount=Kalem",
-                              "description=Açıklama", "reviewedByName=Karar veren", "reviewNote=Karar notu", "purchaseOrderCode=Sipariş"] } },
-      { "id": "enIyiTeklif", "type": "text", "name": "enIyiTeklif",
-        "props": { "title": "En iyi teklif",
-                   "text": "{{teklifler.rows[0].supplierName}} · {{teklifler.rows[0].comparableGrandTotal}} {{teklifler.rows[0].baseCurrencyCode}} ({{teklifler.satirSayisi}} teklif)",
-                   "visibleWhen": "teklifler.rows[0].comparableGrandTotal != null" } },
-      { "id": "kalemTablosu", "type": "dataTable", "name": "kalemTablosu",
-        "props": { "title": "İstenen kalemler", "query": "kalemler", "width": 12, "variant": "list",
-                   "columns": ["stockCode", "stockName", "quantity"],
-                   "columnLabels": ["stockCode=Stok kodu", "stockName=Stok adı", "quantity=Miktar"],
-                   "columnUnits": ["quantity=unitCode"], "columnFormats": ["stockCode=code", "quantity=number"],
-                   "emptyText": "Kalem yok." } },
-      { "id": "teklifTablosu", "type": "dataTable", "name": "teklifTablosu",
-        "props": { "title": "Tedarikçi teklifleri", "query": "teklifler", "width": 12,
-                   "columns": ["supplierName", "code", "validUntil", "grandTotal", "comparableGrandTotal", "status"],
-                   "columnLabels": ["supplierName=Tedarikçi", "code=Teklif no", "validUntil=Geçerlilik", "grandTotal=Genel toplam",
-                                    "comparableGrandTotal=Kıyas", "status=Durum"],
-                   "columnUnits": ["grandTotal=currencyCode", "comparableGrandTotal=baseCurrencyCode"],
-                   "columnFormats": ["code=code", "validUntil=date", "grandTotal=money", "comparableGrandTotal=money", "status=status"],
-                   "valueLabels": ["status:Submitted=Değerlendiriliyor", "status:Selected=Seçildi", "status:NotSelected=Seçilmedi"],
-                   "toneMap": ["Seçildi=success", "Değerlendiriliyor=info"],
-                   "rowActions": ["tekliftenSiparisDugmesi"],
-                   "emptyText": "Henüz tedarikçi teklifi kaydedilmedi." } },
-      { "id": "tekliftenSiparisDugmesi", "type": "button", "name": "tekliftenSiparisDugmesi",
-        "props": { "text": "Tekliften sipariş", "actionType": "openDialog", "dialogId": "teklifSiparisPenceresi",
-                   "visibleWhen": "liste.seciliSatir.status == 'Approved' && liste.seciliSatir.purchaseOrderId == null",
-                   "disabledWhen": "kullanici.rol != 'TenantAdmin'", "disabledReason": "Siparişi firma yöneticisi oluşturur." } },
-      { "id": "alanTablosu", "type": "dataTable", "name": "alanTablosu",
-        "props": { "title": "Talep özel alanları", "query": "ozelDegerler", "width": 12, "variant": "list",
-                   "columns": ["label", "value"], "columnLabels": ["label=Alan", "value=Değer"],
-                   "emptyText": "Özel alan değeri yok." } },
-      { "id": "panelOnayla", "type": "button", "name": "panelOnayla",
-        "props": { "text": "Onayla", "actionType": "query", "queryId": "panelOnay",
-                   "promptLabel": "Karar notu (isteğe bağlı)", "promptMaxLength": 500,
-                   "promptText": "{{liste.seciliSatir.code}} talebi onaylansın mı? Talep sahibi kendi talebini onaylayamaz.",
-                   "successMessage": "{{liste.seciliSatir.code}} talebi onaylandı.", "refreshQueries": ["talepler", "sayOnayBekliyor", "sayOnaylandi"],
-                   "visibleWhen": "liste.seciliSatir.status == 'Submitted'" } },
-      { "id": "panelReddet", "type": "button", "name": "panelReddet",
-        "props": { "text": "Reddet", "actionType": "query", "queryId": "panelRet",
-                   "promptLabel": "Ret gerekçesi", "promptRequired": true, "promptMaxLength": 500,
-                   "promptText": "{{liste.seciliSatir.code}} talebi reddedilsin mi? Ret için açıklama zorunludur.",
-                   "successMessage": "{{liste.seciliSatir.code}} talebi reddedildi.", "refreshQueries": ["talepler", "sayOnayBekliyor", "sayReddedildi"],
-                   "visibleWhen": "liste.seciliSatir.status == 'Submitted'" } },
-
-      { "id": "yeniTalepDugmesi", "type": "button", "name": "yeniTalepDugmesi",
-        "props": { "text": "Yeni talep", "actionType": "openDialog", "dialogId": "yeniTalepPenceresi" } },
-      { "id": "onaylaDugmesi", "type": "button", "name": "onaylaDugmesi",
-        "props": { "text": "Onayla", "actionType": "query", "queryId": "onay",
-                   "promptLabel": "Karar notu (isteğe bağlı)", "promptMaxLength": 500,
-                   "promptText": "{{liste.seciliSatir.code}} talebi onaylansın mı? Talep sahibi kendi talebini onaylayamaz.",
-                   "successMessage": "{{liste.seciliSatir.code}} talebi onaylandı.", "refreshQueries": ["talepler", "sayOnayBekliyor", "sayOnaylandi"],
-                   "disabledWhen": "liste.seciliSatir.status != 'Submitted'", "disabledReason": "Yalnız onay bekleyen talep karara bağlanır." } },
-      { "id": "reddetDugmesi", "type": "button", "name": "reddetDugmesi",
-        "props": { "text": "Reddet", "actionType": "query", "queryId": "ret",
-                   "promptLabel": "Ret gerekçesi", "promptRequired": true, "promptMaxLength": 500,
-                   "promptText": "{{liste.seciliSatir.code}} talebi reddedilsin mi? Ret için açıklama zorunludur.",
-                   "successMessage": "{{liste.seciliSatir.code}} talebi reddedildi.", "refreshQueries": ["talepler", "sayOnayBekliyor", "sayReddedildi"],
-                   "disabledWhen": "liste.seciliSatir.status != 'Submitted'", "disabledReason": "Yalnız onay bekleyen talep karara bağlanır." } },
-      { "id": "teklifEkleDugmesi", "type": "button", "name": "teklifEkleDugmesi",
-        "props": { "text": "Teklif ekle", "actionType": "openDialog", "dialogId": "teklifPenceresi",
-                   "disabledWhen": "liste.seciliSatir.status != 'Approved' || kullanici.rol != 'TenantAdmin'",
-                   "disabledReason": "Teklif yalnız onaylanmış talebe, firma yöneticisi tarafından eklenir." } },
-      { "id": "siparisOlusturDugmesi", "type": "button", "name": "siparisOlusturDugmesi",
-        "props": { "text": "Siparişe dönüştür", "actionType": "openDialog", "dialogId": "siparisPenceresi",
-                   "disabledWhen": "liste.seciliSatir.status != 'Approved' || liste.seciliSatir.purchaseOrderId != null || kullanici.rol != 'TenantAdmin'",
-                   "disabledReason": "Yalnız siparişi olmayan onaylı talep, firma yöneticisi tarafından siparişe dönüştürülür." } },
-      { "id": "siparisiAcDugmesi", "type": "button", "name": "siparisiAcDugmesi",
-        "props": { "text": "Siparişi aç", "actionType": "erpPage", "pageKey": "sales-purchasing",
-                   "params": ["purchaseOrderId={{liste.seciliSatir.purchaseOrderId}}"],
-                   "disabledWhen": "liste.seciliSatir.purchaseOrderId == null", "disabledReason": "Bu talebin siparişi yok." } },
-      { "id": "alanlarDugmesi", "type": "button", "name": "alanlarDugmesi",
-        "props": { "text": "Alanlar", "actionType": "erpPage", "pageKey": "sales-requests", "legacyScreen": true } },
-
-      { "id": "tedarikciTuru", "type": "input", "name": "tedarikciTuru",
-        "props": { "inputType": "text", "label": "Tedarikçi seçici cari türü", "hidden": true, "defaultValue": "Supplier,Both" } },
-      { "id": "tedarikciDurumu", "type": "input", "name": "tedarikciDurumu",
-        "props": { "inputType": "text", "label": "Tedarikçi seçici durumu", "hidden": true, "defaultValue": "Active" } },
-
-      { "id": "yeniTalepPenceresi", "type": "dialog", "name": "yeniTalepPenceresi",
-        "props": { "presentation": "dialog", "size": "lg", "title": "Yeni satınalma talebi",
-                   "contains": ["talepBilgileri", "talepKalemleri", "talepNotu"],
-                   "saveQuery": "talepOlustur", "saveLabel": "Talebi gönder", "closeOnSave": true, "resetOnOpen": true,
-                   "refreshQueries": ["talepler", "sayOnayBekliyor"] } },
-      { "id": "talepBilgileri", "type": "formCard", "name": "talepBilgileri",
-        "props": { "title": "Talep bilgileri", "columns": 2, "inputs": ["talepNo", "talepTarihi", "ihtiyacTarihi", "talepAciklamasi"] } },
-      { "id": "talepNo", "type": "input", "name": "talepNo",
-        "props": { "inputType": "text", "label": "Talep no", "maxLength": 32, "upperCase": true, "placeholder": "Boş bırakılırsa numara verilir" } },
-      { "id": "talepTarihi", "type": "input", "name": "talepTarihi",
-        "props": { "inputType": "date", "label": "Talep tarihi", "required": true, "defaultValue": "{{bugun}}" } },
-      { "id": "ihtiyacTarihi", "type": "input", "name": "ihtiyacTarihi",
-        "props": { "inputType": "date", "label": "İhtiyaç tarihi" } },
-      { "id": "talepAciklamasi", "type": "input", "name": "talepAciklamasi",
-        "props": { "inputType": "text", "label": "Açıklama", "required": true, "maxLength": 500, "placeholder": "İhtiyacın gerekçesi" } },
-      { "id": "talepKalemleri", "type": "editableGrid", "name": "talepKalemleri",
-        "props": { "gridMode": "list", "title": "İstenen kalemler", "addLabel": "Kalem ekle", "maxRows": 100, "minRows": 1,
-                   "gridColumns": ["stockItemId|Stok kartı|lookup:stoklar:id:code:name|required",
-                                   "unitCode|Birim|lookup:birimler:unitCode:unitCode",
-                                   "quantity|Miktar|number|required,min:0.0001,step:0.0001"],
-                   "columnOptionsWhen": ["stockItemId=satir.isActive == true", "unitCode=satir.isActive == true"],
-                   "columnStaticOptions": ["unitCode==Ana birim"],
-                   "lookupFills": { "stockItemId": { "unitCode": "unitCode" } } } },
-      { "id": "talepNotu", "type": "text", "name": "talepNotu",
-        "props": { "text": "Kalem: {{talepKalemleri.satirSayisi}} / 100 · Talep onaya gönderilir; talep sahibi kendi talebini onaylayamaz. Gönderim bir kez yapılır: aynı talebi tekrar göndermeyin." } },
-
-      { "id": "teklifPenceresi", "type": "dialog", "name": "teklifPenceresi",
-        "props": { "presentation": "dialog", "size": "xl", "title": "Tedarikçi teklifi · {{liste.seciliSatir.code}}",
-                   "contains": ["teklifBilgileri", "teklifKalemleri", "teklifToplami"],
-                   "saveQuery": "teklifKaydet", "saveLabel": "Teklifi kaydet", "closeOnSave": true, "resetOnOpen": true,
-                   "refreshQueries": ["teklifler", "talepler", "kalemler"] } },
-      { "id": "teklifBilgileri", "type": "formCard", "name": "teklifBilgileri",
-        "props": { "title": "Teklif bilgileri", "columns": 3, "inputs": ["teklifTedarikci", "teklifNo", "teklifTarihi", "teklifGecerlilik", "teklifNotlari"] } },
-      { "id": "teklifTedarikci", "type": "input", "name": "teklifTedarikci",
-        "props": { "inputType": "lookup", "label": "Tedarikçi", "required": true, "optionsQuery": "teklifTedarikcileri", "optionValueColumn": "id",
-                   "optionLabelColumn": "name", "optionDescriptionColumn": "code", "minChars": 0 } },
-      { "id": "teklifNo", "type": "input", "name": "teklifNo",
-        "props": { "inputType": "text", "label": "Teklif no", "required": true, "maxLength": 32, "upperCase": true, "placeholder": "TKL-2026-001" } },
-      { "id": "teklifTarihi", "type": "input", "name": "teklifTarihi",
-        "props": { "inputType": "date", "label": "Teklif tarihi", "required": true, "defaultValue": "{{bugun}}" } },
-      { "id": "teklifGecerlilik", "type": "input", "name": "teklifGecerlilik",
-        "props": { "inputType": "date", "label": "Geçerlilik" } },
-      { "id": "teklifNotlari", "type": "input", "name": "teklifNotlari",
-        "props": { "inputType": "text", "label": "Not", "maxLength": 1000 } },
-      { "id": "teklifKalemleri", "type": "editableGrid", "name": "teklifKalemleri",
-        "props": { "gridMode": "list", "title": "Teklif satırları", "addLabel": "Satır ekle", "maxRows": 200, "minRows": 1,
-                   "gridColumns": ["requestLineNumber|#|number|readOnly",
-                                   "stockCode|Stok kodu|text|readOnly",
-                                   "stockName|Stok adı|text|readOnly",
-                                   "quantity|Miktar|number|readOnly",
-                                   "unitCode|Birim|text|readOnly",
-                                   "unitPrice|Birim fiyat|number|required,min:0,step:0.0001",
-                                   "discountPercent|İskonto %|number|required,min:0,max:100,step:0.01",
-                                   "vatPercent|KDV %|number|min:0,max:100,step:0.01",
-                                   "lineNet|Net tutar|number",
-                                   "lineVat|KDV tutarı|number",
-                                   "lineTotal|Satır toplamı|number"],
-                   "fillQuery": "kalemler",
-                   "fillColumns": { "requestLineNumber": "lineNumber" },
-                   "formulas": { "lineNet": "quantity * unitPrice - quantity * unitPrice * discountPercent / 100",
-                                 "lineVat": "lineNet * vatPercent / 100",
-                                 "lineTotal": "lineNet + lineVat" },
-                   "totals": ["lineNet", "lineVat", "lineTotal"] } },
-      { "id": "teklifToplami", "type": "text", "name": "teklifToplami",
-        "props": { "text": "Net: {{teklifKalemleri.toplam.lineNet}} · KDV: {{teklifKalemleri.toplam.lineVat}} · Genel toplam: {{teklifKalemleri.toplam.lineTotal}} (tedarikçi dövizi). Her talep kalemine fiyat girin; iskonto yoksa 0 yazın. Tutarlar sunucuda yeniden hesaplanır." } },
-
-      { "id": "siparisPenceresi", "type": "dialog", "name": "siparisPenceresi",
-        "props": { "presentation": "dialog", "size": "xl", "title": "Talepten sipariş · {{liste.seciliSatir.code}}",
-                   "contains": ["siparisBilgileri", "siparisKalemleri", "siparisToplami"],
-                   "saveQuery": "siparisOlustur", "saveLabel": "Siparişi oluştur", "closeOnSave": true, "resetOnOpen": true,
-                   "refreshQueries": ["talepler", "sayOnaylandi", "sayDonustu", "teklifler", "kalemler"] } },
-      { "id": "siparisBilgileri", "type": "formCard", "name": "siparisBilgileri",
-        "props": { "title": "Sipariş bilgileri", "columns": 3,
-                   "inputs": ["siparisTedarikci", "siparisNo", "siparisTarihi", "siparisTeslimTarihi", "siparisDepo", "siparisNotlari"] } },
-      { "id": "siparisTedarikci", "type": "input", "name": "siparisTedarikci",
-        "props": { "inputType": "lookup", "label": "Tedarikçi", "required": true, "optionsQuery": "siparisTedarikcileri", "optionValueColumn": "id",
-                   "optionLabelColumn": "name", "optionDescriptionColumn": "code", "minChars": 0 } },
-      { "id": "siparisNo", "type": "input", "name": "siparisNo",
-        "props": { "inputType": "text", "label": "Sipariş no", "required": true, "maxLength": 32, "upperCase": true, "placeholder": "PO-2026-001" } },
-      { "id": "siparisTarihi", "type": "input", "name": "siparisTarihi",
-        "props": { "inputType": "date", "label": "Sipariş tarihi", "required": true, "defaultValue": "{{bugun}}" } },
-      { "id": "siparisTeslimTarihi", "type": "input", "name": "siparisTeslimTarihi",
-        "props": { "inputType": "date", "label": "Beklenen teslim", "defaultValue": "{{liste.seciliSatir.neededByDate}}" } },
-      { "id": "siparisDepo", "type": "input", "name": "siparisDepo",
-        "props": { "inputType": "lookup", "label": "Hedef depo", "optionsQuery": "depolar", "optionValueColumn": "id", "optionLabelColumn": "name",
-                   "optionDescriptionColumn": "code", "minChars": 0, "allowClear": true, "optionsWhen": "satir.isActive == true" } },
-      { "id": "siparisNotlari", "type": "input", "name": "siparisNotlari",
-        "props": { "inputType": "text", "label": "Not", "maxLength": 1000 } },
-      { "id": "siparisKalemleri", "type": "editableGrid", "name": "siparisKalemleri",
-        "props": { "gridMode": "list", "title": "Sipariş satırları", "addLabel": "Satır ekle", "maxRows": 200, "minRows": 1,
-                   "gridColumns": ["lineNumber|#|number|readOnly",
-                                   "stockCode|Stok kodu|text|readOnly",
-                                   "stockName|Stok adı|text|readOnly",
-                                   "quantity|Miktar|number|readOnly",
-                                   "unitCode|Birim|text|readOnly",
-                                   "unitPrice|Birim fiyat|number|required,min:0,step:0.0001",
-                                   "discountPercent|İskonto %|number|required,min:0,max:100,step:0.01",
-                                   "vatPercent|KDV %|number|min:0,max:100,step:0.01",
-                                   "lineNet|Net tutar|number",
-                                   "lineVat|KDV tutarı|number",
-                                   "lineTotal|Satır toplamı|number"],
-                   "fillQuery": "kalemler",
-                   "formulas": { "lineNet": "quantity * unitPrice - quantity * unitPrice * discountPercent / 100",
-                                 "lineVat": "lineNet * vatPercent / 100",
-                                 "lineTotal": "lineNet + lineVat" },
-                   "totals": ["lineNet", "lineVat", "lineTotal"] } },
-      { "id": "siparisToplami", "type": "text", "name": "siparisToplami",
-        "props": { "text": "Net: {{siparisKalemleri.toplam.lineNet}} · KDV: {{siparisKalemleri.toplam.lineVat}} · Genel toplam: {{siparisKalemleri.toplam.lineTotal}} (tedarikçi dövizi). Her talep kalemine fiyat girin; onay iş akışı sunucuda çalışır." } },
-
-      { "id": "teklifSiparisPenceresi", "type": "dialog", "name": "teklifSiparisPenceresi",
-        "props": { "presentation": "dialog", "size": "xl",
-                   "title": "Tekliften sipariş · {{teklifTablosu.seciliSatir.code}} · {{teklifTablosu.seciliSatir.supplierName}}",
-                   "contains": ["teklifSiparisBilgileri", "teklifSiparisKalemleri", "teklifSiparisToplami"],
-                   "saveQuery": "teklifliSiparisOlustur", "saveLabel": "Siparişi oluştur", "closeOnSave": true, "resetOnOpen": true,
-                   "refreshQueries": ["talepler", "sayOnaylandi", "sayDonustu", "teklifler", "teklifKalemKaynak"] } },
-      { "id": "teklifSiparisBilgileri", "type": "formCard", "name": "teklifSiparisBilgileri",
-        "props": { "title": "Sipariş bilgileri", "columns": 3, "inputs": ["tsSiparisNo", "tsSiparisTarihi", "tsTeslimTarihi", "tsDepo", "tsNotlari"] } },
-      { "id": "tsSiparisNo", "type": "input", "name": "tsSiparisNo",
-        "props": { "inputType": "text", "label": "Sipariş no", "required": true, "maxLength": 32, "upperCase": true, "placeholder": "PO-2026-001" } },
-      { "id": "tsSiparisTarihi", "type": "input", "name": "tsSiparisTarihi",
-        "props": { "inputType": "date", "label": "Sipariş tarihi", "required": true, "defaultValue": "{{bugun}}" } },
-      { "id": "tsTeslimTarihi", "type": "input", "name": "tsTeslimTarihi",
-        "props": { "inputType": "date", "label": "Beklenen teslim", "defaultValue": "{{liste.seciliSatir.neededByDate}}" } },
-      { "id": "tsDepo", "type": "input", "name": "tsDepo",
-        "props": { "inputType": "lookup", "label": "Hedef depo", "optionsQuery": "depolar", "optionValueColumn": "id", "optionLabelColumn": "name",
-                   "optionDescriptionColumn": "code", "minChars": 0, "allowClear": true, "optionsWhen": "satir.isActive == true" } },
-      { "id": "tsNotlari", "type": "input", "name": "tsNotlari",
-        "props": { "inputType": "text", "label": "Not", "maxLength": 1000 } },
-      { "id": "teklifSiparisKalemleri", "type": "editableGrid", "name": "teklifSiparisKalemleri",
-        "props": { "gridMode": "list", "title": "Teklif satırları (fiyatlar tekliften)", "addLabel": "Satır ekle", "maxRows": 200, "minRows": 1,
-                   "gridColumns": ["lineNumber|#|number|readOnly",
-                                   "stockCode|Stok kodu|text|readOnly",
-                                   "stockName|Stok adı|text|readOnly",
-                                   "quantity|Miktar|number|readOnly",
-                                   "unitCode|Birim|text|readOnly",
-                                   "unitPrice|Birim fiyat|number|readOnly",
-                                   "discountPercent|İskonto %|number|readOnly",
-                                   "vatPercent|KDV %|number|readOnly",
-                                   "lineTotal|Satır toplamı|number|readOnly"],
-                   "fillQuery": "teklifKalemKaynak",
-                   "fillColumns": { "lineNumber": "requestLineNumber" },
-                   "totals": ["lineTotal"] } },
-      { "id": "teklifSiparisToplami", "type": "text", "name": "teklifSiparisToplami",
-        "props": { "text": "Genel toplam: {{teklifSiparisKalemleri.toplam.lineTotal}} {{teklifTablosu.seciliSatir.currencyCode}} · Fiyat, iskonto ve KDV teklifle aynı gönderilir; satır silmeyin ya da eklemeyin (sunucu reddeder)." } }
+          {
+            "id": "ozetPaneli",
+            "type": "contextPanel",
+            "name": "ozetPaneli",
+            "props": {
+              "table": "liste",
+              "fields": [
+                "requestDate=Talep tarihi",
+                "neededByDate=İhtiyaç tarihi",
+                "neededByDays=Kalan gün",
+                "lineCount=Kalem",
+                "description=Açıklama",
+                "reviewedByName=Karar veren",
+                "reviewNote=Karar notu",
+                "purchaseOrderCode=Sipariş"
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "durumOnayBekliyor",
+        "type": "input",
+        "name": "durumOnayBekliyor",
+        "props": {
+          "inputType": "text",
+          "label": "Sayaç durumu",
+          "hidden": true,
+          "defaultValue": "Submitted",
+          "slot": "above"
+        }
+      },
+      {
+        "id": "durumOnaylandi",
+        "type": "input",
+        "name": "durumOnaylandi",
+        "props": {
+          "inputType": "text",
+          "label": "Sayaç durumu",
+          "hidden": true,
+          "defaultValue": "Approved",
+          "slot": "above"
+        }
+      },
+      {
+        "id": "durumDonustu",
+        "type": "input",
+        "name": "durumDonustu",
+        "props": {
+          "inputType": "text",
+          "label": "Sayaç durumu",
+          "hidden": true,
+          "defaultValue": "Ordered",
+          "slot": "above"
+        }
+      },
+      {
+        "id": "durumReddedildi",
+        "type": "input",
+        "name": "durumReddedildi",
+        "props": {
+          "inputType": "text",
+          "label": "Sayaç durumu",
+          "hidden": true,
+          "defaultValue": "Rejected",
+          "slot": "above"
+        }
+      },
+      {
+        "id": "sayacSayfaBoyutu",
+        "type": "input",
+        "name": "sayacSayfaBoyutu",
+        "props": {
+          "inputType": "text",
+          "label": "Sayaç sayfa boyutu",
+          "hidden": true,
+          "defaultValue": "1",
+          "slot": "above"
+        }
+      },
+      {
+        "id": "tedarikciTuru",
+        "type": "input",
+        "name": "tedarikciTuru",
+        "props": {
+          "inputType": "text",
+          "label": "Tedarikçi seçici cari türü",
+          "hidden": true,
+          "defaultValue": "Supplier,Both",
+          "slot": "above"
+        }
+      },
+      {
+        "id": "tedarikciDurumu",
+        "type": "input",
+        "name": "tedarikciDurumu",
+        "props": {
+          "inputType": "text",
+          "label": "Tedarikçi seçici durumu",
+          "hidden": true,
+          "defaultValue": "Active",
+          "slot": "above"
+        }
+      },
+      {
+        "id": "yeniTalepPenceresi",
+        "type": "dialog",
+        "name": "yeniTalepPenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "lg",
+          "title": "Yeni satınalma talebi",
+          "contains": [
+            "talepKalemleri",
+            "talepNotu",
+            "talepBilgileri"
+          ],
+          "saveQuery": "talepOlustur",
+          "saveLabel": "Talebi gönder",
+          "closeOnSave": true,
+          "resetOnOpen": true,
+          "refreshQueries": [
+            "talepler",
+            "sayOnayBekliyor"
+          ],
+          "slot": "dialogs"
+        }
+      },
+      {
+        "id": "talepBilgileri",
+        "type": "formCard",
+        "name": "talepBilgileri",
+        "props": {
+          "title": "Talep bilgileri",
+          "columns": 2,
+          "inputs": [
+            "talepNo",
+            "talepTarihi",
+            "ihtiyacTarihi",
+            "talepAciklamasi"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "talepKalemleri",
+        "type": "editableGrid",
+        "name": "talepKalemleri",
+        "props": {
+          "gridMode": "list",
+          "title": "İstenen kalemler",
+          "addLabel": "Kalem ekle",
+          "maxRows": 100,
+          "minRows": 1,
+          "gridColumns": [
+            "stockItemId|Stok kartı|lookup:stoklar:id:code:name|required",
+            "unitCode|Birim|text|required",
+            "quantity|Miktar|number|required,min:0.0001"
+          ],
+          "columnOptionsWhen": [
+            "stockItemId=satir.isActive == true"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "talepNotu",
+        "type": "text",
+        "name": "talepNotu",
+        "props": {
+          "text": "Kalem: {{talepKalemleri.satirSayisi}} / 100 · Talep onaya gönderilir; talep sahibi kendi talebini onaylayamaz. Gönderim bir kez yapılır: aynı talebi tekrar göndermeyin.",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "teklifPenceresi",
+        "type": "dialog",
+        "name": "teklifPenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "xl",
+          "title": "Tedarikçi teklifi · {{liste.seciliSatir.code}}",
+          "contains": [
+            "teklifKalemleri",
+            "teklifToplami",
+            "teklifBilgileri"
+          ],
+          "saveQuery": "teklifKaydet",
+          "saveLabel": "Teklifi kaydet",
+          "closeOnSave": true,
+          "resetOnOpen": true,
+          "refreshQueries": [
+            "teklifler",
+            "talepler",
+            "kalemler"
+          ],
+          "slot": "dialogs"
+        }
+      },
+      {
+        "id": "teklifBilgileri",
+        "type": "formCard",
+        "name": "teklifBilgileri",
+        "props": {
+          "title": "Teklif bilgileri",
+          "columns": 3,
+          "inputs": [
+            "teklifTedarikci",
+            "teklifNo",
+            "teklifTarihi",
+            "teklifGecerlilik",
+            "teklifNotlari"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "teklifKalemleri",
+        "type": "editableGrid",
+        "name": "teklifKalemleri",
+        "props": {
+          "gridMode": "list",
+          "title": "Teklif satırları",
+          "addLabel": "Satır ekle",
+          "maxRows": 200,
+          "minRows": 1,
+          "gridColumns": [
+            "requestLineNumber|Talep satırı|number|readOnly",
+            "stockCode|Stok kodu|text|readOnly",
+            "stockName|Stok adı|text|readOnly",
+            "quantity|Miktar|number|readOnly",
+            "unitCode|Birim|text|readOnly",
+            "unitPrice|Birim fiyat|number|required,min:0",
+            "discountPercent|İskonto %|number|required,min:0,max:100",
+            "vatPercent|KDV %|number|min:0,max:100"
+          ],
+          "fillQuery": "kalemler",
+          "fillColumns": {
+            "requestLineNumber": "lineNumber"
+          },
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "teklifToplami",
+        "type": "text",
+        "name": "teklifToplami",
+        "props": {
+          "text": "Net: {{teklifKalemleri.toplam.lineNet}} · KDV: {{teklifKalemleri.toplam.lineVat}} · Genel toplam: {{teklifKalemleri.toplam.lineTotal}} (tedarikçi dövizi). Her talep kalemine fiyat girin; iskonto yoksa 0 yazın. Tutarlar sunucuda yeniden hesaplanır.",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "siparisPenceresi",
+        "type": "dialog",
+        "name": "siparisPenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "xl",
+          "title": "Talepten sipariş · {{liste.seciliSatir.code}}",
+          "contains": [
+            "siparisToplami",
+            "siparisBilgileri",
+            "siparisKalemleri"
+          ],
+          "saveQuery": "siparisOlustur",
+          "saveLabel": "Siparişi oluştur",
+          "closeOnSave": true,
+          "resetOnOpen": true,
+          "refreshQueries": [
+            "talepler",
+            "sayOnaylandi",
+            "sayDonustu",
+            "teklifler",
+            "kalemler"
+          ],
+          "slot": "dialogs"
+        }
+      },
+      {
+        "id": "siparisBilgileri",
+        "type": "formCard",
+        "name": "siparisBilgileri",
+        "props": {
+          "title": "Sipariş bilgileri",
+          "columns": 3,
+          "inputs": [
+            "siparisTedarikci",
+            "siparisNo",
+            "siparisTarihi",
+            "siparisTeslimTarihi",
+            "siparisDepo",
+            "siparisNotlari"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "siparisKalemleri",
+        "type": "editableGrid",
+        "name": "siparisKalemleri",
+        "props": {
+          "gridMode": "list",
+          "title": "Sipariş satırları",
+          "addLabel": "Satır ekle",
+          "maxRows": 200,
+          "minRows": 1,
+          "gridColumns": [
+            "lineNumber|Talep satırı|number|readOnly",
+            "stockCode|Stok kodu|text|readOnly",
+            "stockName|Stok adı|text|readOnly",
+            "quantity|Miktar|number|readOnly",
+            "unitCode|Birim|text|readOnly",
+            "unitPrice|Birim fiyat|number|required,min:0",
+            "discountPercent|İskonto %|number|required,min:0,max:100",
+            "vatPercent|KDV %|number|min:0,max:100"
+          ],
+          "fillQuery": "kalemler",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "siparisToplami",
+        "type": "text",
+        "name": "siparisToplami",
+        "props": {
+          "text": "Net: {{siparisKalemleri.toplam.lineNet}} · KDV: {{siparisKalemleri.toplam.lineVat}} · Genel toplam: {{siparisKalemleri.toplam.lineTotal}} (tedarikçi dövizi). Her talep kalemine fiyat girin; onay iş akışı sunucuda çalışır.",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "teklifSiparisPenceresi",
+        "type": "dialog",
+        "name": "teklifSiparisPenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "xl",
+          "title": "Tekliften sipariş · {{teklifTablosu.seciliSatir.code}} · {{teklifTablosu.seciliSatir.supplierName}}",
+          "contains": [
+            "teklifSiparisBilgileri",
+            "teklifSiparisKalemleri",
+            "teklifSiparisToplami"
+          ],
+          "saveQuery": "teklifliSiparisOlustur",
+          "saveLabel": "Siparişi oluştur",
+          "closeOnSave": true,
+          "resetOnOpen": true,
+          "refreshQueries": [
+            "talepler",
+            "sayOnaylandi",
+            "sayDonustu",
+            "teklifler",
+            "teklifKalemKaynak"
+          ],
+          "slot": "dialogs"
+        }
+      },
+      {
+        "id": "teklifSiparisBilgileri",
+        "type": "formCard",
+        "name": "teklifSiparisBilgileri",
+        "props": {
+          "title": "Sipariş bilgileri",
+          "columns": 3,
+          "inputs": [
+            "tsSiparisNo",
+            "tsSiparisTarihi",
+            "tsTeslimTarihi",
+            "tsDepo",
+            "tsNotlari"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "teklifSiparisKalemleri",
+        "type": "editableGrid",
+        "name": "teklifSiparisKalemleri",
+        "props": {
+          "gridMode": "list",
+          "title": "Teklif satırları (fiyatlar tekliften)",
+          "addLabel": "Satır ekle",
+          "maxRows": 200,
+          "minRows": 1,
+          "gridColumns": [
+            "lineNumber|Talep satırı|number|readOnly",
+            "stockCode|Stok kodu|text|readOnly",
+            "stockName|Stok adı|text|readOnly",
+            "quantity|Miktar|number|readOnly",
+            "unitCode|Birim|text|readOnly",
+            "unitPrice|Birim fiyat|number|readOnly",
+            "discountPercent|İskonto %|number|readOnly",
+            "vatPercent|KDV %|number|readOnly"
+          ],
+          "fillQuery": "teklifKalemKaynak",
+          "fillColumns": {
+            "lineNumber": "requestLineNumber"
+          },
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "teklifSiparisToplami",
+        "type": "text",
+        "name": "teklifSiparisToplami",
+        "props": {
+          "text": "Genel toplam: {{teklifSiparisKalemleri.toplam.lineTotal}} {{teklifTablosu.seciliSatir.currencyCode}} · Fiyat, iskonto ve KDV teklifle aynı gönderilir; satır silmeyin ya da eklemeyin (sunucu reddeder).",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "talepDetayPenceresi",
+        "type": "dialog",
+        "name": "talepDetayPenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "xl",
+          "title": "Talep · {{talepler.rows[0].code}}",
+          "contains": [
+            "talepDetayBasligi",
+            "talepDetaySekmeleri",
+            "tekliftenSiparisDugmesi"
+          ],
+          "slot": "dialogs"
+        }
+      },
+      {
+        "id": "talepDetayBasligi",
+        "type": "recordHeader",
+        "name": "talepDetayBasligi",
+        "props": {
+          "icon": "clipboard-list",
+          "title": "{{talepler.rows[0].code}}",
+          "subtitle": "{{talepler.rows[0].requestedByName}}",
+          "fields": [
+            "Durum={{talepler.rows[0].status}}",
+            "Gereken tarih={{talepler.rows[0].neededByDate}}",
+            "Açıklama={{talepler.rows[0].description}}"
+          ],
+          "fieldFormats": [
+            "Gereken tarih=date"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "talepDetaySekmeleri",
+        "type": "tabs",
+        "name": "talepDetaySekmeleri",
+        "props": {
+          "tabs": [
+            "Satırlar=kalemTablosu",
+            "Teklifler=teklifTablosu",
+            "Alanlar=alanTablosu"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "kalemTablosu",
+        "type": "dataTable",
+        "name": "kalemTablosu",
+        "props": {
+          "title": "Talep satırları",
+          "query": "kalemler",
+          "columns": [
+            "lineNumber",
+            "stockCode",
+            "stockName",
+            "quantity",
+            "unitCode"
+          ],
+          "columnLabels": [
+            "lineNumber=#",
+            "stockCode=Stok kodu",
+            "stockName=Stok",
+            "quantity=Miktar",
+            "unitCode=Birim"
+          ],
+          "columnFormats": [
+            "lineNumber=number",
+            "quantity=number"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "teklifTablosu",
+        "type": "dataTable",
+        "name": "teklifTablosu",
+        "props": {
+          "title": "Tedarikçi teklifleri",
+          "query": "teklifler",
+          "columns": [
+            "code",
+            "supplierName",
+            "quoteDate",
+            "validUntil",
+            "status",
+            "grandTotal"
+          ],
+          "columnLabels": [
+            "code=Teklif",
+            "supplierName=Tedarikçi",
+            "quoteDate=Tarih",
+            "validUntil=Geçerlilik",
+            "status=Durum",
+            "grandTotal=Toplam"
+          ],
+          "columnFormats": [
+            "code=code",
+            "quoteDate=date",
+            "validUntil=date",
+            "grandTotal=money"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "talepTarihi",
+        "type": "input",
+        "name": "talepTarihi",
+        "props": {
+          "inputType": "date",
+          "label": "Talep tarihi",
+          "required": true,
+          "defaultValue": "{{bugun}}",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "ihtiyacTarihi",
+        "type": "input",
+        "name": "ihtiyacTarihi",
+        "props": {
+          "inputType": "date",
+          "label": "İhtiyaç tarihi",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "talepAciklamasi",
+        "type": "input",
+        "name": "talepAciklamasi",
+        "props": {
+          "inputType": "text",
+          "label": "Açıklama",
+          "required": true,
+          "maxLength": 500,
+          "placeholder": "İhtiyacın gerekçesi",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "talepNo",
+        "type": "input",
+        "name": "talepNo",
+        "props": {
+          "inputType": "text",
+          "label": "Talep no",
+          "maxLength": 32,
+          "upperCase": true,
+          "placeholder": "Boş bırakılırsa numara verilir",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "teklifTarihi",
+        "type": "input",
+        "name": "teklifTarihi",
+        "props": {
+          "inputType": "date",
+          "label": "Teklif tarihi",
+          "required": true,
+          "defaultValue": "{{bugun}}",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "teklifNo",
+        "type": "input",
+        "name": "teklifNo",
+        "props": {
+          "inputType": "text",
+          "label": "Teklif no",
+          "required": true,
+          "maxLength": 32,
+          "upperCase": true,
+          "placeholder": "TKL-2026-001",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "teklifNotlari",
+        "type": "input",
+        "name": "teklifNotlari",
+        "props": {
+          "inputType": "text",
+          "label": "Not",
+          "maxLength": 1000,
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "teklifTedarikci",
+        "type": "input",
+        "name": "teklifTedarikci",
+        "props": {
+          "inputType": "lookup",
+          "label": "Tedarikçi",
+          "required": true,
+          "optionsQuery": "teklifTedarikcileri",
+          "optionValueColumn": "id",
+          "optionLabelColumn": "name",
+          "optionDescriptionColumn": "code",
+          "minChars": 0,
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "teklifGecerlilik",
+        "type": "input",
+        "name": "teklifGecerlilik",
+        "props": {
+          "inputType": "date",
+          "label": "Geçerlilik",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "siparisDepo",
+        "type": "input",
+        "name": "siparisDepo",
+        "props": {
+          "inputType": "lookup",
+          "label": "Hedef depo",
+          "optionsQuery": "depolar",
+          "optionValueColumn": "id",
+          "optionLabelColumn": "name",
+          "optionDescriptionColumn": "code",
+          "minChars": 0,
+          "allowClear": true,
+          "optionsWhen": "satir.isActive == true",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "siparisTedarikci",
+        "type": "input",
+        "name": "siparisTedarikci",
+        "props": {
+          "inputType": "lookup",
+          "label": "Tedarikçi",
+          "required": true,
+          "optionsQuery": "siparisTedarikcileri",
+          "optionValueColumn": "id",
+          "optionLabelColumn": "name",
+          "optionDescriptionColumn": "code",
+          "minChars": 0,
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "siparisTeslimTarihi",
+        "type": "input",
+        "name": "siparisTeslimTarihi",
+        "props": {
+          "inputType": "date",
+          "label": "Beklenen teslim",
+          "defaultValue": "{{liste.seciliSatir.neededByDate}}",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "siparisNotlari",
+        "type": "input",
+        "name": "siparisNotlari",
+        "props": {
+          "inputType": "text",
+          "label": "Not",
+          "maxLength": 1000,
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "siparisTarihi",
+        "type": "input",
+        "name": "siparisTarihi",
+        "props": {
+          "inputType": "date",
+          "label": "Sipariş tarihi",
+          "required": true,
+          "defaultValue": "{{bugun}}",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "siparisNo",
+        "type": "input",
+        "name": "siparisNo",
+        "props": {
+          "inputType": "text",
+          "label": "Sipariş no",
+          "required": true,
+          "maxLength": 32,
+          "upperCase": true,
+          "placeholder": "PO-2026-001",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "tsDepo",
+        "type": "input",
+        "name": "tsDepo",
+        "props": {
+          "inputType": "lookup",
+          "label": "Hedef depo",
+          "optionsQuery": "depolar",
+          "optionValueColumn": "id",
+          "optionLabelColumn": "name",
+          "optionDescriptionColumn": "code",
+          "minChars": 0,
+          "allowClear": true,
+          "optionsWhen": "satir.isActive == true",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "tsSiparisTarihi",
+        "type": "input",
+        "name": "tsSiparisTarihi",
+        "props": {
+          "inputType": "date",
+          "label": "Sipariş tarihi",
+          "required": true,
+          "defaultValue": "{{bugun}}",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "tsTeslimTarihi",
+        "type": "input",
+        "name": "tsTeslimTarihi",
+        "props": {
+          "inputType": "date",
+          "label": "Beklenen teslim",
+          "defaultValue": "{{liste.seciliSatir.neededByDate}}",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "tsNotlari",
+        "type": "input",
+        "name": "tsNotlari",
+        "props": {
+          "inputType": "text",
+          "label": "Not",
+          "maxLength": 1000,
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "tsSiparisNo",
+        "type": "input",
+        "name": "tsSiparisNo",
+        "props": {
+          "inputType": "text",
+          "label": "Sipariş no",
+          "required": true,
+          "maxLength": 32,
+          "upperCase": true,
+          "placeholder": "PO-2026-001",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "durumSecimi",
+        "type": "input",
+        "name": "durumSecimi",
+        "props": {
+          "inputType": "select",
+          "label": "Durum",
+          "staticOptions": [
+            "=Tümü",
+            "Submitted=Onay bekliyor",
+            "Approved=Onaylandı",
+            "Ordered=Siparişe dönüştü",
+            "Rejected=Reddedildi"
+          ],
+          "slot": "above"
+        }
+      },
+      {
+        "id": "alanTablosu",
+        "type": "dataTable",
+        "name": "alanTablosu",
+        "props": {
+          "title": "Talep özel alanları",
+          "query": "ozelDegerler",
+          "variant": "list",
+          "columns": [
+            "label",
+            "value"
+          ],
+          "columnLabels": [
+            "label=Alan",
+            "value=Değer"
+          ],
+          "emptyText": "Özel alan değeri yok.",
+          "slot": "dialog"
+        }
+      }
     ],
     "queries": [
-      { "id": "talepler", "name": "talepler", "kind": "read", "operation": "satinalma.talep.listele", "runOn": "load",
+      {
+        "id": "talepler",
+        "name": "talepler",
+        "kind": "read",
+        "operation": "satinalma.talep.listele",
+        "runOn": "load",
         "parameters": [
-          { "name": "search", "binding": "{{suzgec.search}}", "type": "text" },
-          { "name": "status", "binding": "{{durumSecimi.value}}", "type": "text" },
-          { "name": "page", "binding": "{{liste.sayfa}}", "type": "int" },
-          { "name": "pageSize", "binding": "{{liste.sayfaBoyutu}}", "type": "int" } ] },
-      { "id": "sayOnayBekliyor", "name": "sayOnayBekliyor", "kind": "read", "operation": "satinalma.talep.listele", "runOn": "load",
+          {
+            "name": "search",
+            "binding": "{{suzgec.search}}",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "binding": "{{durumSecimi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "page",
+            "binding": "{{liste.sayfa}}",
+            "type": "int"
+          },
+          {
+            "name": "pageSize",
+            "binding": "{{liste.sayfaBoyutu}}",
+            "type": "int"
+          }
+        ]
+      },
+      {
+        "id": "sayOnayBekliyor",
+        "name": "sayOnayBekliyor",
+        "kind": "read",
+        "operation": "satinalma.talep.listele",
+        "runOn": "load",
         "parameters": [
-          { "name": "search", "binding": "{{suzgec.search}}", "type": "text" },
-          { "name": "status", "binding": "{{durumOnayBekliyor.value}}", "type": "text" },
-          { "name": "pageSize", "binding": "{{sayacSayfaBoyutu.value}}", "type": "int" } ] },
-      { "id": "sayOnaylandi", "name": "sayOnaylandi", "kind": "read", "operation": "satinalma.talep.listele", "runOn": "load",
+          {
+            "name": "search",
+            "binding": "{{suzgec.search}}",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "binding": "{{durumOnayBekliyor.value}}",
+            "type": "text"
+          },
+          {
+            "name": "pageSize",
+            "binding": "{{sayacSayfaBoyutu.value}}",
+            "type": "int"
+          }
+        ]
+      },
+      {
+        "id": "sayOnaylandi",
+        "name": "sayOnaylandi",
+        "kind": "read",
+        "operation": "satinalma.talep.listele",
+        "runOn": "load",
         "parameters": [
-          { "name": "search", "binding": "{{suzgec.search}}", "type": "text" },
-          { "name": "status", "binding": "{{durumOnaylandi.value}}", "type": "text" },
-          { "name": "pageSize", "binding": "{{sayacSayfaBoyutu.value}}", "type": "int" } ] },
-      { "id": "sayDonustu", "name": "sayDonustu", "kind": "read", "operation": "satinalma.talep.listele", "runOn": "load",
+          {
+            "name": "search",
+            "binding": "{{suzgec.search}}",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "binding": "{{durumOnaylandi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "pageSize",
+            "binding": "{{sayacSayfaBoyutu.value}}",
+            "type": "int"
+          }
+        ]
+      },
+      {
+        "id": "sayDonustu",
+        "name": "sayDonustu",
+        "kind": "read",
+        "operation": "satinalma.talep.listele",
+        "runOn": "load",
         "parameters": [
-          { "name": "search", "binding": "{{suzgec.search}}", "type": "text" },
-          { "name": "status", "binding": "{{durumDonustu.value}}", "type": "text" },
-          { "name": "pageSize", "binding": "{{sayacSayfaBoyutu.value}}", "type": "int" } ] },
-      { "id": "sayReddedildi", "name": "sayReddedildi", "kind": "read", "operation": "satinalma.talep.listele", "runOn": "load",
+          {
+            "name": "search",
+            "binding": "{{suzgec.search}}",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "binding": "{{durumDonustu.value}}",
+            "type": "text"
+          },
+          {
+            "name": "pageSize",
+            "binding": "{{sayacSayfaBoyutu.value}}",
+            "type": "int"
+          }
+        ]
+      },
+      {
+        "id": "sayReddedildi",
+        "name": "sayReddedildi",
+        "kind": "read",
+        "operation": "satinalma.talep.listele",
+        "runOn": "load",
         "parameters": [
-          { "name": "search", "binding": "{{suzgec.search}}", "type": "text" },
-          { "name": "status", "binding": "{{durumReddedildi.value}}", "type": "text" },
-          { "name": "pageSize", "binding": "{{sayacSayfaBoyutu.value}}", "type": "int" } ] },
-      { "id": "kalemler", "name": "kalemler", "kind": "read", "operation": "satinalma.talep.kalemleri", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" } ] },
-      { "id": "teklifler", "name": "teklifler", "kind": "read", "operation": "satinalma.talep.teklifleri", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" } ] },
-      { "id": "ozelDegerler", "name": "ozelDegerler", "kind": "read", "operation": "satinalma.talep.ozelAlanDegerleri", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" } ] },
-      { "id": "onay", "name": "onay", "kind": "update", "operation": "satinalma.talep.onayla", "runOn": "manual",
+          {
+            "name": "search",
+            "binding": "{{suzgec.search}}",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "binding": "{{durumReddedildi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "pageSize",
+            "binding": "{{sayacSayfaBoyutu.value}}",
+            "type": "int"
+          }
+        ]
+      },
+      {
+        "id": "kalemler",
+        "name": "kalemler",
+        "kind": "read",
+        "operation": "satinalma.talep.kalemleri",
+        "runOn": "load",
         "parameters": [
-          { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" },
-          { "name": "note", "binding": "{{onaylaDugmesi.yanit}}", "type": "text" } ] },
-      { "id": "ret", "name": "ret", "kind": "update", "operation": "satinalma.talep.reddet", "runOn": "manual",
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "teklifler",
+        "name": "teklifler",
+        "kind": "read",
+        "operation": "satinalma.talep.teklifleri",
+        "runOn": "load",
         "parameters": [
-          { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" },
-          { "name": "note", "binding": "{{reddetDugmesi.yanit}}", "type": "text" } ] },
-      { "id": "panelOnay", "name": "panelOnay", "kind": "update", "operation": "satinalma.talep.onayla", "runOn": "manual",
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "ozelDegerler",
+        "name": "ozelDegerler",
+        "kind": "read",
+        "operation": "satinalma.talep.ozelAlanDegerleri",
+        "runOn": "load",
         "parameters": [
-          { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" },
-          { "name": "note", "binding": "{{panelOnayla.yanit}}", "type": "text" } ] },
-      { "id": "panelRet", "name": "panelRet", "kind": "update", "operation": "satinalma.talep.reddet", "runOn": "manual",
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "onay",
+        "name": "onay",
+        "kind": "update",
+        "operation": "satinalma.talep.onayla",
+        "runOn": "manual",
         "parameters": [
-          { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" },
-          { "name": "note", "binding": "{{panelReddet.yanit}}", "type": "text" } ] },
-      { "id": "stoklar", "name": "stoklar", "kind": "read", "operation": "stok.kart.listele", "runOn": "load",
-        "parameters": [ { "name": "q", "binding": "{{talepKalemleri.arama}}", "type": "text" } ] },
-      { "id": "birimler", "name": "birimler", "kind": "read", "operation": "stok.kart.birimleri", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{talepKalemleri.satir.stockItemId}}", "type": "guid" } ] },
-      { "id": "talepOlustur", "name": "talepOlustur", "kind": "insert", "operation": "satinalma.talep.olustur", "runOn": "manual",
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          },
+          {
+            "name": "note",
+            "binding": "{{onaylaDugmesi.yanit}}",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "ret",
+        "name": "ret",
+        "kind": "update",
+        "operation": "satinalma.talep.reddet",
+        "runOn": "manual",
         "parameters": [
-          { "name": "code", "binding": "{{talepNo.value}}", "type": "text" },
-          { "name": "requestDate", "binding": "{{talepTarihi.value}}", "type": "date" },
-          { "name": "neededByDate", "binding": "{{ihtiyacTarihi.value}}", "type": "date" },
-          { "name": "description", "binding": "{{talepAciklamasi.value}}", "type": "text" },
-          { "name": "lines", "binding": "{{talepKalemleri.satirlar}}", "type": "list" } ] },
-      { "id": "teklifTedarikcileri", "name": "teklifTedarikcileri", "kind": "read", "operation": "cari.listele", "runOn": "load",
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          },
+          {
+            "name": "note",
+            "binding": "{{reddetDugmesi.yanit}}",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "stoklar",
+        "name": "stoklar",
+        "kind": "read",
+        "operation": "stok.kart.listele",
+        "runOn": "load",
         "parameters": [
-          { "name": "q", "binding": "{{teklifTedarikci.search}}", "type": "text" },
-          { "name": "type", "binding": "{{tedarikciTuru.value}}", "type": "text" },
-          { "name": "status", "binding": "{{tedarikciDurumu.value}}", "type": "text" } ] },
-      { "id": "teklifKaydet", "name": "teklifKaydet", "kind": "insert", "operation": "satinalma.talep.teklifKaydet", "runOn": "manual",
+          {
+            "name": "q",
+            "binding": "{{talepKalemleri.arama}}",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "birimler",
+        "name": "birimler",
+        "kind": "read",
+        "operation": "stok.kart.birimleri",
+        "runOn": "load",
         "parameters": [
-          { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" },
-          { "name": "code", "binding": "{{teklifNo.value}}", "type": "text" },
-          { "name": "supplierId", "binding": "{{teklifTedarikci.value}}", "type": "guid" },
-          { "name": "quoteDate", "binding": "{{teklifTarihi.value}}", "type": "date" },
-          { "name": "validUntil", "binding": "{{teklifGecerlilik.value}}", "type": "date" },
-          { "name": "notes", "binding": "{{teklifNotlari.value}}", "type": "text" },
-          { "name": "lines", "binding": "{{teklifKalemleri.satirlar}}", "type": "list" } ] },
-      { "id": "siparisTedarikcileri", "name": "siparisTedarikcileri", "kind": "read", "operation": "cari.listele", "runOn": "load",
+          {
+            "name": "id",
+            "binding": "{{talepKalemleri.satir.stockItemId}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "talepOlustur",
+        "name": "talepOlustur",
+        "kind": "insert",
+        "operation": "satinalma.talep.olustur",
+        "runOn": "manual",
         "parameters": [
-          { "name": "q", "binding": "{{siparisTedarikci.search}}", "type": "text" },
-          { "name": "type", "binding": "{{tedarikciTuru.value}}", "type": "text" },
-          { "name": "status", "binding": "{{tedarikciDurumu.value}}", "type": "text" } ] },
-      { "id": "depolar", "name": "depolar", "kind": "read", "operation": "depo.listele", "runOn": "load", "parameters": [] },
-      { "id": "siparisOlustur", "name": "siparisOlustur", "kind": "insert", "operation": "satinalma.talep.siparisOlustur", "runOn": "manual",
+          {
+            "name": "code",
+            "binding": "{{talepNo.value}}",
+            "type": "text"
+          },
+          {
+            "name": "requestDate",
+            "binding": "{{talepTarihi.value}}",
+            "type": "date"
+          },
+          {
+            "name": "neededByDate",
+            "binding": "{{ihtiyacTarihi.value}}",
+            "type": "date"
+          },
+          {
+            "name": "description",
+            "binding": "{{talepAciklamasi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "lines",
+            "binding": "{{talepKalemleri.satirlar}}",
+            "type": "list"
+          }
+        ]
+      },
+      {
+        "id": "teklifTedarikcileri",
+        "name": "teklifTedarikcileri",
+        "kind": "read",
+        "operation": "cari.listele",
+        "runOn": "load",
         "parameters": [
-          { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" },
-          { "name": "code", "binding": "{{siparisNo.value}}", "type": "text" },
-          { "name": "supplierId", "binding": "{{siparisTedarikci.value}}", "type": "guid" },
-          { "name": "orderDate", "binding": "{{siparisTarihi.value}}", "type": "date" },
-          { "name": "notes", "binding": "{{siparisNotlari.value}}", "type": "text" },
-          { "name": "expectedReceiptDate", "binding": "{{siparisTeslimTarihi.value}}", "type": "date" },
-          { "name": "targetWarehouseId", "binding": "{{siparisDepo.value}}", "type": "guid" },
-          { "name": "lines", "binding": "{{siparisKalemleri.satirlar}}", "type": "list" } ] },
-      { "id": "teklifKalemKaynak", "name": "teklifKalemKaynak", "kind": "read", "operation": "satinalma.teklif.kalemleri", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{teklifTablosu.seciliSatir.id}}", "type": "guid" } ] },
-      { "id": "teklifliSiparisOlustur", "name": "teklifliSiparisOlustur", "kind": "insert", "operation": "satinalma.talep.siparisOlustur", "runOn": "manual",
+          {
+            "name": "q",
+            "binding": "{{teklifTedarikci.search}}",
+            "type": "text"
+          },
+          {
+            "name": "type",
+            "binding": "{{tedarikciTuru.value}}",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "binding": "{{tedarikciDurumu.value}}",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "teklifKaydet",
+        "name": "teklifKaydet",
+        "kind": "insert",
+        "operation": "satinalma.talep.teklifKaydet",
+        "runOn": "manual",
         "parameters": [
-          { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" },
-          { "name": "code", "binding": "{{tsSiparisNo.value}}", "type": "text" },
-          { "name": "supplierId", "binding": "{{teklifTablosu.seciliSatir.supplierId}}", "type": "guid" },
-          { "name": "supplierQuoteId", "binding": "{{teklifTablosu.seciliSatir.id}}", "type": "guid" },
-          { "name": "orderDate", "binding": "{{tsSiparisTarihi.value}}", "type": "date" },
-          { "name": "notes", "binding": "{{tsNotlari.value}}", "type": "text" },
-          { "name": "expectedReceiptDate", "binding": "{{tsTeslimTarihi.value}}", "type": "date" },
-          { "name": "targetWarehouseId", "binding": "{{tsDepo.value}}", "type": "guid" },
-          { "name": "lines", "binding": "{{teklifSiparisKalemleri.satirlar}}", "type": "list" } ] }
-    ]
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          },
+          {
+            "name": "code",
+            "binding": "{{teklifNo.value}}",
+            "type": "text"
+          },
+          {
+            "name": "supplierId",
+            "binding": "{{teklifTedarikci.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "quoteDate",
+            "binding": "{{teklifTarihi.value}}",
+            "type": "date"
+          },
+          {
+            "name": "validUntil",
+            "binding": "{{teklifGecerlilik.value}}",
+            "type": "date"
+          },
+          {
+            "name": "notes",
+            "binding": "{{teklifNotlari.value}}",
+            "type": "text"
+          },
+          {
+            "name": "lines",
+            "binding": "{{teklifKalemleri.satirlar}}",
+            "type": "list"
+          }
+        ]
+      },
+      {
+        "id": "siparisTedarikcileri",
+        "name": "siparisTedarikcileri",
+        "kind": "read",
+        "operation": "cari.listele",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "q",
+            "binding": "{{siparisTedarikci.search}}",
+            "type": "text"
+          },
+          {
+            "name": "type",
+            "binding": "{{tedarikciTuru.value}}",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "binding": "{{tedarikciDurumu.value}}",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "depolar",
+        "name": "depolar",
+        "kind": "read",
+        "operation": "depo.listele",
+        "runOn": "load",
+        "parameters": []
+      },
+      {
+        "id": "siparisOlustur",
+        "name": "siparisOlustur",
+        "kind": "insert",
+        "operation": "satinalma.talep.siparisOlustur",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          },
+          {
+            "name": "code",
+            "binding": "{{siparisNo.value}}",
+            "type": "text"
+          },
+          {
+            "name": "supplierId",
+            "binding": "{{siparisTedarikci.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "orderDate",
+            "binding": "{{siparisTarihi.value}}",
+            "type": "date"
+          },
+          {
+            "name": "notes",
+            "binding": "{{siparisNotlari.value}}",
+            "type": "text"
+          },
+          {
+            "name": "expectedReceiptDate",
+            "binding": "{{siparisTeslimTarihi.value}}",
+            "type": "date"
+          },
+          {
+            "name": "targetWarehouseId",
+            "binding": "{{siparisDepo.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "lines",
+            "binding": "{{siparisKalemleri.satirlar}}",
+            "type": "list"
+          }
+        ]
+      },
+      {
+        "id": "teklifKalemKaynak",
+        "name": "teklifKalemKaynak",
+        "kind": "read",
+        "operation": "satinalma.teklif.kalemleri",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{teklifTablosu.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "teklifliSiparisOlustur",
+        "name": "teklifliSiparisOlustur",
+        "kind": "insert",
+        "operation": "satinalma.talep.siparisOlustur",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          },
+          {
+            "name": "code",
+            "binding": "{{tsSiparisNo.value}}",
+            "type": "text"
+          },
+          {
+            "name": "supplierId",
+            "binding": "{{teklifTablosu.seciliSatir.supplierId}}",
+            "type": "guid"
+          },
+          {
+            "name": "supplierQuoteId",
+            "binding": "{{teklifTablosu.seciliSatir.id}}",
+            "type": "guid"
+          },
+          {
+            "name": "orderDate",
+            "binding": "{{tsSiparisTarihi.value}}",
+            "type": "date"
+          },
+          {
+            "name": "notes",
+            "binding": "{{tsNotlari.value}}",
+            "type": "text"
+          },
+          {
+            "name": "expectedReceiptDate",
+            "binding": "{{tsTeslimTarihi.value}}",
+            "type": "date"
+          },
+          {
+            "name": "targetWarehouseId",
+            "binding": "{{tsDepo.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "lines",
+            "binding": "{{teklifSiparisKalemleri.satirlar}}",
+            "type": "list"
+          }
+        ]
+      }
+    ],
+    "template": {
+      "name": "list"
+    }
   }
 }

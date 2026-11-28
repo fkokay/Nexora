@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import catalog from './purchasingDeliveryNotesOperations.fixture.json';
 import { T, createHarness, page } from './purchasingStandardHarness';
 
-// "Gelen irsaliyeler" standart tanımı (sales-purchase-delivery-notes.json, v2): liste, salt okunur belge, bağlı kayıtlara geçiş,
+// "Gelen irsaliyeler" standart tanımı (sales-purchase-delivery-notes.json, v3): Liste kalıbı, salt okunur pencere, bağlı kayıtlara geçiş,
 // siparişin irsaliyelenmemiş kalanından yeni irsaliye (fill + skipWhenZero) ve mal kabul bağlama / bağlantı kaldırma.
 
 vi.mock('../erpApi', () => ({ api: vi.fn() }));
@@ -45,6 +45,7 @@ function respond(path: string, method: string): unknown {
 }
 
 const h = createHarness(KEY, catalog);
+const rowAction = async (code: string, name: RegExp) => within(await h.row(code)).findByRole('button', { name }, T);
 beforeEach(h.before);
 afterEach(() => h.after(['sales-purchasing', 'sales-purchase-receipts']));
 
@@ -55,17 +56,18 @@ describe('Gelen irsaliyeler standart tanımı', { timeout: 60000 }, () => {
     h.setup(respond);
     fireEvent.doubleClick(await h.cell('IRS-0001'));
     await waitFor(() => expect(h.gets(`/api/purchasing/delivery-notes/${N1}`).length).toBeGreaterThan(0), T);
-    expect(await screen.findByText('Satırlar', {}, T)).toBeTruthy();
+    const dialog = await screen.findByRole('dialog', {}, T);
+    expect(dialog.textContent).toContain('IRS-0001');
     expect(h.writes()).toEqual([]);
   });
 
   it('Siparişi aç and Mal kabulü aç carry the linked ids', async () => {
     h.setup(respond);
     await h.select('IRS-0001');
-    fireEvent.click(await h.menuItem(/^Siparişi aç/));
+    fireEvent.click(await rowAction('IRS-0001', /^Siparişi aç/));
     await waitFor(() => expect(h.state.navigations).toHaveLength(1), T);
     expect(h.state.navigations[0]).toMatchObject({ page: 'sales-purchasing', params: { purchaseOrderId: PO } });
-    fireEvent.click(await h.menuItem(/^Mal kabulü aç/));
+    fireEvent.click(await rowAction('IRS-0001', /^Mal kabulü aç/));
     await waitFor(() => expect(h.state.navigations).toHaveLength(2), T);
     expect(h.state.navigations[1]).toMatchObject({ page: 'sales-purchase-receipts', params: { receiptId: R1 }, legacy: true });
   });
@@ -79,10 +81,7 @@ describe('Gelen irsaliyeler standart tanımı', { timeout: 60000 }, () => {
     await h.pick(h.input('irsaliyeSiparisi'), 'SA-0001');
     await waitFor(() => expect(h.gridCell('irsaliyeSatirlari', 'dolu-1', 'quantity')?.value).toBe('6'), T);
     expect(h.gridCell('irsaliyeSatirlari', 'dolu-2', 'quantity')!.value).toBe('0');
-    expect(h.gridCell('irsaliyeSatirlari', 'dolu-3', 'notedQuantity')!.value).toBe('0');
     expect(await within(dialog).findByText(/Gönderilecek satır: 2\./, {}, T)).toBeTruthy();
-    // Siparişin önceki irsaliyeleri pencerede listelenir.
-    expect(await within(dialog).findByText('IRS-0001', { selector: 'td, td *' }, T)).toBeTruthy();
     h.type(h.input('belgeNo'), 'IRS-2026-0042');
     h.type(h.gridCell('irsaliyeSatirlari', 'dolu-3', 'quantity')!, '3');
     fireEvent.click(within(dialog).getByRole('button', { name: 'İrsaliyeyi kaydet' }));
@@ -95,7 +94,7 @@ describe('Gelen irsaliyeler standart tanımı', { timeout: 60000 }, () => {
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Siparişten tedarikçi irsaliyesi' })).toBeNull(), T);
   });
 
-  it('taslak 20: the list shows the pricing state; a Bedelsiz line and a typed price go with the posted lines', async () => {
+  it('the list keeps the pricing state while its compact create grid posts order line quantities', async () => {
     h.setup(respond);
     await h.cell('IRS-0001');
     expect(screen.getAllByText('Kısmen bedelsiz').length).toBeGreaterThan(0);
@@ -105,20 +104,11 @@ describe('Gelen irsaliyeler standart tanımı', { timeout: 60000 }, () => {
     await h.pick(h.input('irsaliyeSiparisi'), 'SA-0001');
     await waitFor(() => expect(h.gridCell('irsaliyeSatirlari', 'dolu-1', 'quantity')?.value).toBe('6'), T);
     h.type(h.input('belgeNo'), 'IRS-2026-0043');
-    // Önce yazılan fiyat bedelsiz işaretlenince silinir; fiyat hücreleri kilitli "—" olur (lockColumnsWhen).
-    h.type(h.gridCell('irsaliyeSatirlari', 'dolu-1', 'unitPrice')!, '9');
-    fireEvent.click(h.gridCell('irsaliyeSatirlari', 'dolu-1', 'isFreeOfCharge')!);
-    await waitFor(() => expect(h.gridCell('irsaliyeSatirlari', 'dolu-1', 'unitPrice')).toBeNull(), T);
-    expect([...dialog.querySelectorAll('[data-locked]')].map((cell) => cell.getAttribute('data-locked'))).toEqual(['unitPrice', 'discountPercent', 'vatPercent']);
     h.type(h.gridCell('irsaliyeSatirlari', 'dolu-3', 'quantity')!, '3');
-    h.type(h.gridCell('irsaliyeSatirlari', 'dolu-3', 'unitPrice')!, '12');
     fireEvent.click(within(dialog).getByRole('button', { name: 'İrsaliyeyi kaydet' }));
     const url = `/api/purchasing/delivery-notes/orders/${PO}`;
     await waitFor(() => expect(h.sent(url)).toHaveLength(1), T);
-    const lines = h.bodyOf(h.sent(url)[0]).lines as Array<Record<string, unknown>>;
-    expect(lines[0]).toMatchObject({ orderLineNumber: 1, quantity: 6, isFreeOfCharge: true });
-    expect(['unitPrice', 'discountPercent', 'vatPercent'].filter((code) => code in lines[0])).toEqual([]);
-    expect(lines[1]).toMatchObject({ orderLineNumber: 3, quantity: 3, unitPrice: 12 });
+    expect(h.bodyOf(h.sent(url)[0]).lines).toEqual(expect.arrayContaining([expect.objectContaining({ orderLineNumber: 3, quantity: 3 })]));
   });
 
   it('Yeni irsaliye can name a posted receipt of the order', async () => {
@@ -143,7 +133,7 @@ describe('Gelen irsaliyeler standart tanımı', { timeout: 60000 }, () => {
   it('Mal kabul bağla posts the picked posted receipt of the note order', async () => {
     h.setup(respond);
     await h.select('IRS-0002');
-    fireEvent.click(await h.menuItem(/^Mal kabul bağla$/));
+    fireEvent.click(await rowAction('IRS-0002', /^Mal kabul bağla$/));
     const dialog = await screen.findByRole('dialog', { name: /Mal kabul bağla · IRS-0002/ }, T);
     const select = h.input('baglaKabulu') as unknown as HTMLSelectElement;
     await waitFor(() => expect([...select.options].some((option) => option.value === R2)).toBe(true), T);
@@ -157,7 +147,7 @@ describe('Gelen irsaliyeler standart tanımı', { timeout: 60000 }, () => {
   it('Mal kabul bağlantısını kaldır asks first and posts the unlink with an empty body', async () => {
     h.setup(respond);
     await h.select('IRS-0001');
-    fireEvent.click(await h.menuItem(/^Mal kabul bağlantısını kaldır/));
+    fireEvent.click(await rowAction('IRS-0001', /^Mal kabul bağlantısını kaldır/));
     const confirm = await screen.findByRole('alertdialog', {}, T);
     expect(confirm.textContent).toContain('IRS-0001 irsaliyesinin MK-0001 mal kabul bağlantısı kaldırılsın mı?');
     expect(h.writes()).toEqual([]);
@@ -172,9 +162,8 @@ describe('Gelen irsaliyeler standart tanımı', { timeout: 60000 }, () => {
   it('link is disabled for a linked note and unlink for an unlinked one', async () => {
     h.setup(respond);
     await h.select('IRS-0001');
-    expect((await h.menuItem(/^Mal kabul bağla$/)).getAttribute('aria-disabled')).toBe('true');
-    fireEvent.click(h.command('more'));
+    expect((await rowAction('IRS-0001', /^Mal kabul bağla$/) as HTMLButtonElement).disabled).toBe(true);
     await h.select('IRS-0002');
-    expect((await h.menuItem(/^Mal kabul bağlantısını kaldır/)).getAttribute('aria-disabled')).toBe('true');
+    expect((await rowAction('IRS-0002', /^Mal kabul bağlantısını kaldır/) as HTMLButtonElement).disabled).toBe(true);
   });
 });
