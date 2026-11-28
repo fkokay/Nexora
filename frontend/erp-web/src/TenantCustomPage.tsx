@@ -4112,6 +4112,7 @@ export default function TenantCustomPage({ code, previewId, token, systemScreenK
       <DocumentTemplate key={`${page.id}:${page.revision}`} document={pageTemplate.document} layout={belgeLayout} token={token} orderId={orderId}
         isPreview={!!previewId} previewState={belgePreviewState} title={titleOverride || page.name}
         onSaved={(id) => { if (tabKey) setPageParams(tabKey, { ...pageParams, id }); }}
+        onOpenDocument={(pageKey, id) => openWorkspacePage({ page: pageKey, params: { id }, replace: false, ...(tabKey ? { from: tabKey } : {}) })}
         renderExtra={(part) => extra(part.filter((c) => !(BELGE_PARTS as readonly string[]).includes(c.type)))} />
     </main>;
   }

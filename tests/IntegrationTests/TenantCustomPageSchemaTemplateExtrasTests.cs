@@ -184,11 +184,22 @@ public sealed class TenantCustomPageSchemaTemplateExtrasTests
     public void Grid_in_a_window_follows_the_small_set()
     {
         Rejected(GridWindow(Grid(extra: new { gridMode = "stage", sourceQuery = "liste" }), plain: true), SatirKip);
-        Rejected(GridWindow(Grid(extra: new { gridColumns = new[] { "kod|Kod|lookup:liste:x:x" } }), plain: true), "Pencerede satır tablosu yalnız metin, sayı, tarih ve onay kutusu sütunlarını alır: kod.");
-        Rejected(GridWindow(Grid(extra: new { gridColumns = new[] { "kod|Kod|text|readOnly" } }), plain: true), "'readOnly' pencerede satır tablosunda kullanılamaz.");
+        Rejected(GridWindow(Grid(extra: new { gridColumns = new[] { "kod|Kod|number|step:0.5" } }), plain: true), "'step' pencerede satır tablosunda kullanılamaz.");
+        Rejected(GridWindow(Grid(extra: new { gridColumns = new[] { "trackingCode|Kod|text", "quantity|Miktar|number", "price|Fiyat|number" }, formulas = new { quantity = "price * 2" } }), plain: true), "'formulas' pencerede satır tablosunda kullanılamaz.");
         Rejected(GridWindow(Grid(extra: new { fixedRowLabel = "Satır" }), plain: true), "'fixedRowLabel' pencerede satır tablosunda kullanılamaz.");
         Rejected(GridWindow(Grid(extra: new { totals = new[] { "quantity" } }), plain: true), "'totals' pencerede satır tablosunda kullanılamaz.");
         Rejected(GridWindow(Grid(extra: new { maxRows = 201 }), plain: true), SatirSinir);
+    }
+
+    [Fact]
+    public void Grid_in_a_window_accepts_lookup_readOnly_columns_and_fill_from_a_read_query()
+    {
+        Accepted(GridWindow(Grid(extra: new
+        {
+            gridColumns = new[] { "trackingCode|Lot|lookup:liste:x:x:x|required", "quantity|Miktar|number|min:0", "expiryDate|SKT|date|readOnly" },
+            fillQuery = "liste", fillColumns = new Dictionary<string, string> { ["trackingCode"] = "x", ["quantity"] = "x" }, skipWhenZero = "quantity",
+            columnStaticOptions = new[] { "trackingCode=a=Varsayılan" }
+        })));
     }
 
     [Fact]

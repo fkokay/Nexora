@@ -8,7 +8,7 @@ import { emptyGridState, gridReducer, type GridAction, type GridColumn, type Gri
 import { PageShell, type ShellAction } from "./PageShell";
 import { approveSalesOrder, decideSalesOrder, warningsText } from "../sales/orderApproval";
 import {
-  bindingOf, DOCUMENT_BINDINGS, fillLine, loadCustomFieldDefinitions, loadDocument, loadDocumentModel, loadSampleDocument, lookupLabel, runTransition,
+  bindingOf, DOCUMENT_BINDINGS, fillLine, loadCustomFieldDefinitions, loadDocument, loadDocumentModel, loadSampleDocument, lookupLabel, runCreation, runTransition,
   saveDocument, searchOptions, type BelgeDocument, type CustomFieldDefinition, type DocumentBinding, type DocumentModel, type OrderPreview,
   type PreviewLineRequest,
 } from "./documentApi";
@@ -99,9 +99,11 @@ function Mark({ id }: { id: string | null }) {
  * `previewState` verilirse (Studio tuvali) modelden örnek belge çizilir. `isPreview`: kayıt ve geçişler gönderilmez.
  */
 export function DocumentTemplate<C extends BelgeComponent>({ document: documentCode, layout, token, orderId, isPreview, previewState, title,
-  onSaved, renderExtra }: {
+  onSaved, onOpenDocument, renderExtra }: {
   document: string; layout: BelgeLayout<C>; token?: string; orderId: string | null; isPreview: boolean; previewState?: string | null;
-  title: string; onSaved?: (id: string) => void; renderExtra?: (components: C[]) => ReactNode;
+  title: string; onSaved?: (id: string) => void;
+  /** Belgeden belge yeni belgeyi açar: belgeyi gösteren sayfanın anahtarı ve yeni belgenin kimliği. */
+  onOpenDocument?: (pageKey: string, id: string) => void; renderExtra?: (components: C[]) => ReactNode;
 }) {
   const [model, setModel] = useState<DocumentModel | null>(null);
   const known = bindingOf(documentCode);
@@ -280,6 +282,24 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
     } finally { setBusy(false); }
   };
 
+  /** Belgeden belge: modelin eylemi var olan ERP işlemini çağırır, yaratılan belgeyi hedef belgenin sayfasında açar. */
+  const create = async (code: string) => {
+    if (isPreview) { setMessage({ tone: "info", text: PREVIEW_WRITE_BLOCKED }); return; }
+    const definition = model?.creations?.find((c) => c.code === code);
+    if (!doc || !definition) return;
+    if (dirty && !(await confirmDialog({ title: "Kaydedilmemiş değişiklikler var", message: "Önce Kaydet'e basın; yoksa değişiklikler yeni belgeye girmez.", confirmLabel: "Yine de devam et" }))) return;
+    const target = bindingOf(definition.target);
+    setBusy(true); setMessage(null);
+    try {
+      const created = await runCreation(binding, doc.doc.id, code, token);
+      setDirty(false);
+      setReload((n) => n + 1);
+      if (target && created?.id) onOpenDocument?.(target.pageKey, created.id);
+    } catch (failure) {
+      setMessage({ tone: "error", text: failure instanceof Error ? failure.message : "Belge oluşturulamadı." });
+    } finally { setBusy(false); }
+  };
+
   /** Onay bekleyen siparişte kuraldaki kişinin kararı: Onayla ya da gerekçeyle Reddet. */
   const decide = async (decision: "Approved" | "Rejected") => {
     if (isPreview) { setMessage({ tone: "info", text: PREVIEW_WRITE_BLOCKED }); return; }
@@ -314,6 +334,11 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
     if (!definition) continue;
     actions.push({ id: code, label: definition.label, kind: definition.requiresReason ? "danger" : isEditable(status) ? "normal" : "primary",
       disabled: busy, run: () => void transition(code) });
+  }
+  for (const code of doc ? doc.allowedCreations : []) {
+    const definition = model.creations?.find((c) => c.code === code);
+    if (!definition) continue;
+    actions.push({ id: `olustur-${code}`, label: definition.label, kind: "primary", disabled: busy, run: () => void create(code) });
   }
   const chain = model.states.filter((s) => !s.terminal);
   const at = chain.findIndex((s) => s.code === status);

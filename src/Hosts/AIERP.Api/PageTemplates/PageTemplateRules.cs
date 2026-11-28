@@ -137,7 +137,7 @@ internal static class PageTemplateRules
     internal const string SatirYeri = "Satır tablosu (editableGrid) yalnız pencerenin içinde kullanılabilir.";
     internal const string SatirIki = "Bir pencerede en fazla bir satır tablosu olabilir.";
     internal const string SatirKip = "Pencerede satır tablosu yalnız 'list' kipinde kullanılabilir.";
-    internal static string SatirSutunu(string column) => $"Pencerede satır tablosu yalnız metin, sayı, tarih ve onay kutusu sütunlarını alır: {column}.";
+    internal static string SatirSutunu(string column) => $"Pencerede satır tablosu yalnız metin, sayı, tarih, onay kutusu ve seçim (lookup) sütunlarını alır: {column}.";
     internal static string SatirAyari(string key) => $"'{key}' pencerede satır tablosunda kullanılamaz.";
     internal const string SatirSutunSayisi = "Pencerede satır tablosu en fazla 8 sütun alır.";
     internal const string SatirSinir = "Pencerede satır tablosu için 'maxRows' 1–200 olmalıdır.";
@@ -145,7 +145,9 @@ internal static class PageTemplateRules
     internal const string SatirEylem = "Satır tablosu olan pencerenin bir kayıt eylemi olmalı.";
     private const int MaxWindowGridRows = 200;
     private static readonly HashSet<string> WindowGridProps = new(StringComparer.Ordinal)
-    { "slot", "gridMode", "title", "description", "gridColumns", "minRows", "maxRows", "addLabel", "disabledWhen", "disabledReason", "visibleWhen" };
+    { "slot", "gridMode", "title", "description", "gridColumns", "minRows", "maxRows", "addLabel", "disabledWhen", "disabledReason", "visibleWhen",
+      "columnOptionsWhen", "columnStaticOptions", "fillQuery", "fillColumns", "skipWhenZero" };
+    internal static string SatirEylemYeri(string id) => $"Satır işlemi düğmesi pencerenin içindeki bir veri listesinin 'rowActions' listesinde olmalı: {id}.";
     internal const string TekDetay = "Liste kalıbında detay yerinde en fazla bir bileşen (detay paneli ya da kart) olabilir.";
 
     /// <summary>
@@ -214,13 +216,13 @@ internal static class PageTemplateRules
     { "indicators", "filters", "list", "actions", "rowActions", "detail", "above", "below", CommandsSlot, DialogsSlot, DialogSlot };
 
     internal static readonly IReadOnlySet<string> RecordSlots = new HashSet<string>(StringComparer.Ordinal)
-    { "summary", "actions", "tabs", "section", "field", "lines", "note", CustomFieldsSlot, "above", "below", CommandsSlot, DialogsSlot, DialogSlot };
+    { "summary", "actions", "tabs", "section", "field", "lines", "note", CustomFieldsSlot, "above", "below", "rowActions", CommandsSlot, DialogsSlot, DialogSlot };
 
     /// <summary>The Kayıt kartı slot of its custom fields block (in exactly one tab).</summary>
     internal const string CustomFieldsSlot = "customFields";
 
     internal static readonly IReadOnlySet<string> FreeSlots = new HashSet<string>(StringComparer.Ordinal)
-    { "actions", "tabs", "block", "item", CommandsSlot, DialogsSlot, DialogSlot };
+    { "actions", "tabs", "block", "item", "rowActions", CommandsSlot, DialogsSlot, DialogSlot };
 
     private static readonly Dictionary<string, string> SlotTypes = new(StringComparer.Ordinal)
     {
@@ -234,7 +236,7 @@ internal static class PageTemplateRules
     private static readonly Dictionary<string, string> RecordSlotTypes = new(StringComparer.Ordinal)
     {
         ["summary"] = "recordHeader", ["actions"] = "button", ["tabs"] = "tabs", ["section"] = "formCard",
-        ["field"] = "input", ["lines"] = "dataTable", ["note"] = "text", [CustomFieldsSlot] = "customFieldsBlock", [CommandsSlot] = "actionBar"
+        ["field"] = "input", ["lines"] = "dataTable", ["note"] = "text", [CustomFieldsSlot] = "customFieldsBlock", ["rowActions"] = "button", [CommandsSlot] = "actionBar"
     };
 
     internal static readonly IReadOnlySet<string> BelgeSlots = new HashSet<string>(StringComparer.Ordinal)
@@ -251,7 +253,7 @@ internal static class PageTemplateRules
 
     private static readonly Dictionary<string, string> FreeSlotTypes = new(StringComparer.Ordinal)
     {
-        ["actions"] = "button", ["tabs"] = "tabs", ["block"] = "section", ["item"] = string.Join(", ", FreeItemTypes), [CommandsSlot] = "actionBar"
+        ["actions"] = "button", ["tabs"] = "tabs", ["block"] = "section", ["item"] = string.Join(", ", FreeItemTypes), ["rowActions"] = "button", [CommandsSlot] = "actionBar"
     };
 
     private const string UnknownTemplate = "Kalıp yalnız \"list\", \"record\", \"belge\" ya da \"free\" olabilir.";
@@ -438,10 +440,10 @@ internal static class PageTemplateRules
             foreach (var item in columns.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String))
             {
                 var parts = item.GetString()!.Split('|');
-                if (parts.Length >= 3 && (parts[2].StartsWith("lookup:", StringComparison.Ordinal) || parts[2].StartsWith("calc:", StringComparison.Ordinal)))
+                if (parts.Length >= 3 && parts[2].StartsWith("calc:", StringComparison.Ordinal))
                     return SatirSutunu(parts[0]);
-                if (parts.Length == 4 && parts[3].Split(',').FirstOrDefault(x => x == "readOnly" || x.StartsWith("step:", StringComparison.Ordinal)) is { } rule)
-                    return SatirAyari(rule == "readOnly" ? rule : "step");
+                if (parts.Length == 4 && parts[3].Split(',').FirstOrDefault(x => x.StartsWith("step:", StringComparison.Ordinal)) is not null)
+                    return SatirAyari("step");
             }
         }
         foreach (var prop in props.EnumerateObject())
@@ -703,6 +705,14 @@ internal static class PageTemplateRules
             var id = Id(component) ?? "";
             if (owners.ContainsKey(id) != (slot == DialogSlot)) return PencereIcerigi(id);
             if (slot == DialogSlot && !DialogPartTypes.Contains(type)) return PencereTuru(type);
+        }
+        // Record and free pages have no list body: a rowActions button belongs to a table inside a window.
+        if (template != "list")
+        {
+            var windowTables = placed.Where(x => x.Type == "dataTable" && owners.ContainsKey(Id(x.Component) ?? "")).ToArray();
+            var wired = windowTables.SelectMany(x => StringArray(x.Component, "rowActions")).ToHashSet(StringComparer.Ordinal);
+            foreach (var (component, slot, _) in placed)
+                if (slot == "rowActions" && !wired.Contains(Id(component) ?? "")) return SatirEylemYeri(Id(component) ?? "");
         }
         foreach (var window in owners.GroupBy(x => x.Value, x => x.Key))
         {

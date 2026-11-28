@@ -117,6 +117,11 @@ function Actions({ def, model, catalog, disabled, onChange }: {
     <div className="cpanel-q">Durumdan gelenler</div>
     <div className="cpanel-chips" aria-label="Durumdan gelen eylemler">{model.transitions.map((t) => <span key={t.code} className="cpanel-chip is-locked">{t.label}</span>)}</div>
     <p className="cpanel-note">Belgenin durumuna göre kendiliğinden görünür. Kimin onaylayacağı Kurallar ekranında belirlenir.</p>
+    {model.creations.length > 0 && <>
+      <div className="cpanel-q">Belgeden belge</div>
+      <div className="cpanel-chips" aria-label="Belgeden belge eylemleri">{model.creations.map((c) => <span key={c.code} className="cpanel-chip is-locked">{c.label}</span>)}</div>
+      <p className="cpanel-note">Bu eylemler sonraki belgeyi bu belgeden yaratır ve açar; yalnız şartı oluşunca görünür.</p>
+    </>}
     <div className="cpanel-q">Ek eylemler</div>
     {actions.length === 0 ? <p className="cpanel-note">Katalogda eylem yok.</p>
       : <div className="cpanel-chips" role="group" aria-label="Ek eylemler">{actions.map((action) => {
