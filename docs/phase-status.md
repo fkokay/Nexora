@@ -1852,3 +1852,6 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
 ### 2026-11-28 — Üretim reçetesi listesi Belge bağlantısı
 
 `manufacturing-recipes` v3 Yeni ve Aç komutları `manufacturing-recipe-document` sayfasına bağlandı; Aç, seçili reçete kimliğini `id` parametresiyle taşır. Eski `manufacturing-recipe-create` anahtarı, varsa `bomId` değerini Belge `id` değerine çevirip yeni sayfaya yönlendirir. Eski oluşturma standardı için ayrı JSON veya versions kaydı bulunmadığından kaldırılacak dosya/satır yoktu. Reçete liste, Studio ve eski anahtar yönlendirme testleri güncellendi.
+## Satınalma belge kalıpları
+
+- `sales-purchase-order-create` ve `sales-purchase-invoice-entry` standartları kaldırıldı; eski bağlantılar ilgili satınalma Belge sayfalarına yönleniyor. Taslak faturalar standardı Liste kalıbına geçti, düzenleme `purchase-invoice-document` üzerinden açılıyor.

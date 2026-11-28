@@ -162,7 +162,7 @@ export function PurchaseInvoicesScreen({
     path: (id) => `/api/purchasing/invoices/${id}`,
     reloadKey: current ? JSON.stringify(current) : undefined,
   });
-  const openReceiptEntry = () => onNavigate("sales-purchase-invoice-entry");
+  const openReceiptEntry = () => onNavigate("purchase-invoice-document");
   const newCommand: CommandSpec = { primary: true, run: openReceiptEntry };
   const commands: PageCommands = {
     new: newCommand,
@@ -186,7 +186,7 @@ export function PurchaseInvoicesScreen({
   // with its conditions.
   const more: MenuCommand[] = [
     { id: "purchase-invoice-from-receipt", label: "Mal kabulünden fatura", run: openReceiptEntry },
-    { id: "purchase-invoice-standalone", label: "Mal kabulsüz fatura", run: () => onNavigate("sales-purchase-invoice-drafts") },
+    { id: "purchase-invoice-standalone", label: "Mal kabulsüz fatura", run: () => onNavigate("purchase-invoice-document") },
   ];
   if (target?.status === "Posted") {
     if (target.outstandingAmount > 0)

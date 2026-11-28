@@ -8,7 +8,6 @@ namespace AIERP.Api.IntegrationTests;
 
 /// <summary>
 /// Satınalma system pages, Faz 2 (draft 21, line-document writes) for the request and order standards: the new
-/// sales-purchase-order-create form, sales-requests v3 (create request, quote entry, order from request or quote) and
 /// sales-purchasing v3 (goods receipt from the order's remaining lines). Checks the line grids against the bound write
 /// operations and the grid engine props (fillQuery, fillColumns, skipWhenZero, lookupFills, formulas).
 /// </summary>
@@ -17,16 +16,15 @@ public sealed class PurchasingFaz2SystemPagesTests
     private static readonly Guid Admin = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     private static readonly Guid Mehmet = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
 
-    private static readonly string[] Keys = ["sales-purchase-order-create", "sales-requests", "sales-purchasing"];
+    private static readonly string[] Keys = ["sales-requests", "sales-purchasing"];
     private static readonly Dictionary<string, int> Versions = new(StringComparer.Ordinal)
-    {
-        ["sales-purchase-order-create"] = 1, ["sales-requests"] = 3, ["sales-purchasing"] = 4,
+        {
+        ["sales-requests"] = 3, ["sales-purchasing"] = 4,
     };
 
     /// <summary>Every line grid of these pages: grid → (page, write query, fill query or null).</summary>
     private static readonly (string Key, string Grid, string Write, string? Fill)[] LineGrids =
     [
-        ("sales-purchase-order-create", "kalemler", "olustur", null),
         ("sales-requests", "talepKalemleri", "talepOlustur", null),
         ("sales-requests", "teklifKalemleri", "teklifKaydet", "kalemler"),
         ("sales-requests", "siparisKalemleri", "siparisOlustur", "kalemler"),
@@ -55,7 +53,7 @@ public sealed class PurchasingFaz2SystemPagesTests
     }
 
     [Fact]
-    public void Request_and_order_list_items_are_versioned_and_the_order_form_is_a_purchasing_menu_page()
+    public void Request_and_order_list_items_are_versioned()
     {
         foreach (var key in new[] { "sales-requests", "sales-purchasing" })
         {
@@ -68,15 +66,9 @@ public sealed class PurchasingFaz2SystemPagesTests
                 Assert.True(item.Since == (v3.Contains(item.Key) ? 3 : faz1.Contains(item.Key) ? 1 : 2), $"{key}: {item.Key} since {item.Since}");
             }
         }
-        Assert.All(Mine["sales-purchase-order-create"].Items, x => Assert.Equal(1, x.Since));
-        Assert.Contains("sales-purchase-order-create", StandardMenuEndpoints.PageKeys);
-        Assert.Contains("sales-purchase-order-create", StandardMenuEndpoints.NavigablePageKeys);
-        Assert.Equal("Yeni satınalma siparişi", Mine["sales-purchase-order-create"].Title);
-        Assert.Empty(Mine["sales-purchase-order-create"].ScreenViews);
     }
 
     [Theory]
-    [InlineData("sales-purchase-order-create")]
     [InlineData("sales-requests")]
     [InlineData("sales-purchasing")]
     public void Queries_bind_catalog_operations_with_every_required_parameter(string key)
@@ -160,40 +152,6 @@ public sealed class PurchasingFaz2SystemPagesTests
         }
         Assert.Contains("unitCode", GridColumns(Props("sales-requests", "talepKalemleri")).Keys);
         Assert.Null(Props("sales-requests", "talepKalemleri")["lookupFills"]);
-    }
-
-    // ---- sales-purchase-order-create ----
-
-    [Fact]
-    public void Order_form_saves_the_header_and_lines_then_opens_the_created_order()
-    {
-        const string key = "sales-purchase-order-create";
-        var bar = Props(key, "komutlar");
-        Assert.Equal(("olustur", "siparisiAcDugmesi"), ((string)bar["saveQuery"]!, (string)bar["afterSaveButton"]!));
-        Assert.Equal(new[] { "new", "open", "delete", "filter", "print", "export" }, Strings(bar["hiddenCommands"]));
-        var open = Props(key, "siparisiAcDugmesi");
-        Assert.Equal(("erpPage", "sales-purchasing", "purchaseOrderId={{olustur.sonuc.id}}"),
-            ((string)open["actionType"]!, (string)open["pageKey"]!, Strings(open["params"]).Single()));
-        Assert.Null(open["legacyScreen"]);
-        Assert.Contains("id", Op("satinalma.siparis.olustur").Result.Columns.Select(x => x.Code));
-
-        var save = Query(key, "olustur");
-        Assert.Equal(("insert", "satinalma.siparis.olustur"), ((string)save["kind"]!, (string)save["operation"]!));
-        Assert.Equal(new Dictionary<string, string>
-        {
-            ["code"] = "{{siparisNo.value}}", ["supplierId"] = "{{tedarikci.value}}", ["orderDate"] = "{{siparisTarihi.value}}",
-            ["currencyCode"] = "{{doviz.value}}", ["notes"] = "{{siparisNotu.value}}", ["expectedReceiptDate"] = "{{teslimTarihi.value}}",
-            ["targetWarehouseId"] = "{{depo.value}}", ["lines"] = "{{kalemler.satirlar}}",
-        }, Bindings(save));
-        // No body requestId on the order write: the unique order code is the duplicate guard (409).
-        Assert.DoesNotContain(Op("satinalma.siparis.olustur").Parameters, x => x.Name == "requestId");
-        foreach (var input in new[] { "tedarikci", "siparisNo", "doviz", "siparisTarihi" })
-            Assert.True(Props(key, input)["required"]!.GetValue<bool>(), input);
-        // The order currency must be the supplier's: it follows the picked supplier row until edited.
-        Assert.Equal("{{tedarikci.seciliSatir.currencyCode}}", (string)Props(key, "doviz")["defaultValue"]!);
-        Assert.Contains("currencyCode", Columns(key, "tedarikciler"));
-        AssertSupplierPicker(key, "tedarikciler", "tedarikci");
-        Assert.Equal(1, (int)Props(key, "kalemler")["minRows"]!);
     }
 
     // ---- sales-purchasing v3: goods receipt ----

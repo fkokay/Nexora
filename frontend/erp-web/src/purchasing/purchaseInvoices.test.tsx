@@ -294,10 +294,10 @@ describe('Satınalma Faturaları list', () => {
     await settle();
     expect(command('new').getAttribute('data-primary')).toBe('true');
     fireEvent.keyDown(window, { key: 'F2' });
-    await waitFor(() => expect(onNavigate).toHaveBeenCalledWith('sales-purchase-invoice-entry'));
+    await waitFor(() => expect(onNavigate).toHaveBeenCalledWith('purchase-invoice-document'));
     expect(menu().slice(0, 2)).toEqual(['Mal kabulünden fatura', 'Mal kabulsüz fatura']);
     await runMenu('Mal kabulsüz fatura');
-    expect(onNavigate).toHaveBeenLastCalledWith('sales-purchase-invoice-drafts');
+    expect(onNavigate).toHaveBeenLastCalledWith('purchase-invoice-document');
   });
 
   it('İşlemler carries the former row menu for the current row, with its conditions', async () => {
@@ -435,7 +435,7 @@ describe('Alış faturası document', () => {
     });
     await waitFor(() => expect(document.querySelector('.doc-surface')).not.toBeNull());
     fireEvent.keyDown(window, { key: 'F2' });
-    await waitFor(() => expect(onNavigate).toHaveBeenCalledWith('sales-purchase-invoice-entry'));
+    await waitFor(() => expect(onNavigate).toHaveBeenCalledWith('purchase-invoice-document'));
   });
 });
 
