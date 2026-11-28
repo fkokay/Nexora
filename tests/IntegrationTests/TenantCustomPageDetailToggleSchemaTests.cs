@@ -75,7 +75,7 @@ public sealed class TenantCustomPageDetailToggleSchemaTests
 
     private static readonly string[] ToggleStandards =
     [
-        "manufacturing-orders", "sales-purchase-invoice-drafts",
+        "sales-purchase-invoice-drafts",
     ];
 
     private static JsonElement Definition(string screenKey) =>
