@@ -94,6 +94,19 @@ public sealed class SystemPageEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Runtime_map_lists_every_standard_when_enabled_with_a_wildcard()
+    {
+        await using var app = await StartApplicationAsync(enabled: ["*"]);
+        using var client = app.GetTestClient();
+        SetIdentity(client, Mehmet, "TenantUser");
+
+        var screens = (await client.GetFromJsonAsync<JsonElement>("/api/system-pages/runtime")).GetProperty("screens");
+        var screen = screens.GetProperty(ScreenKey);
+        Assert.Equal("standard", screen.GetProperty("mode").GetString());
+        Assert.True(screens.EnumerateObject().Count() > 1);
+    }
+
+    [Fact]
     public async Task Runtime_map_lists_override_when_published()
     {
         await using var app = await StartApplicationAsync(enabled: [ScreenKey]);

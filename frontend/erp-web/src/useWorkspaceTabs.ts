@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GlobalSearchResult, Locale } from './WorkspaceComponents'
 import type { ModuleMenuSelection } from './ModuleMarketplacePage'
 import { getInitialPage, isPersistablePage, readWorkspacePreferences, readWorkspaceTabs, workspaceStorageKey } from './workspace-storage'
-import { standalonePageTitle } from './workspace-navigation'
+import { knownPageTitle } from './workspace-navigation'
 import { CLOSE_PAGE_EVENT, forgetOpener, OPEN_PAGE_EVENT, RECORDS_DELETED_EVENT, setPageParams, tabRecordIds, type RecordsDeletedDetail, type WorkspaceOpenRequest } from './pageNavigation'
 
 type Tab = { id: string; label: string }
@@ -33,7 +33,6 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
   // Several deletes may land before the next render (bulk delete): the handler reads and advances these, not the render's values.
   const latestTabs = useRef({ moduleTabs, page })
   latestTabs.current = { moduleTabs, page }
-
   /** Opens (or switches to) a tab; false when the tab limit refused it. */
   const setPage = useCallback((nextPage: string, labelOverride?: string): boolean => {
     if (nextPage === 'launcher' || nextPage === 'dashboard') {
@@ -43,7 +42,7 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
     const result = pageResults.find(item => item.page === nextPage)
     if (result?.selection) onSelectModule(result.selection)
     const pageLabel = nextPage === 'erp-assistant' ? (locale === 'en' ? 'AI ERP Assistant' : 'AI ERP Asistanı') : nextPage === 'sales-order-create' ? (locale === 'en' ? 'New sales order' : 'Yeni Sipariş') : nextPage === 'sales-quote-create' ? (locale === 'en' ? 'New quote' : 'Yeni Teklif') : nextPage === 'customer-edit' ? (locale === 'en' ? 'Edit Customer' : 'Cari Düzenle') : undefined
-    const knownLabel = labelOverride || pageLabel || result?.label || standalonePageTitle(nextPage, locale) || (nextPage.startsWith('module:') ? nextPage.split(':').at(-1) || 'Modül' : undefined)
+    const knownLabel = labelOverride || pageLabel || result?.label || knownPageTitle(nextPage, locale) || (nextPage.startsWith('module:') ? nextPage.split(':').at(-1) || 'Modül' : undefined)
     // Başlığı bilinmeyen ekranda ham anahtar yalnızca yeni sekmede kullanılır; var olan sekmenin başlığı ezilmez.
     const label = knownLabel || nextPage.replace(/[-_]/g, ' ')
     let pendingCustomerAction = false
@@ -65,12 +64,19 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
     return true
   }, [pageResults, moduleTabs, locale, onSelectModule, clearTabLimitNotice])
 
+  // The event listeners below subscribe once and read the latest values from here. A listener that re-subscribes whenever
+  // these change is missing for a moment in the commit that follows an open (the children's effects run before the
+  // parent's re-subscription), so a page that closes its own tab right after it opens (requestClosePage) was lost.
+  const live = useRef({ setPage, moduleTabs, dirtyTabs, pageResults, locale, onSelectModule })
+  live.current = { setPage, moduleTabs, dirtyTabs, pageResults, locale, onSelectModule }
+
   /**
    * Özel sayfanın gezinme eylemi: `replace` ise hedef, açan sekmenin (`from`) yerine açılır. Açan sekme açık değilse, kirliyse
    * ya da hedef zaten açıksa hedef normal yolla (yeni sekme ya da var olan sekmeye geçiş) açılır.
    */
   useEffect(() => {
     const onOpen = (event: Event) => {
+      const { setPage, moduleTabs, dirtyTabs, pageResults, locale, onSelectModule } = live.current
       const request = (event as CustomEvent<WorkspaceOpenRequest>).detail
       if (!request || typeof request.page !== 'string' || request.page === '') return
       const from = request.from
@@ -86,7 +92,7 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
       }
       const result = pageResults.find(item => item.page === request.page)
       if (result?.selection) onSelectModule(result.selection)
-      const label = result?.label || standalonePageTitle(request.page, locale) || request.page.replace(/[-_]/g, ' ')
+      const label = result?.label || knownPageTitle(request.page, locale) || request.page.replace(/[-_]/g, ' ')
       clearTabLimitNotice()
       setActivePage(request.page)
       setModuleTabs(current => current.map(tab => tab.id === from ? { id: request.page, label } : tab))
@@ -99,7 +105,7 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
     }
     window.addEventListener(OPEN_PAGE_EVENT, onOpen)
     return () => window.removeEventListener(OPEN_PAGE_EVENT, onOpen)
-  }, [moduleTabs, dirtyTabs, pageResults, locale, onSelectModule, setPage, clearTabLimitNotice])
+  }, [clearTabLimitNotice])
 
   const removeModuleTab = useCallback((tabId: string) => {
     if (tabId === 'dashboard') return
@@ -122,6 +128,7 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
    */
   useEffect(() => {
     const onDeleted = (event: Event) => {
+      const { setPage } = live.current
       const detail = (event as CustomEvent<RecordsDeletedDetail>).detail
       if (!detail || !Array.isArray(detail.ids) || detail.ids.length === 0) return
       const deleted = new Set(detail.ids)
@@ -147,7 +154,7 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
     }
     window.addEventListener(RECORDS_DELETED_EVENT, onDeleted)
     return () => window.removeEventListener(RECORDS_DELETED_EVENT, onDeleted)
-  }, [setPage, clearTabLimitNotice])
+  }, [clearTabLimitNotice])
 
   /**
    * A page asks to close its own tab without the unsaved-changes prompt (requestClosePage: a record card after its save or
@@ -156,6 +163,7 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
    */
   useEffect(() => {
     const onClose = (event: Event) => {
+      const { setPage } = live.current
       const tabId = (event as CustomEvent<{ page?: unknown }>).detail?.page
       if (typeof tabId !== 'string' || tabId === '' || tabId === 'dashboard') return
       const { moduleTabs, page } = latestTabs.current
@@ -179,7 +187,7 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
     }
     window.addEventListener(CLOSE_PAGE_EVENT, onClose)
     return () => window.removeEventListener(CLOSE_PAGE_EVENT, onClose)
-  }, [setPage, clearTabLimitNotice])
+  }, [clearTabLimitNotice])
 
   const closeModuleTab = useCallback((tabId: string) => {
     if (tabId === 'dashboard') return

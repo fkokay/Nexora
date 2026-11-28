@@ -1870,3 +1870,9 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
 - Expand → contract (`docs/release-migrations.md`): `20261128145535_RemoveMigrationBatchFromModel` (Platform) ve `20261128145545_RemoveTenantMigrationBatchFromModel` (Tenant) boş gövdelidir; sütun ve indeks bu sürümde veritabanında kalır, önceki sürüm onları okuyabilir.
 - **Sonraki sürüm (yapılmadı):** elle yazılacak migration önce `IX_TenantCustomPageRevisions_TenantId_MigrationBatch` indeksini, sonra `MigrationBatch` sütununu düşürür (Platform + her tenant DB), yedek + prova ile.
 - Doğrulanan: `dotnet ef migrations has-pending-model-changes` iki bağlamda temiz, çözüm derleniyor. Doğrulanmayan: SQL Server'da boş migration'ların uygulanması (yalnız geçmiş kaydı).
+
+### Standartlar tüm firmalara açık (2026-11-28)
+
+- `SystemPages:StandardEnabled` artık `"*"` kabul eder: bütün gömülü standartlar, yayımlanmış kopyası olmayan firmalara da sunulur. Compose `platform-api` ortamında varsayılan `*` (`SYSTEM_PAGES_STANDARD_ENABLED` ile değiştirilebilir); `appsettings.json` boş kalır (testler ve geliştirme eski davranışta).
+- Neden: canlıda kopyası olmayan ekranlar (ör. Mal kabulleri) eski arayüzle açılıyor, Belge sayfaları (`…-document`) runtime haritasında olmadığı için kendini kapatıyordu.
+- Doğrulanan: `SystemPageEndpointsIntegrationTests` 33/33 (yeni joker testi dahil). Doğrulanmayan: canlıda tüm ekranların standartla açılışı (canlıya alma sonrası tarayıcı taraması).
