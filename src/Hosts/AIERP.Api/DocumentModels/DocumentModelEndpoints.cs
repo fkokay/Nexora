@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using AIERP.Platform.Application;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace AIERP.Api.DocumentModels;
 
 /// <summary>
-/// Read-only document model routes (belge kurallarÄ±): the model, a sales order or quote as a document, and "alan deÄŸiÅŸince" fills.
+/// Read-only document model routes (belge kuralları): the model, a sales order or quote as a document, and "alan değişince" fills.
 /// The model routes resolve as the model's own document permission (<c>erp.sales-orders.read</c> / <c>erp.sales-quotes.read</c>); nothing is written.
 /// </summary>
 internal static class DocumentModelEndpoints
@@ -21,67 +21,29 @@ internal static class DocumentModelEndpoints
         // One literal route per model (the ERP operation catalog matches routes literally).
         models.MapGet("/" + SalesOrderDocumentModel.Code + "/sample", (string? state) => Sample(state, SalesOrderStatus.Draft, SalesOrderDocumentModel.Sample));
         models.MapGet("/" + SalesQuoteDocumentModel.Code + "/sample", (string? state) => Sample(state, SalesQuoteStatus.Draft, SalesQuoteDocumentModel.Sample));
-        models.MapGet("/" + InventoryTransferDocumentModel.Code + "/sample",
-            (string? state) => Sample(state, InventoryTransferStatus.Posted, InventoryTransferDocumentModel.Sample));
-        models.MapPost("/" + InventoryTransferDocumentModel.Code + "/fill", InventoryTransferDocumentModel.FillAsync);
         models.MapGet("/" + SalesInvoiceDocumentModel.Code + "/sample", (string? state) => Sample(state, SalesInvoiceDocumentState.Draft, SalesInvoiceDocumentModel.Sample));
         models.MapPost("/" + SalesInvoiceDocumentModel.Code + "/fill", SalesDocumentModelParts.FillAsync);
         models.MapGet("/" + SalesDeliveryDocumentModel.Code + "/sample", (string? state) => Sample(state, SalesDeliveryDocumentState.Draft, SalesDeliveryDocumentModel.Sample));
         models.MapPost("/" + SalesDeliveryDocumentModel.Code + "/fill", SalesDocumentModelParts.FillAsync);
+        models.MapPost("/" + SalesOrderDocumentModel.Code + "/fill", SalesDocumentModelParts.FillAsync);
+        models.MapPost("/" + SalesQuoteDocumentModel.Code + "/fill", SalesDocumentModelParts.FillAsync);
+        models.MapGet("/" + InventoryTransferDocumentModel.Code + "/sample",
+            (string? state) => Sample(state, InventoryTransferStatus.Posted, InventoryTransferDocumentModel.Sample));
+        models.MapPost("/" + InventoryTransferDocumentModel.Code + "/fill", InventoryTransferDocumentModel.FillAsync);
+
         app.MapGroup("/api/warehouses/transfers").WithTags("Depo Transferleri").RequireAuthorization()
-            .MapGet("/{id:guid}/document", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, IPlatformPermissionAuthorizer authorizer,
+            .MapGet("/{transferId:guid}/document", async (Guid transferId, ClaimsPrincipal principal, TenantDbContext db, IPlatformPermissionAuthorizer authorizer,
                 CancellationToken ct) =>
             {
                 if (!Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tenantId)) return Results.Forbid();
-                if (await InventoryTransferReads.ViewAsync(db, tenantId, id, ct) is not { } detail) return Results.NotFound();
-                var activity = await DocumentActivityLog.ReadAsync(db, tenantId, InventoryTransferDocumentModel.Code, id, ct);
-                var allowed = await DocumentModelPermissions.ExecutableAsync(authorizer, principal, tenantId, "erp.inventory-transfers", id,
+                if (await InventoryTransferReads.ViewAsync(db, tenantId, transferId, ct) is not { } detail) return Results.NotFound();
+                var activity = await DocumentActivityLog.ReadAsync(db, tenantId, InventoryTransferDocumentModel.Code, transferId, ct);
+                var allowed = await DocumentModelPermissions.ExecutableAsync(authorizer, principal, tenantId, "erp.inventory-transfers", transferId,
                     detail.Transfer.Status.ToString(), null, InventoryTransferDocumentModel.Candidates(detail.Transfer.Status), ct);
                 return Results.Ok(InventoryTransferDocumentModel.View(detail, allowed, activity));
             });
 
-        app.MapGroup("/api/sales/invoices").WithTags("SatÄ±ÅŸ FaturalarÄ±").RequireAuthorization()
-            .MapGet("/{id:guid}/document", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, IPlatformPermissionAuthorizer authorizer,
-                CancellationToken ct) =>
-            {
-                if (!Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tenantId)) return Results.Forbid();
-                if (await SalesInvoiceReads.DocumentAsync(db, tenantId, id, ct) is not { } invoice) return Results.NotFound();
-                var totals = await db.SalesInvoices.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
-                    .Select(x => new { x.Subtotal, x.DiscountTotal, x.TaxTotal, x.GrandTotal }).SingleAsync(ct);
-                var vat = invoice.Lines.GroupBy(x => x.VatPercent)
-                    .Select(g => new DocumentVatRow(g.Key, g.Sum(x => x.LineSubtotal - x.DiscountAmount), g.Sum(x => x.TaxAmount))).OrderBy(x => x.Rate).ToList();
-                var activity = await DocumentActivityLog.ReadAsync(db, tenantId, SalesInvoiceDocumentModel.Code, id, ct);
-                var status = invoice.Status == SalesInvoiceDocumentState.Voided ? SalesInvoiceStatus.Voided : SalesInvoiceStatus.Posted;
-                var allowed = await SalesDocumentModelParts.ExecutableAsync(authorizer, principal, tenantId, "erp.sales-invoices", id, status.ToString(),
-                    invoice.CustomerId, SalesInvoiceDocumentModel.Candidates(status), ct);
-                return Results.Ok(new SalesInvoiceDocumentView(invoice,
-                    new DocumentAmounts(invoice.CurrencyCode, totals.Subtotal, totals.DiscountTotal, totals.TaxTotal, totals.GrandTotal, vat),
-                    allowed, activity, activity.Count == 0));
-            });
-
-        app.MapGroup("/api/sales/deliveries").WithTags("SatÄ±ÅŸ Ä°rsaliyeleri").RequireAuthorization()
-            .MapGet("/{id:guid}/document", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, IPlatformPermissionAuthorizer authorizer,
-                CancellationToken ct) =>
-            {
-                if (!Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tenantId)) return Results.Forbid();
-                if (await SalesDeliveryReads.DocumentAsync(db, tenantId, id, ct) is not { } read) return Results.NotFound();
-                var delivery = read.Record;
-                var vat = delivery.Lines.Where(x => x.UnitPrice is not null).GroupBy(x => x.VatPercent ?? 0m)
-                    .Select(g => new DocumentVatRow(g.Key, g.Sum(x => x.LineSubtotal - x.DiscountAmount), g.Sum(x => x.TaxAmount))).OrderBy(x => x.Rate).ToList();
-                var subtotal = delivery.Lines.Sum(x => x.LineSubtotal);
-                var discount = delivery.Lines.Sum(x => x.DiscountAmount);
-                var tax = delivery.Lines.Sum(x => x.TaxAmount);
-                var activity = await DocumentActivityLog.ReadAsync(db, tenantId, SalesDeliveryDocumentModel.Code, id, ct);
-                var allowed = await SalesDocumentModelParts.ExecutableAsync(authorizer, principal, tenantId, "erp.sales-deliveries", id, read.StatusName,
-                    delivery.CustomerId, SalesDeliveryDocumentModel.Candidates(delivery.Status, delivery.IsStandalone, read.HasInvoice), ct);
-                return Results.Ok(new SalesDeliveryDocumentView(delivery,
-                    new DocumentAmounts(delivery.CurrencyCode, subtotal, discount, tax, subtotal - discount + tax, vat), allowed, activity,
-                    activity.Count == 0 && delivery.Status != SalesDeliveryDocumentState.Draft));
-            });
-        models.MapPost("/" + SalesOrderDocumentModel.Code + "/fill", SalesDocumentModelParts.FillAsync);
-        models.MapPost("/" + SalesQuoteDocumentModel.Code + "/fill", SalesDocumentModelParts.FillAsync);
-
-        app.MapGroup("/api/sales/quotes").WithTags("SatÄ±ÅŸ Teklifleri").RequireAuthorization()
+        app.MapGroup("/api/sales/quotes").WithTags("Satış Teklifleri").RequireAuthorization()
             .MapGet("/{id:guid}/document", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, IPlatformPermissionAuthorizer authorizer,
                 CancellationToken ct) =>
             {
@@ -101,8 +63,26 @@ internal static class DocumentModelEndpoints
                     allowed, activity, activity.Count == 0 && quote.Status != SalesQuoteStatus.Draft, creations));
             });
 
+        app.MapGroup("/api/sales/invoices").WithTags("Satış Faturaları").RequireAuthorization()
+            .MapGet("/{id:guid}/document", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, IPlatformPermissionAuthorizer authorizer,
+                CancellationToken ct) =>
+            {
+                if (!Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tenantId)) return Results.Forbid();
+                if (await SalesInvoiceReads.DocumentAsync(db, tenantId, id, ct) is not { } invoice) return Results.NotFound();
+                var totals = await db.SalesInvoices.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
+                    .Select(x => new { x.Subtotal, x.DiscountTotal, x.TaxTotal, x.GrandTotal }).SingleAsync(ct);
+                var vat = invoice.Lines.GroupBy(x => x.VatPercent)
+                    .Select(g => new DocumentVatRow(g.Key, g.Sum(x => x.LineSubtotal - x.DiscountAmount), g.Sum(x => x.TaxAmount))).OrderBy(x => x.Rate).ToList();
+                var activity = await DocumentActivityLog.ReadAsync(db, tenantId, SalesInvoiceDocumentModel.Code, id, ct);
+                var status = invoice.Status == SalesInvoiceDocumentState.Voided ? SalesInvoiceStatus.Voided : SalesInvoiceStatus.Posted;
+                var allowed = await SalesDocumentModelParts.ExecutableAsync(authorizer, principal, tenantId, "erp.sales-invoices", id, status.ToString(),
+                    invoice.CustomerId, SalesInvoiceDocumentModel.Candidates(status), ct);
+                return Results.Ok(new SalesInvoiceDocumentView(invoice,
+                    new DocumentAmounts(invoice.CurrencyCode, totals.Subtotal, totals.DiscountTotal, totals.TaxTotal, totals.GrandTotal, vat),
+                    allowed, activity, activity.Count == 0));
+            });
 
-        app.MapGroup("/api/sales/deliveries").WithTags("SatÄ±ÅŸ Ä°rsaliyeleri").RequireAuthorization()
+        app.MapGroup("/api/sales/deliveries").WithTags("Satış İrsaliyeleri").RequireAuthorization()
             .MapGet("/{id:guid}/document", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, IPlatformPermissionAuthorizer authorizer,
                 CancellationToken ct) =>
             {
@@ -122,7 +102,7 @@ internal static class DocumentModelEndpoints
                     activity.Count == 0 && delivery.Status != SalesDeliveryDocumentState.Draft));
             });
 
-        app.MapGroup("/api/sales/orders").WithTags("SatÄ±ÅŸ SipariÅŸleri").RequireAuthorization()
+        app.MapGroup("/api/sales/orders").WithTags("Satış Siparişleri").RequireAuthorization()
             .MapGet("/{id:guid}/document", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, PlatformDbContext platform,
                 IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
             {
