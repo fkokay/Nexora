@@ -31,7 +31,7 @@ describe('PageDialog', () => {
     render(<PageDialog {...base} open onClose={onClose} />);
     fireEvent.keyDown(screen.getByLabelText('Ad'), { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole('button', { name: 'Kapat' }));
+    fireEvent.click(document.querySelector('.tenant-page-dialog-close')!);
     expect(onClose).toHaveBeenCalledTimes(2);
     expect(screen.queryByRole('button', { name: 'Vazgeç' })).toBeNull();
   });
@@ -50,9 +50,21 @@ describe('PageDialog', () => {
     openButton.focus();
     fireEvent.click(openButton);
     expect(document.activeElement).toBe(screen.getByLabelText('Ad'));
-    fireEvent.click(screen.getByRole('button', { name: 'Kapat' }));
+    fireEvent.click(document.querySelector('.tenant-page-dialog-close')!);
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(document.activeElement).toBe(openButton);
+  });
+
+  it('closes on Escape from a select when its picker is not open', () => {
+    const onClose = vi.fn();
+    render(<PageDialog {...base} open onClose={onClose} renderOwned={(id) => id === 'ad' ? <label>Tür<select aria-label="Tür"><option>A</option></select></label> : <p>{id}</p>} />);
+    fireEvent.keyDown(screen.getByLabelText('Tür'), { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('focuses the dialog title when there is no editable field', () => {
+    render(<PageDialog {...base} ids={['metin']} open onClose={() => undefined} />);
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Hareket ekle' }));
   });
 
   it('drawer presentation class', () => {

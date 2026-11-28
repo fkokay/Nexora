@@ -405,6 +405,9 @@ html:not([data-theme="dark"]) #root .app-shell .tenant-custom-page .tenant-page-
 .tenant-page-pager-meta { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; }
 .tenant-page-pager-nav { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
 .tenant-page-pager-nav .tenant-page-button { min-height: 26px; padding: 2px 10px; font-size: 12px; }
+.tenant-page-pager-nav .tenant-page-button { border: 1px solid var(--nx-line); color: var(--nx-text); background: var(--nx-surface); font-weight: 500; }
+.tenant-page-pager-nav .tenant-page-button:hover:not(:disabled) { border-color: var(--nx-line); background: var(--nx-canvas); }
+.tenant-page-pager-nav .tenant-page-button:disabled, .tenant-page-pager-nav .tenant-page-button.is-disabled { opacity: .45; color: var(--nx-muted); border-color: var(--nx-line); background: var(--nx-canvas); cursor: not-allowed; }
 @media (max-width: 560px) { .tenant-page-pager-nav { margin-left: 0; } .tenant-page-table-search { max-width: none; } }
 
 /* Kayıt dizisi uyarısı, satır işlemleri, pencere ve görsel (Faz B). Pencere görünüm içinde çizilir; onay kutusu (z 20000) üstte kalır. */
@@ -431,8 +434,11 @@ html:not([data-theme="dark"]) #root .app-shell .tenant-custom-page .tenant-page-
 .tenant-page-dialog.is-drawer[data-size="lg"] { width: min(860px, 100%); }
 .tenant-page-dialog.is-drawer[data-size="xl"] { width: min(1100px, 100%); }
 .tenant-page-dialog.is-drawer[data-size="full"] { width: 100%; height: 100vh; }
-.tenant-page-dialog-header { padding: 12px 16px; border-bottom: 1px solid var(--nx-line); }
+.tenant-page-dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--nx-line); }
 .tenant-page-dialog-header h2 { margin: 0; font-size: 14px; font-weight: 600; }
+.tenant-page-dialog-close { display: inline-grid; place-items: center; flex: none; width: 28px; height: 28px; padding: 0; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-control); background: var(--nx-surface); color: var(--nx-muted); cursor: pointer; }
+.tenant-page-dialog-close:hover { color: var(--nx-text); background: var(--nx-canvas); }
+.tenant-page-dialog-close:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: 2px; }
 .tenant-page-dialog-body { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); align-items: start; gap: var(--custom-page-gap, 12px); padding: 14px 16px; overflow-y: auto; }
 .tenant-page-dialog-body > * { grid-column: span 12; min-width: 0; }
 .tenant-page-dialog > .tenant-page-action-status { margin: 0 16px 10px; }

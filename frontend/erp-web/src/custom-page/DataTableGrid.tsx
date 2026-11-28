@@ -156,6 +156,15 @@ export function DataTableGrid({ gridId, state, columns, title, description, styl
     if (row && row !== selected) onSelect(row, { user: true });
   } : undefined;
 
+  // Compact content-aware defaults for system-page grids. Text columns keep room to grow;
+  // identifiers, dates, numbers, and status chips start at their natural reading width.
+  const initialColumnWidths = visible.map((column) => {
+    const format = formats[column.code];
+    if (format === "status") return 128;
+    if (format === "code" || format === "date" || format === "datetime" || /date|time/i.test(column.dataType ?? "")) return 116;
+    if (isRightAligned(format, column.dataType)) return 104;
+    return 176;
+  });
   const cellClass = (column: { code: string; dataType?: string }) => {
     const format = formats[column.code];
     const right = isRightAligned(format, column.dataType);
@@ -225,7 +234,7 @@ export function DataTableGrid({ gridId, state, columns, title, description, styl
           : <>
             {state.loading && <div className="tenant-report-state" role="status">Yükleniyor…</div>}
             {mode === "cards" ? cards : <div className={`customer-table-wrap tenant-page-data-grid-wrap${density === "comfort" ? " is-comfort" : ""}`}>
-              <AdvancedDataGrid className="customer-table tenant-page-grid-table" gridId={gridId} aria-label={title || "Kayıtlar"}
+              <AdvancedDataGrid className="customer-table tenant-page-grid-table" gridId={gridId} aria-label={title || "Kayıtlar"} initialColumnWidths={initialColumnWidths}
                 externalPagination={!!paging} fixedPageSize={pageSize ?? undefined} enableRowSelection={false} selectable
                 hideSearch={!tools.search || shellSearch} hideFilters={!tools.filters} hideColumnChooser={!tools.columns} hideExport={!tools.export} hideCsv={!tools.csv} hidePivot={!tools.pivot}
                 bulkActions={bulkActions} exportActionsRef={exportRef} toolbarToggles={toolbarToggles}

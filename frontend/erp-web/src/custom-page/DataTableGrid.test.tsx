@@ -50,6 +50,14 @@ describe('DataTableGrid (gelişmiş ızgara)', () => {
     expect(screen.getAllByText('Sütun filtreleri').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Sütunlar').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Pivot görünümü').length).toBeGreaterThan(0);
+    expect(document.querySelector('.advanced-grid-pagination button:disabled')?.classList.contains('is-disabled')).toBe(true);
+  });
+
+  it('sistem sayfası ızgarasında dar veri sütunlarına içerik genişliği verir ve durum sütununu korur', () => {
+    render(<Harness formats={{ kod: 'code', miktar: 'number', durum: 'status' }} />);
+    const headers = Array.from(document.querySelectorAll<HTMLElement>('.tenant-page-data-grid thead th:not(.advanced-grid-select-cell)'));
+    expect(headers.map((header) => (header as HTMLTableCellElement).style.width)).toEqual(['176px', '116px', '128px', '104px']);
+    expect(headers[2].textContent).toBe('Durum');
   });
 
   it('başlık tıklaması sıralar', () => {

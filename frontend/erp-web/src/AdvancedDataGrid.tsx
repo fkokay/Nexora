@@ -2687,6 +2687,7 @@ export default function AdvancedDataGrid({
         <div className="advanced-grid-pagination">
           <button
             type="button"
+            className={currentPage <= 1 || serverData?.loading ? "is-disabled" : undefined}
             disabled={currentPage <= 1 || serverData?.loading}
             onClick={() => goPage(currentPage - 1)}
           >
@@ -2694,6 +2695,7 @@ export default function AdvancedDataGrid({
           </button>
           <button
             type="button"
+            className={currentPage >= pageCount || serverData?.loading ? "is-disabled" : undefined}
             disabled={currentPage >= pageCount || serverData?.loading}
             onClick={() => goPage(currentPage + 1)}
           >

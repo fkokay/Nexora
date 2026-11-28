@@ -224,12 +224,12 @@ describe('Değişiklik izleme', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Hareketler' }));
     let dialog = await screen.findByRole('dialog');
     // Temiz pencere sormadan kapanır.
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Kapat' }));
+    fireEvent.click(dialog.querySelector('.tenant-page-dialog-footer button')!);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     fireEvent.click(screen.getByRole('button', { name: 'Hareketler' }));
     dialog = await screen.findByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Satır ekle' }));
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Kapat' }));
+    fireEvent.click(dialog.querySelector('.tenant-page-dialog-footer button')!);
     let confirm = await screen.findByRole('alertdialog');
     expect(within(confirm).getByText('Pencere kapatılsın mı?')).toBeTruthy();
     fireEvent.click(within(confirm).getByRole('button', { name: 'Vazgeç' }));

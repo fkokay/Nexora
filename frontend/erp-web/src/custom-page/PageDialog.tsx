@@ -1,4 +1,5 @@
 import { Fragment, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject, useEffect, useRef } from "react";
+import { X } from "lucide-react";
 import { usePageCommands } from "../commands/CommandProvider";
 
 export type ActionStatus = { tone: "success" | "error" | "warning"; text: string };
@@ -6,7 +7,7 @@ export type DialogSave = { label: string; busy: boolean; run: () => void };
 /** Pencere genişliği (`dialog.size`); `md` bugünkü genişliktir ve DOM'a yazılmaz. */
 export type DialogSize = "sm" | "md" | "lg" | "xl" | "full";
 
-const FIELD_SELECTOR = "input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled])";
+const FIELD_SELECTOR = "input:not([disabled]):not([readonly]):not([type=hidden]), select:not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly])";
 const BUSY_TEXT = "Kaydediliyor…";
 
 const NO_DIALOG_SAVE = "Bu pencerede kaydedilecek bir şey yok";
@@ -28,7 +29,7 @@ function OpenDialog({ id, title, presentation, size, backdropClose, onClose, ren
   useEffect(() => {
     // Açılışta ilk alana (yoksa ilk düğmeye) odaklanılır; kapanınca odak açan öğeye döner.
     const root = ref.current;
-    (root?.querySelector<HTMLElement>(`.tenant-page-dialog-body :is(${FIELD_SELECTOR})`) ?? root?.querySelector<HTMLElement>("button"))?.focus();
+    (root?.querySelector<HTMLElement>(`.tenant-page-dialog-body :is(${FIELD_SELECTOR}):not(.advanced-grid-footer *)`) ?? root?.querySelector<HTMLElement>(".tenant-page-dialog-title"))?.focus();
     return () => { if (focusBack.current?.isConnected) focusBack.current.focus(); };
   }, []);
   // Esc yalnız pencerenin kendi öğelerinden gelirse kapatır (üstte açılan onay/istem kutusu sayfa dışındadır).
@@ -40,7 +41,10 @@ function OpenDialog({ id, title, presentation, size, backdropClose, onClose, ren
       onNew();
       return;
     }
-    if (event.key !== "Escape") return;
+    if (event.key !== "Escape" || event.defaultPrevented) return;
+    if (event.target instanceof HTMLSelectElement) {
+      try { if (event.target.matches(":open")) return; } catch { /* Older browsers do not expose the select picker state. */ }
+    }
     event.stopPropagation();
     event.preventDefault();
     onClose();
@@ -57,7 +61,7 @@ function OpenDialog({ id, title, presentation, size, backdropClose, onClose, ren
   const sizeAttr = size && size !== "md" ? size : undefined;
   return <div className="tenant-page-dialog-backdrop" onMouseDown={backdropClose ? onBackdropMouseDown : undefined} onClick={backdropClose ? onBackdropClick : undefined}>
     <div ref={ref} className={`tenant-page-dialog${presentation === "drawer" ? " is-drawer" : ""}`} data-size={sizeAttr} role="dialog" aria-modal="true" aria-labelledby={titleId} onKeyDown={onKeyDown}>
-      <header className="tenant-page-dialog-header"><h2 id={titleId}>{title}</h2></header>
+      <header className="tenant-page-dialog-header"><h2 id={titleId} className="tenant-page-dialog-title" tabIndex={-1}>{title}</h2><button type="button" className="tenant-page-dialog-close" aria-label="Kapat" onClick={onClose}><X size={16} aria-hidden="true" /></button></header>
       <div className={`tenant-page-dialog-body${skeleton ? " is-skeleton" : ""}`}>{ids.map((owned) => <Fragment key={owned}>{renderOwned(owned)}</Fragment>)}</div>
       {status && <p className={`tenant-page-action-status is-${status.tone}`} role={status.tone === "error" ? "alert" : "status"}>{status.text}</p>}
       <footer className="tenant-page-dialog-footer">

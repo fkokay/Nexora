@@ -23,9 +23,9 @@ export function PagedTableFooter({ page, pageSize, total, meta, onPage, loading 
       {meta.map((item, index) => <span key={`${index}-${item.label}`}>{`${item.label}: ${item.value}`}</span>)}
     </span>}
     <span className="tenant-page-pager-nav">
-      <button type="button" className="tenant-page-button" disabled={shownPage <= 1} onClick={() => onPage(shownPage - 1)}>Önceki</button>
+      <button type="button" className={`tenant-page-button${shownPage <= 1 ? " is-disabled" : ""}`} disabled={shownPage <= 1} onClick={() => onPage(shownPage - 1)}>Önceki</button>
       <span>{`Sayfa ${numberText(shownPage)} / ${numberText(pages)}`}</span>
-      <button type="button" className="tenant-page-button" disabled={shownPage >= pages} onClick={() => onPage(shownPage + 1)}>Sonraki</button>
+      <button type="button" className={`tenant-page-button${shownPage >= pages ? " is-disabled" : ""}`} disabled={shownPage >= pages} onClick={() => onPage(shownPage + 1)}>Sonraki</button>
     </span>
   </div>;
 }
