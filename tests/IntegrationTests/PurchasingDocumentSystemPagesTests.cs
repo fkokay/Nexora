@@ -37,10 +37,10 @@ public sealed class PurchasingDocumentSystemPagesTests
         { "sales-purchase-returns", "Satınalma İadeleri" },
     };
 
-    /// <summary>Versions: receipts v2 and invoices v3 are Liste-template standards (satın alma 1. dalga); returns stays v2.</summary>
+    /// <summary>Versions: receipts and returns are v3 Liste-template standards (Satın Alma 2. dalga).</summary>
     private static readonly Dictionary<string, int> Versions = new(StringComparer.Ordinal)
     {
-        ["sales-purchase-receipts"] = 2, ["sales-purchase-invoice-entry"] = 1, ["sales-purchase-invoices"] = 3, ["sales-purchase-returns"] = 2,
+        ["sales-purchase-receipts"] = 3, ["sales-purchase-invoice-entry"] = 1, ["sales-purchase-invoices"] = 4, ["sales-purchase-returns"] = 3,
     };
 
     /// <summary>The page params each legacy purchasing screen reads (K7 readers); a legacy command sends only these.</summary>
@@ -285,7 +285,7 @@ public sealed class PurchasingDocumentSystemPagesTests
         Assert.Equal(("{{sayfa.parametre.supplierId}}", "{{suzgec.q}}"), (Binding(key, "faturalar", "supplierId"), Binding(key, "faturalar", "q")));
         Assert.Equal("sayfa.parametre.supplierId != null", (string)Props(key, "tedarikciNotu")["visibleWhen"]!);
         var bar = Props(key, "komutlar");
-        Assert.Equal(("page", "@sales-purchase-invoice-entry"), ((string)bar["newAction"]!, (string)bar["newPageCode"]!));
+        Assert.Equal(("page", "@purchase-invoice-document"), ((string)bar["newAction"]!, (string)bar["newPageCode"]!));
 
         // The document reads lines, payments and returns of the selected invoice.
         foreach (var (query, operation) in new[] { ("fatura", "satinalma.fatura.getir"), ("faturaSatirlari", "satinalma.fatura.satirlari"),
@@ -332,8 +332,8 @@ public sealed class PurchasingDocumentSystemPagesTests
         const string key = "sales-purchase-returns";
         Assert.Equal(("satinalma.iade.listele", "{{suzgec.q}}"), (Operation(key, "iadeler"), Binding(key, "iadeler", "q")));
         Assert.Equal(("satinalma.iade.getir", "satinalma.iade.satirlari"), (Operation(key, "iade"), Operation(key, "iadeSatirlari")));
-        Assert.Equal(("satinalma.iade.iptal", "{{iade.rows[0].id}}"), (Operation(key, "iadeIptal"), Binding(key, "iadeIptal", "id")));
-        Assert.Equal("{{liste.seciliSatir.id}}", Binding(key, "iadeIptalSatir", "id"));
+        // Void is a row action on the list (the read-only detail window has no void command).
+        Assert.Equal(("satinalma.iade.iptal", "{{liste.seciliSatir.id}}"), (Operation(key, "iadeIptalSatir"), Binding(key, "iadeIptalSatir", "id")));
         Assert.Equal("liste.seciliSatir.status == 'Posted'", (string)Props(key, "iptalSatir")["visibleWhen"]!);
         Assert.Empty(SystemPageStandards.All[key].ScreenViews);
     }
@@ -344,7 +344,6 @@ public sealed class PurchasingDocumentSystemPagesTests
     {
         { "sales-purchase-receipts", "faturaAcDugmesi", "sales-purchase-invoices", ["purchaseInvoiceId={{kabul.rows[0].invoice.id}}"] },
         { "sales-purchase-invoice-entry", "eskiEkranDugmesi", "sales-purchase-invoice-entry", ["receiptId={{kabulSecimi.value}}"] },
-        { "sales-purchase-returns", "eskiEkranDugmesi", "sales-purchase-returns", [] },
         { "sales-purchase-returns", "faturaAcDugmesi", "sales-purchase-invoices", ["purchaseInvoiceId={{liste.seciliSatir.purchaseInvoiceId}}"] },
     };
 
@@ -363,8 +362,8 @@ public sealed class PurchasingDocumentSystemPagesTests
     {
         var definition = Definition(key);
         var legacy = Components(definition).Where(x => (bool?)x["props"]?["legacyScreen"] == true).ToArray();
-        // Receipts and invoices are Liste-template standards (satın alma 1. dalga): no "Eski ekranda aç" command any more.
-        if (key is "sales-purchase-receipts" or "sales-purchase-invoices")
+        // Receipts, invoices and returns are Liste-template standards (satın alma 1. dalga): no "Eski ekranda aç" command any more.
+        if (key is "sales-purchase-receipts" or "sales-purchase-invoices" or "sales-purchase-returns")
             Assert.DoesNotContain(legacy, x => (string?)x["props"]!["text"] == "Eski ekranda aç");
         else
         {

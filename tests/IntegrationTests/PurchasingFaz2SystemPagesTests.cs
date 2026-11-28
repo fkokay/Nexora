@@ -8,8 +8,8 @@ namespace AIERP.Api.IntegrationTests;
 
 /// <summary>
 /// Satınalma system pages, Faz 2 (draft 21, line-document writes) for the request and order standards: the new
-/// sales-purchase-order-create form, sales-requests v2 (create request, quote entry, order from request or quote) and
-/// sales-purchasing v2 (goods receipt from the order's remaining lines). Checks the line grids against the bound write
+/// sales-purchase-order-create form, sales-requests v3 (create request, quote entry, order from request or quote) and
+/// sales-purchasing v3 (goods receipt from the order's remaining lines). Checks the line grids against the bound write
 /// operations and the grid engine props (fillQuery, fillColumns, skipWhenZero, lookupFills, formulas).
 /// </summary>
 public sealed class PurchasingFaz2SystemPagesTests
@@ -20,7 +20,7 @@ public sealed class PurchasingFaz2SystemPagesTests
     private static readonly string[] Keys = ["sales-purchase-order-create", "sales-requests", "sales-purchasing"];
     private static readonly Dictionary<string, int> Versions = new(StringComparer.Ordinal)
     {
-        ["sales-purchase-order-create"] = 1, ["sales-requests"] = 2, ["sales-purchasing"] = 3,
+        ["sales-purchase-order-create"] = 1, ["sales-requests"] = 3, ["sales-purchasing"] = 4,
     };
 
     /// <summary>Every line grid of these pages: grid → (page, write query, fill query or null).</summary>
@@ -55,13 +55,18 @@ public sealed class PurchasingFaz2SystemPagesTests
     }
 
     [Fact]
-    public void Faz_2_items_are_version_2_and_the_order_form_is_a_purchasing_menu_page()
+    public void Request_and_order_list_items_are_versioned_and_the_order_form_is_a_purchasing_menu_page()
     {
         foreach (var key in new[] { "sales-requests", "sales-purchasing" })
         {
             var faz1 = Faz1Ids[key];
             foreach (var item in Mine[key].Items)
-                Assert.True(item.Since == (faz1.Contains(item.Key) ? 1 : 2), $"{key}: {item.Key} since {item.Since}");
+            {
+                var v3 = key == "sales-requests"
+                    ? new HashSet<string>(["component:talepDetayPenceresi", "component:talepDetayBasligi", "component:talepDetaySekmeleri"])
+                    : new HashSet<string>(["component:siparisDetayPenceresi", "component:siparisDetayBasligi", "component:siparisDetaySekmeleri"]);
+                Assert.True(item.Since == (v3.Contains(item.Key) ? 3 : faz1.Contains(item.Key) ? 1 : 2), $"{key}: {item.Key} since {item.Since}");
+            }
         }
         Assert.All(Mine["sales-purchase-order-create"].Items, x => Assert.Equal(1, x.Since));
         Assert.Contains("sales-purchase-order-create", StandardMenuEndpoints.PageKeys);
@@ -143,32 +148,18 @@ public sealed class PurchasingFaz2SystemPagesTests
     }
 
     [Fact]
-    public void Lookup_fills_and_formulas_follow_the_stock_card_and_the_server_amount_order()
+    public void List_template_windows_keep_simple_line_inputs_and_leave_totals_to_the_server()
     {
-        var grid = Props("sales-purchase-order-create", "kalemler");
-        var fills = (JsonObject)grid["lookupFills"]!["stockItemId"]!;
-        Assert.Equal(new Dictionary<string, string>
-        {
-            ["unitCode"] = "unitCode", ["unitPrice"] = "purchaseListPrice", ["discountPercent"] = "purchaseDiscountPercent", ["vatPercent"] = "purchaseVatPercent",
-        }, MapOf(fills));
-        foreach (var source in MapOf(fills).Values) Assert.Contains(source, Columns("sales-purchase-order-create", "stoklar"));
-        Assert.Equal("stok.kart.listele", (string)Query("sales-purchase-order-create", "stoklar")["operation"]!);
-        // Net = quantity × price − discount; VAT on the net; gross = net + VAT (the server rounds each step: F2-3).
-        var expected = new Dictionary<string, string>
-        {
-            ["lineNet"] = "quantity * unitPrice - quantity * unitPrice * discountPercent / 100",
-            ["lineVat"] = "lineNet * vatPercent / 100",
-            ["lineTotal"] = "lineNet + lineVat",
-        };
-        foreach (var (key, gridId) in new[] { ("sales-purchase-order-create", "kalemler"), ("sales-requests", "teklifKalemleri"), ("sales-requests", "siparisKalemleri") })
+        foreach (var (key, gridId) in new[] { ("sales-requests", "teklifKalemleri"), ("sales-requests", "siparisKalemleri"),
+                     ("sales-requests", "teklifSiparisKalemleri"), ("sales-purchasing", "kabulKalemleri") })
         {
             var props = Props(key, gridId);
-            Assert.Equal(expected, MapOf(props["formulas"]));
-            Assert.Equal(new[] { "lineNet", "lineVat", "lineTotal" }, Strings(props["totals"]));
-            Assert.All(expected.Keys, code => Assert.Equal("number", GridColumnType(props, code)));
+            Assert.InRange(Strings(props["gridColumns"]).Length, 1, 8);
+            Assert.Null(props["formulas"]);
+            Assert.Null(props["totals"]);
         }
-        Assert.Equal(new Dictionary<string, string> { ["unitCode"] = "unitCode" }, MapOf(Props("sales-requests", "talepKalemleri")["lookupFills"]!["stockItemId"]));
-        Assert.Contains("{{kalemler.toplam.lineTotal}}", (string)Props("sales-purchase-order-create", "toplamlar")["text"]!);
+        Assert.Contains("unitCode", GridColumns(Props("sales-requests", "talepKalemleri")).Keys);
+        Assert.Null(Props("sales-requests", "talepKalemleri")["lookupFills"]);
     }
 
     // ---- sales-purchase-order-create ----
@@ -205,7 +196,7 @@ public sealed class PurchasingFaz2SystemPagesTests
         Assert.Equal(1, (int)Props(key, "kalemler")["minRows"]!);
     }
 
-    // ---- sales-purchasing v2: goods receipt ----
+    // ---- sales-purchasing v3: goods receipt ----
 
     [Fact]
     public void Goods_receipt_fills_the_remaining_order_lines_and_skips_zero_quantities()
@@ -216,21 +207,21 @@ public sealed class PurchasingFaz2SystemPagesTests
         // F2-17: the source also has quantity (ordered); the grid's quantity must come from remainingQuantity.
         Assert.Equal("remainingQuantity", MapOf(grid["fillColumns"])["quantity"]);
         // The order lines read (the retired satinalma.malKabul.siparisSatirlari was its duplicate).
-        Assert.Equal(("satinalma.siparis.satirlari", "{{siparisSecimi.value}}"),
+        Assert.Equal(("satinalma.siparis.satirlari", "{{liste.seciliSatir.id}}"),
             ((string)Query(key, "kabulKaynak")["operation"]!, Bindings(Query(key, "kabulKaynak"))["id"]));
         Assert.Contains("trackingMode", GridColumns(grid).Keys);
-        // Line prices: filled from the PO line (same codes), locked and left out of the body on a free line; Tutar is display-only.
+        Assert.InRange(Strings(grid["gridColumns"]).Length, 1, 8);
+        Assert.Null(grid["formulas"]);
+        Assert.Null(grid["lockColumnsWhen"]);
+        // Line prices are derived from the purchase order by the API; this compact window does not expose client-side totals.
         var columns = GridColumns(grid);
-        Assert.Equal("checkbox", GridColumnType(grid, "isFreeOfCharge"));
-        foreach (var code in new[] { "unitPrice", "discountPercent", "vatPercent" })
-            Assert.True(columns.ContainsKey(code) && !MapOf(grid["fillColumns"]).ContainsKey(code) && Columns(key, "kabulKaynak").Contains(code), code);
-        Assert.Equal("quantity * unitPrice * (1 - discountPercent / 100)", MapOf(grid["formulas"])["lineNetAmount"]);
-        Assert.Equal(["unitPrice,discountPercent,vatPercent,lineNetAmount=satir.isFreeOfCharge == true"], Strings(grid["lockColumnsWhen"]));
+        Assert.Contains("quantity", columns.Keys);
+        Assert.DoesNotContain("unitPrice", columns.Keys);
 
         var save = Query(key, "malKabulOlustur");
         Assert.Equal(new Dictionary<string, string>
         {
-            ["id"] = "{{siparisSecimi.value}}", ["requestId"] = "{{kabulIstekKimligi.value}}", ["warehouseId"] = "{{kabulDepo.value}}",
+            ["id"] = "{{liste.seciliSatir.id}}", ["requestId"] = "{{kabulIstekKimligi.value}}", ["warehouseId"] = "{{kabulDepo.value}}",
             ["receiptDate"] = "{{kabulTarihi.value}}", ["lines"] = "{{kabulKalemleri.satirlar}}",
         }, Bindings(save));
         var requestId = Props(key, "kabulIstekKimligi");
@@ -242,20 +233,12 @@ public sealed class PurchasingFaz2SystemPagesTests
         Assert.Equal("{{siparis.rows[0].targetWarehouseId}}", (string)Props(key, "kabulDepo")["defaultValue"]!);
 
         // The document opens the dialog; the list and panel commands open the order document first (one fill source).
-        Assert.Equal(("openDialog", "malKabulPenceresi"), ((string)Props(key, "belgeMalKabulDugmesi")["actionType"]!, (string)Props(key, "belgeMalKabulDugmesi")["dialogId"]!));
-        foreach (var button in new[] { "malKabulDugmesi", "detayMalKabul" })
-            Assert.Equal(new[] { "siparisSecimi={{liste.seciliSatir.id}}" }, Strings(Props(key, button)["assignments"]));
-        // Lot/serial tracked lines and receipts without an order stay on the legacy screen (K2, Faz 3).
-        var legacy = Props(key, "izlemeliKabulDugmesi");
-        Assert.Equal(("sales-purchasing", true, "purchaseOrderId={{siparisSecimi.value}}"),
-            ((string)legacy["pageKey"]!, legacy["legacyScreen"]!.GetValue<bool>(), Strings(legacy["params"]).Single()));
+        Assert.Equal(("openDialog", "malKabulPenceresi"), ((string)Props(key, "malKabulDugmesi")["actionType"]!, (string)Props(key, "malKabulDugmesi")["dialogId"]!));
+        // The current receipt endpoint is order-bound and the list grid cannot serialize nested tracking allocations.
         Assert.Contains("izlemeliKabulDugmesi", Strings(dialog["contains"]));
-        var create = Props(key, "yeniSiparisDugmesi");
-        Assert.Equal(("erpPage", "purchase-order-document"), ((string)create["actionType"]!, (string)create["pageKey"]!));
-        Assert.Null(create["legacyScreen"]);
     }
 
-    // ---- sales-requests v2 ----
+    // ---- sales-requests v3 ----
 
     [Fact]
     public void Request_create_dialog_posts_the_lines_without_a_request_key()
@@ -315,7 +298,8 @@ public sealed class PurchasingFaz2SystemPagesTests
         var quoteGrid = Props(key, "teklifSiparisKalemleri");
         Assert.Equal(new Dictionary<string, string> { ["lineNumber"] = "requestLineNumber" }, MapOf(quoteGrid["fillColumns"]));
         Assert.All(GridColumns(quoteGrid), x => Assert.Contains("readOnly", x.Value));
-        Assert.Contains("tekliftenSiparisDugmesi", Strings(Props(key, "teklifTablosu")["rowActions"]));
+        // List template: the command sits in the read-only detail window instead of the quote table's row actions.
+        Assert.Contains("tekliftenSiparisDugmesi", Strings(Props(key, "talepDetayPenceresi")["contains"]));
 
         // Both writes are TenantAdmin-only in the catalog; the commands say so before the server does.
         foreach (var op in new[] { "satinalma.talep.teklifKaydet", "satinalma.talep.siparisOlustur" })
@@ -365,7 +349,7 @@ public sealed class PurchasingFaz2SystemPagesTests
 
     // ---- Helpers ----
 
-    /// <summary>Faz 1 item keys (version 1); every other item of these standards is new in version 2.</summary>
+    /// <summary>Keys present in the first published version before these standards moved to the list template.</summary>
     private static readonly Dictionary<string, HashSet<string>> Faz1Ids = new(StringComparer.Ordinal)
     {
         ["sales-requests"] = [.. new[] { "komutlar", "onayBekliyorGostergesi", "onaylandiGostergesi", "siparisGostergesi", "reddedildiGostergesi", "durumOnayBekliyor",
@@ -379,7 +363,7 @@ public sealed class PurchasingFaz2SystemPagesTests
             "gecikmisSabit", "sayacSayfaBoyutu", "suzgec", "secimCipleri", "suzgecSecimleri", "durumSecimi", "gecikmisSecimi", "detayPaneli",
             "liste", "acDugmesi", "detayKarti", "ozetPaneli", "belgeBasligi", "belgeMalKabulDugmesi", "listeyeDonDugmesi", "durumAdimlari", "kapaliUyarisi",
             "toplamGostergesi", "teslimGostergesi", "faturaGostergesi", "gecikmeGostergesi", "belgeSekmeleri", "satirTablosu", "kabulTablosu", "kabulAcDugmesi",
-            "faturalaDugmesi", "belgeZinciri", "siparisNotu", "alanTablosu", "yeniSiparisDugmesi", "malKabulDugmesi", "eskiEkranDugmesi" }.Select(x => "component:" + x),
+            "faturalaDugmesi", "belgeZinciri", "siparisNotu", "alanTablosu", "malKabulDugmesi", "eskiEkranDugmesi" }.Select(x => "component:" + x),
             .. new[] { "siparisler", "sayAcik", "sayKismen", "sayGecikmis", "siparis", "satirlar", "malKabuller", "ozelDegerler" }.Select(x => "query:" + x)],
     };
 

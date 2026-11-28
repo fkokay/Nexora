@@ -31,10 +31,10 @@ public sealed class PurchasingSystemPagesTests
 
     private static readonly string[] Keys = ["sales-requests", "sales-purchase-quotes", "sales-purchasing", "sales-purchase-delivery-notes"];
 
-    /// <summary>Current version per standard: Faz 2 (line-document writes) moved requests, orders and delivery notes to v2.</summary>
+    /// <summary>Current version per standard: Satın Alma 2. dalga moved requests, orders and delivery notes to v3.</summary>
     private static readonly Dictionary<string, int> Versions = new(StringComparer.Ordinal)
     {
-        ["sales-requests"] = 2, ["sales-purchase-quotes"] = 2, ["sales-purchasing"] = 3, ["sales-purchase-delivery-notes"] = 2,
+        ["sales-requests"] = 3, ["sales-purchase-quotes"] = 2, ["sales-purchasing"] = 4, ["sales-purchase-delivery-notes"] = 3,
     };
 
     /// <summary>Non-purchasing reads a purchasing standard may bind (pickers of the Faz 2 line forms).</summary>
@@ -61,12 +61,7 @@ public sealed class PurchasingSystemPagesTests
     private static readonly Dictionary<string, Dictionary<string, (string Page, string[] Params)>> LegacyCommands = new(StringComparer.Ordinal)
     {
         // Faz 2: Yeni talep, Teklif ekle and Siparişe dönüştür are system-page dialogs now.
-        ["sales-requests"] = new()
-        {
-            ["acDugmesi"] = ("sales-requests", ["requestId={{liste.seciliSatir.id}}"]),
-            ["detayAc"] = ("sales-requests", ["requestId={{liste.seciliSatir.id}}"]),
-            ["alanlarDugmesi"] = ("sales-requests", []),
-        },
+        ["sales-requests"] = new(),
         ["sales-purchase-quotes"] = new()
         {
             // Liste template (satın alma 1. dalga): "Talepsiz teklif" is gone; the request opens from the row action and the panel.
@@ -77,8 +72,7 @@ public sealed class PurchasingSystemPagesTests
         // tracked receipts stay on the legacy screen (K2).
         ["sales-purchasing"] = new()
         {
-            ["eskiEkranDugmesi"] = ("sales-purchasing", ["purchaseOrderId={{liste.seciliSatir.id}}"]),
-            ["izlemeliKabulDugmesi"] = ("sales-purchasing", ["purchaseOrderId={{siparisSecimi.value}}"]),
+            ["izlemeliKabulDugmesi"] = ("sales-purchasing", ["purchaseOrderId={{liste.seciliSatir.id}}"]),
             // The receipts standard does not read receiptId, so a receipt link opens the legacy screen, which does.
             ["kabulAcDugmesi"] = ("sales-purchase-receipts", ["receiptId={{kabulTablosu.seciliSatir.id}}"]),
         },
@@ -237,8 +231,7 @@ public sealed class PurchasingSystemPagesTests
     [Fact]
     public void Request_decisions_need_a_note_to_reject()
     {
-        foreach (var (button, query, required) in new[] { ("onaylaDugmesi", "onay", false), ("reddetDugmesi", "ret", true),
-                     ("panelOnayla", "panelOnay", false), ("panelReddet", "panelRet", true) })
+        foreach (var (button, query, required) in new[] { ("onaylaDugmesi", "onay", false), ("reddetDugmesi", "ret", true) })
         {
             var props = Props("sales-requests", button);
             Assert.Equal(query, (string)props["queryId"]!);
@@ -281,18 +274,16 @@ public sealed class PurchasingSystemPagesTests
     }
 
     [Theory]
-    [InlineData("sales-purchasing", "siparisSecimi", "purchaseOrderId", "siparis")]
-    [InlineData("sales-purchase-delivery-notes", "irsaliyeSecimi", null, "irsaliye")]
-    public void Documents_open_in_page_from_the_list(string key, string selection, string? pageParam, string recordQuery)
+    [InlineData("sales-requests", "talepDetayPenceresi")]
+    [InlineData("sales-purchasing", "siparisDetayPenceresi")]
+    [InlineData("sales-purchase-delivery-notes", "irsaliyeDetayPenceresi")]
+    public void List_rows_open_read_only_detail_windows(string key, string dialog)
     {
-        var input = Props(key, selection);
-        Assert.True(input["hidden"]!.GetValue<bool>());
-        Assert.Equal(pageParam is null ? null : $"{{{{sayfa.parametre.{pageParam}}}}}", (string?)input["defaultValue"]);
-        Assert.Equal(new[] { $"{selection}={{{{liste.seciliSatir.id}}}}" }, Strings(Props(key, "acDugmesi")["assignments"]));
-        Assert.Equal(new[] { $"{selection}=" }, Strings(Props(key, "listeyeDonDugmesi")["assignments"]));
-        Assert.Equal($"{{{{{selection}.value}}}}", Binding(Queries(key).Single(x => (string)x["id"]! == recordQuery), "id"));
-        Assert.Equal($"{selection}.value == null", (string)Props(key, "liste")["visibleWhen"]!);
-        Assert.Equal($"{selection}.value != null", (string)Props(key, "belgeBasligi")["visibleWhen"]!);
+        Assert.Equal("openDialog", (string)Props(key, "acDugmesi")["actionType"]!);
+        Assert.Equal(dialog, (string)Props(key, "acDugmesi")["dialogId"]!);
+        Assert.Equal("acDugmesi", (string)Props(key, "liste")["rowOpenAction"]!);
+        Assert.Contains(dialog, AllComponents(Definition(key)).Where(x => (string)x["type"]! == "dialog").Select(x => (string)x["id"]!));
+        Assert.True(TenantCustomPageSchema.Validate(Mine[key].DefinitionJson, out var error), error);
     }
 
     [Fact]

@@ -48,6 +48,8 @@ function respond(url: string, method: string, body?: string): unknown {
     if (path === '/api/warehouses') return rows;
     if (path === `/api/warehouses/${W1}/locations`) return [{ id: L1, warehouseId: W1, code: 'A-01', name: 'Raf A', parentLocationId: null, isActive: true, rowVersion: 'l1' }];
     if (/^\/api\/warehouses\/[^/]+\/locations$/.test(path)) return [];
+    if (path === '/api/warehouses/custom-fields') return [];
+    if (/^\/api\/warehouses\/[^/]+\/custom-fields$/.test(path)) return [];
   } else {
     const parsed = body ? JSON.parse(body) as Record<string, unknown> : {};
     if (path === '/api/warehouses' && method === 'POST') return warehouse(NEW, String(parsed.code), String(parsed.name));
@@ -55,6 +57,7 @@ function respond(url: string, method: string, body?: string): unknown {
       const id = path.split('/')[3];
       return warehouse(id, String(parsed.code), String(parsed.name), true, 'rv-new');
     }
+    if (/^\/api\/warehouses\/[^/]+\/custom-fields$/.test(path) && method === 'PUT') return [];
     if (/^\/api\/warehouses\/[^/]+\/status$/.test(path) && method === 'POST') {
       const id = path.split('/')[3];
       const row = rows.find((item) => item.id === id)!;
@@ -130,12 +133,12 @@ afterEach(() => {
 });
 
 describe('Depo Yönetimi standart tanımı', { timeout: 30000 }, () => {
-  it('uses only operations from the catalog fixture; no custom field operations any more', () => {
+  it('uses warehouse custom-field read and write operations from the catalog fixture', () => {
     const names = new Set(catalog.operations.map((operation) => operation.name));
     expect(standard.definition.queries.filter((item) => !names.has(item.operation))).toEqual([]);
     expect(standard.definition.queries.map((item) => item.operation).sort()).toEqual(
-      ['depo.aktifEt', 'depo.guncelle', 'depo.konumlari', 'depo.listele', 'depo.olustur', 'depo.pasifeAl']);
-    expect(standard.version).toBe(3);
+      ['depo.aktifEt', 'depo.guncelle', 'depo.konumlari', 'depo.listele', 'depo.olustur', 'depo.ozelAlanDegerleri', 'depo.ozelAlanKaydet', 'depo.ozelAlanTanimlari', 'depo.pasifeAl']);
+    expect(standard.version).toBe(4);
   });
 
   it('lists warehouses with Aktif / Pasif; search and Durum filter the loaded rows', async () => {
@@ -183,7 +186,7 @@ describe('Depo Yönetimi standart tanımı', { timeout: 30000 }, () => {
     await waitFor(() => expect(gets('/api/warehouses').length).toBeGreaterThan(1), T);
   });
 
-  it('Düzenle is off without a selection; the window opens filled and a rename sends only the warehouse PUT with the row version', async () => {
+  it('Düzenle is off without a selection; the window opens filled and a rename sends the warehouse PUT with the row version', async () => {
     await openList();
     expect(command('open').getAttribute('aria-disabled')).toBe('true');
     await pick('Merkez');
@@ -193,8 +196,11 @@ describe('Depo Yönetimi standart tanımı', { timeout: 30000 }, () => {
     expect(input('depoKodu').value).toBe('MRK');
     expect(input('depoAdi').value).toBe('Merkez');
     type('depoAdi', 'Merkez depo');
+    await waitFor(() => expect(calls.some((call) => call.method === 'GET' && call.url === `/api/warehouses/${W1}/custom-fields`)).toBe(true), T);
+    await new Promise((done) => setTimeout(done, 150));
     await save();
-    await waitFor(() => expect(writes()).toHaveLength(1), T);
+    await waitFor(() => expect(writes().length).toBe(2), T);
+    expect(writes()[1]).toMatchObject({ method: 'PUT', url: `/api/warehouses/${W1}/custom-fields` });
     expect(writes()[0]).toMatchObject({ method: 'PUT', url: `/api/warehouses/${W1}` });
     expect(JSON.parse(writes()[0].body!)).toEqual({ code: 'MRK', name: 'Merkez depo', rowVersion: 'rv-MRK' });
     await waitFor(() => expect(gets('/api/warehouses').length).toBeGreaterThan(1), T);
