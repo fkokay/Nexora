@@ -8197,6 +8197,7 @@ generalLedger.MapPost("/entries/manual", async (ManualJournalEntryWriteRequest r
     }
     db.JournalEntries.Add(entry);
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "finance.general-ledger.manual-entry-created", Resource = entry.Code });
+    DocumentActivityLog.Add(db, tenantId, DocumentActivityLog.JournalVoucher, entry.Id, "kaydet", "Fiş kaydedildi", "core", "done", null, GetUserId(principal));
     await db.SaveChangesAsync();
     await transaction.CommitAsync();
     return Results.Created($"/api/finance/general-ledger/entries/{entry.Id}", new { entry.Id, entry.Code, entry.EntryDate, entry.Description,
@@ -8232,6 +8233,7 @@ generalLedger.MapPost("/entries/{id:guid}/reverse", async (Guid id, ManualJourna
             Debit = line.Credit, Credit = line.Debit });
     db.JournalEntries.Add(reversal);
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "finance.general-ledger.entry-reversed", Resource = $"{original.Code}:{reversal.Code}:{reason}" });
+    DocumentActivityLog.Add(db, tenantId, DocumentActivityLog.JournalVoucher, reversal.Id, "tersKayit", "Fi? ters kay?tla ?evrildi", "core", "done", reason, GetUserId(principal));
     await db.SaveChangesAsync(); await transaction.CommitAsync();
     return Results.Created($"/api/finance/general-ledger/entries/{reversal.Id}", new { reversal.Id, reversal.Code, reversal.EntryDate,
         reversal.Description, reversal.SourceType, reversal.SourceId, TotalDebit = reversal.Lines.Sum(x => x.Debit), TotalCredit = reversal.Lines.Sum(x => x.Credit) });
@@ -8244,19 +8246,7 @@ generalLedger.MapFiscalYearCloseEndpoints();
 generalLedger.MapGet("/entries/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
-    var entry = await db.JournalEntries.AsNoTracking().Include(x => x.Lines).SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id);
-    if (entry is null) return Results.NotFound();
-    var accounts = await db.LedgerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId && entry.Lines.Select(l => l.AccountId).Contains(x.Id)).ToDictionaryAsync(x => x.Id);
-    var lines = entry.Lines.OrderBy(x => x.LineNumber).Select(x => new JournalEntryLineView(x.LineNumber, x.AccountId,
-        accounts[x.AccountId].Code, accounts[x.AccountId].Name, x.Description, x.Debit, x.Credit)).ToList();
-    var reversedBy = await db.JournalEntries.AsNoTracking().Where(x => x.TenantId == tenantId && x.SourceType == JournalReversalRules.ReversalSourceType && x.SourceId == entry.Id)
-        .Select(x => new { x.Id, x.Code }).FirstOrDefaultAsync();
-    var reversalOfCode = entry.SourceType == JournalReversalRules.ReversalSourceType
-        ? await db.JournalEntries.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == entry.SourceId).Select(x => x.Code).FirstOrDefaultAsync()
-        : null;
-    return Results.Ok(new JournalEntryView(entry.Id, entry.Code, entry.EntryDate, entry.Description, entry.SourceType,
-        entry.SourceId, entry.CreatedAt, lines.Sum(x => x.Debit), lines.Sum(x => x.Credit), lines, reversedBy is not null, entry.AccountingBasis)
-        { ReversedByEntryId = reversedBy?.Id, ReversedByEntryCode = reversedBy?.Code, ReversalOfEntryCode = reversalOfCode });
+    return await JournalEntryReads.ViewAsync(db, tenantId, id, CancellationToken.None) is { } view ? Results.Ok(view) : Results.NotFound();
 });
 generalLedger.MapGeneralLedgerTransferEndpoints();
 app.MapGet("/api/finance/maturities", async (DateOnly? asOfDate, ClaimsPrincipal principal, TenantDbContext db) =>

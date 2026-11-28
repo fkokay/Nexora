@@ -4,6 +4,10 @@
 
 - **Ne değişti:** `stok.transfer` modeli ve `inventory-transfer-document` Belge standardı eklendi. Depo transferleri Liste standardı v2 oldu; Yeni ve Aç artık Belge sayfasını hedefliyor. Yeni belge tarayıcıda taslak kalır ve mevcut transfer POST ucuyla kaydedilir; kayıtlı transfer salt okunur açılır, iptal mevcut `/void` işlemine gider. POST ve iptal işlem günlüğü yazar; POST mevcut transaction ve idempotency anahtarını kullanır.
 - **Doğrulanan:** `dotnet build AIERP.slnx --no-restore -m:1` (0 hata), değişen iki Vitest dosyası (ERP 3, Studio 15 test) ve iki frontend derlemesi geçti. İstenen paralel varsayılan .NET komutu iki kez 0 hata/0 uyarı ile başarısız döndü; tek işçili derleme geçti. `dotnet test` talimat gereği çalıştırılmadı; SQL Server kabul testi ve tarayıcıda görsel kontrol yapılmadı.
+### 2026-11-28 Genel muhasebe yevmiye fişi Belge modeli
+
+- `muhasebe.fis` (`finance-journal-voucher-document`) uses the existing manual journal POST and reversal endpoint; stored vouchers are read-only, with debit/credit balance enforced by the existing write validation. The journal list opens a voucher in the Belge screen, and New opens its blank draft.
+- Added model/standard and ERP template coverage. ERP Vitest passed (3 files, 11 tests); Development Studio `npm run build` passed. ERP `npm run build` stalled at `tsc -b` without output and was stopped. SQL Server/browser flows remain unverified; `dotnet test` was not run as requested.
 
 ### 2026-11-27 Finance wave 1 - four standards moved to List templates
 

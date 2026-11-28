@@ -42,7 +42,7 @@ public sealed class FinanceSystemPagesTests
     public void Catalog_declares_the_finance_operations_in_the_finans_module()
     {
         var finance = ErpOperationCatalog.All.Where(x => x.Name.StartsWith("finans.", StringComparison.Ordinal)).ToArray();
-        Assert.Equal(30, finance.Length);
+        Assert.Equal(31, finance.Length);
         Assert.All(finance, op =>
         {
             Assert.Equal(("Finans", false), (op.Module, op.Deprecated));
@@ -463,11 +463,12 @@ public sealed class FinanceSystemPagesTests
     [InlineData("finance-account-create", "Kasa/Banka kartı", "Finans")]
     [InlineData("finance-trial-balance", "Mizan", "Finans")]
     [InlineData("finance-journal-ledger", "Yevmiye Defterleri", "Genel Muhasebe")]
+    [InlineData("finance-journal-voucher-document", "Yevmiye fi\u015fi (belge)", "Genel Muhasebe")]
     [InlineData("finance-journal-vouchers", "Yevmiye Fişi", "Genel Muhasebe")]
     public void Standard_is_preview_version_1_and_uses_finance_operations(string key, string title, string module)
     {
         var standard = SystemPageStandards.All[key];
-        var expectedVersion = key is "finance-accounts" or "finance-banks" or "finance-journal-ledger" or "finance-trial-balance" or "finance-account-create" ? 2 : 1;
+        var expectedVersion = key is "finance-accounts" or "finance-banks" or "finance-trial-balance" or "finance-journal-vouchers" or "finance-account-create" ? 2 : key == "finance-journal-ledger" ? 3 : 1;
         Assert.Equal((expectedVersion, "preview", title, module), (standard.Version, standard.Stage, standard.Title, standard.Module));
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
         Assert.All(standard.Items, x => Assert.True(x.Since <= standard.Version && x.Label.Length is > 0 and <= 80, x.Key));

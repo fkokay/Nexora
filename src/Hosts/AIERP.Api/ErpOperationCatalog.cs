@@ -768,6 +768,8 @@ internal static partial class ErpOperationCatalog
         yield return Read(FinanceModule, "finans.fis.getir", "Yevmiye fişi getir", entryRoute, [id],
             Record(Relabel(Columns<JournalEntryView>().Concat(flagColumns)
                 .Concat(Cols("reversedByEntryId:guid", "reversedByEntryCode:text", "reversalOfEntryCode:text")), entryLabels)));
+        yield return Read(FinanceModule, "finans.fis.belge", "Yevmiye fişi belgesi", entryRoute + "/document", [id],
+            Record(Relabel(Columns<JournalEntryView>().Concat(flagColumns), entryLabels)));
         yield return Read(FinanceModule, "finans.fis.satirlari", "Yevmiye fişinin satırları", entryRoute, [id], List(Columns<JournalEntryLineView>(), "lines"));
         var postedColumns = Relabel(Cols("id:guid", "code:text", "entryDate:date", "description:text", "sourceType:text", "sourceId:guid",
             "accountingBasis:text", "totalDebit:decimal", "totalCredit:decimal"), entryLabels);
