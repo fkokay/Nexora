@@ -71,11 +71,11 @@ public sealed class TenantCustomPageDetailToggleSchemaTests
             "'detayPaneli' birden fazla sekmede veya yerleşimde kullanılamaz");
     }
 
-    // crm-opportunities, customers (Satış & cari 1. dalga), fixed-assets (Finans 2. dalga) ve inventory-stock (Stok & Depo 1. dalga) ve sales-purchase-quotes / -receipts / -invoices (Satın alma 1. dalga), foreign-trade ve hr-leave-requests (İK ve Dış Ticaret 2. dalga) Liste kalıbına çizildi: detay kartı yanda hep açık, panel anahtarı yok.
+    // Satın Alma 2. dalga uses list templates with detail windows; these standards have no detail-panel toggle.
+
     private static readonly string[] ToggleStandards =
     [
-        "sales-purchase-delivery-notes", "sales-purchase-invoice-drafts",
-        "sales-purchase-returns", "sales-purchasing", "sales-requests",
+        "sales-purchase-invoice-drafts",
     ];
 
     private static JsonElement Definition(string screenKey) =>

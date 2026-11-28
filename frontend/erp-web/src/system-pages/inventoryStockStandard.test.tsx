@@ -265,7 +265,8 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     await screen.findByText('Kalem', { selector: '.tenant-page-data-grid td' }, T);
     const heading = screen.getByRole('heading', { level: 1, name: 'Stok Kartları' }).closest('.list-v2-heading') as HTMLElement;
     await waitFor(() => expect(heading.querySelector('.list-v2-count')?.textContent).toBe('2 kayıt'), T);
-    expect(screen.getByText('Negatif stok koruması açık')).toBeTruthy();
+    expect(screen.getByText('Negatif stok kural\u0131')).toBeTruthy();
+    expect(screen.queryByText('Negatif stok korumas\u0131 a\u00e7\u0131k')).toBeNull();
     expect(screen.queryByText('Negatif stoka izin veriliyor')).toBeNull();
   });
 
@@ -410,7 +411,7 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     expect(writes()[0].url).toBe(`/api/warehouses/${W}/stock/${S1}/transactions`);
     const body = JSON.parse(writes()[0].body!) as Record<string, unknown>;
     expect(body).toMatchObject({ direction: 'Receipt', quantity: 3, description: 'Sayım farkı' });
-    expect(body.tracking).toBeUndefined();
+    expect(body.tracking ?? []).toEqual([]);
     await waitFor(() => expect(screen.queryByRole('dialog', { name: /^Stok hareketi/ })).toBeNull(), T);
     // Liste (bakiye) yenilenir; aynı kimlikli satır seçili kalır.
     await waitFor(() => expect(gets(`/api/warehouses/${W}/balances/page`).length).toBeGreaterThan(1), T);
@@ -419,14 +420,21 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     expect(calls.some((call) => call.url.includes('/reverse'))).toBe(false);
   });
 
-  it('a lot / serial tracked card shows the note that its movement cannot be entered in this window', async () => {
+  it('a lot-tracked card captures allocation rows in the movement window', async () => {
     setup();
     await chooseWarehouse();
     await waitFor(() => expect(gets(`/api/warehouses/${W}/balances/page`)).toHaveLength(1), T);
     await selectCard('Defter', S2);
     fireEvent.click(await menuItem(/Hareket gir/));
     const dialog = await screen.findByRole('dialog', { name: 'Stok hareketi · DFT · Merkez' }, T);
-    expect(within(dialog).getByText('Lot / seri takipli kart')).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Satır ekle' }));
+    fireEvent.change(document.getElementById('page-grid-hareketTakipIzgarasi-yeni-1-trackingCode')!, { target: { value: 'LOT-01' } });
+    fireEvent.change(document.getElementById('page-grid-hareketTakipIzgarasi-yeni-1-quantity')!, { target: { value: '2' } });
+    type('hareketMiktari', '2');
+    type('hareketAciklamasi', 'Lot girişi');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    await waitFor(() => expect(writes()).toHaveLength(1), T);
+    expect(JSON.parse(writes()[0].body!)).toMatchObject({ direction: 'Receipt', tracking: [{ trackingCode: 'LOT-01', quantity: 2 }] });
   });
 
   it('deactivate confirms and shows server conflict text', async () => {

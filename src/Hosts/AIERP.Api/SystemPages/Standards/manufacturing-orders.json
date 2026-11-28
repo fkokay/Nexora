@@ -144,7 +144,7 @@
       ]
     },
     "component:detayKarti": {
-      "since": 1,
+      "since": 2,
       "label": "Detay paneli",
       "requires": [
         "component:liste",
@@ -160,7 +160,7 @@
       ]
     },
     "component:opTamamlaPenceresi": {
-      "since": 1,
+      "since": 2,
       "label": "Operasyon fiili kaydı penceresi",
       "requires": [
         "component:opTamamlaFormu",
@@ -190,7 +190,7 @@
       ]
     },
     "component:opTamamlaFormu": {
-      "since": 1,
+      "since": 2,
       "label": "Operasyon fiili kaydı alanları",
       "requires": [
         "component:kurulumDk",
@@ -201,28 +201,28 @@
       ]
     },
     "component:kurulumDk": {
-      "since": 1,
+      "since": 2,
       "label": "Alan: Kurulum dk",
       "requires": [
         "component:operasyonTablosu"
       ]
     },
     "component:calismaDk": {
-      "since": 1,
+      "since": 2,
       "label": "Alan: Çalışma dk",
       "requires": [
         "component:operasyonTablosu"
       ]
     },
     "component:enerjiKwh": {
-      "since": 1,
+      "since": 2,
       "label": "Alan: Enerji kWh",
       "requires": [
         "component:operasyonTablosu"
       ]
     },
     "component:enerjiBedeli": {
-      "since": 1,
+      "since": 2,
       "label": "Alan: Baz para/kWh",
       "requires": [
         "component:operasyonTablosu"
@@ -294,7 +294,7 @@
       ]
     },
     "component:operasyonTablosu": {
-      "since": 1,
+      "since": 2,
       "label": "Detay: Rota operasyonları",
       "requires": [
         "component:opBaslatDugmesi",
@@ -303,19 +303,19 @@
       ]
     },
     "component:rotaNotu": {
-      "since": 1,
+      "since": 2,
       "label": "Detay: rota notu",
       "requires": []
     },
     "component:bilesenTablosu": {
-      "since": 1,
+      "since": 2,
       "label": "Detay: Bileşenler",
       "requires": [
         "query:bilesenler"
       ]
     },
     "component:opBaslatDugmesi": {
-      "since": 1,
+      "since": 2,
       "label": "Operasyonu başlat satır düğmesi",
       "requires": [
         "component:liste",
@@ -327,7 +327,7 @@
       ]
     },
     "component:opTamamlaDugmesi": {
-      "since": 1,
+      "since": 2,
       "label": "Operasyonu tamamla satır düğmesi",
       "requires": [
         "component:operasyonTablosu",
@@ -385,7 +385,7 @@
       ]
     },
     "query:opBaslat": {
-      "since": 1,
+      "since": 2,
       "label": "Rota operasyonunu başlat",
       "requires": [
         "component:liste",
@@ -393,7 +393,7 @@
       ]
     },
     "query:opTamamla": {
-      "since": 1,
+      "since": 2,
       "label": "Rota operasyonunun fiili kaydı",
       "requires": [
         "component:liste",
@@ -994,7 +994,7 @@
           "maxRows": 200,
           "gridColumns": [
             "trackingCode|Lot / seri numarası|text|required,unique,maxLength:100",
-            "quantity|Miktar|number|required,min:0.0001,step:0.0001",
+            "quantity|Miktar|number|required,min:0.0001",
             "expiryDate|Son kullanma tarihi|date"
           ],
           "slot": "dialog",

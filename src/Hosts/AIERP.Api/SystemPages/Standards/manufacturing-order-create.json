@@ -244,6 +244,7 @@
             "planTarihi",
             "depo",
             "recete",
+            "receteDurumu",
             "miktar",
             "uretimTuru"
           ],
@@ -467,7 +468,6 @@
           "actionType": "page",
           "pageCode": "@manufacturing-orders",
           "target": "sameTab",
-          "width": 2,
           "slot": "actions"
         }
       },

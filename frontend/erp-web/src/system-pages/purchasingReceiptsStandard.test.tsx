@@ -48,8 +48,8 @@ beforeEach(() => { api.mockReset(); localStorage.clear(); voidFailure = null; h.
 afterEach(() => { h.reset(); cleanup(); });
 
 describe('Mal kabulleri standart tanımı', { timeout: 30000 }, () => {
-  it('is a v2 preview Liste standard that uses only operations from the catalog fixture', () => {
-    expect(h.standard).toMatchObject({ screenKey: KEY, version: 2, stage: 'preview' });
+  it('is a v3 preview Liste standard that uses only operations from the catalog fixture', () => {
+    expect(h.standard).toMatchObject({ screenKey: KEY, version: 3, stage: 'preview' });
     const names = new Set(catalog.operations.map((operation) => operation.name));
     expect(h.standard.definition.queries.filter((item) => !names.has(item.operation))).toEqual([]);
     expect((h.standard.definition as unknown as { template: unknown }).template).toEqual({ name: 'list' });
