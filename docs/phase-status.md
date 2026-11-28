@@ -6,6 +6,10 @@
 - Desteklenmeyen eylemler atlandı: sipariş için mevcut iptal/onay geçişi yok; mal kabulden gelen faturalar salt okunur olduğundan iptal bağlanmadı. Mal kabul satırını taslağa bağlama UI akışı eklenmedi.
 - ERP Belge vitest (1/1), Studio vitest (15/15) ve iki `npm run build` geçti. `dotnet build AIERP.slnx --no-restore`, .NET SDK workload resolver bileşenleri bulunamadığı için derleme başlamadan başarısız oldu (0 hata/uyarı raporlandı); `dotnet test` talimat gereği çalıştırılmadı.
 
+### 2026-11-28 Genel muhasebe yevmiye fişi Belge modeli
+
+- `muhasebe.fis` (`finance-journal-voucher-document`) uses the existing manual journal POST and reversal endpoint; stored vouchers are read-only, with debit/credit balance enforced by the existing write validation. The journal list opens a voucher in the Belge screen, and New opens its blank draft.
+- Added model/standard and ERP template coverage. ERP Vitest passed (3 files, 11 tests); Development Studio `npm run build` passed. ERP `npm run build` stalled at `tsc -b` without output and was stopped. SQL Server/browser flows remain unverified; `dotnet test` was not run as requested.
 
 ### 2026-11-27 Finance wave 1 - four standards moved to List templates
 

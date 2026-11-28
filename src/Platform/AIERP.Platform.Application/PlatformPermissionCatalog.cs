@@ -330,6 +330,7 @@ public static class PlatformPermissionCatalog
                 : modelPath.StartsWith("satinalma.siparis", StringComparison.OrdinalIgnoreCase) ? "erp.purchase-orders"
                 : modelPath.StartsWith("satinalma.fatura", StringComparison.OrdinalIgnoreCase) ? "erp.purchase-invoices"
                 : modelPath.StartsWith("stok.transfer", StringComparison.OrdinalIgnoreCase) ? "erp.inventory-transfers"
+                : modelPath.StartsWith("muhasebe.", StringComparison.OrdinalIgnoreCase) ? "erp.general-ledger"
                 : "erp.sales-orders";
             resource = Resources.First(x => x.ResourceType == resourceType);
             explicitReadAction = true;

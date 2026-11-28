@@ -36,6 +36,7 @@ export const purchasingNavigationPages: SalesPageKey[] = ['sales-requests','sale
  * sekme başlığı olarak ham sayfa anahtarını gösterir.
  */
 const standalonePageTitles: Record<string, Record<Locale, string>> = {
+  'finance-journal-voucher-document': { tr: 'Yevmiye Fi\u015fi Belgesi', en: 'Journal voucher document' },
   modules: { tr: 'Modül pazaryeri', en: 'Module marketplace' },
   'location-definitions': { tr: 'İş yeri, şube ve fabrika', en: 'Workplaces, branches and plants' },
   'address-definitions': { tr: 'Adres tanımları', en: 'Address definitions' },

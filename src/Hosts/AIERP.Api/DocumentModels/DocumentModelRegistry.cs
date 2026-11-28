@@ -9,6 +9,7 @@ internal static class DocumentModelRegistry
         SalesQuoteDocumentModel.Code => SalesQuoteDocumentModel.Model,
         PurchaseOrderDocumentModel.Code => PurchaseOrderDocumentModel.Model,
         PurchaseInvoiceDocumentModel.Code => PurchaseInvoiceDocumentModel.Model,
+        JournalVoucherDocumentModel.Code => JournalVoucherDocumentModel.Model,
         SalesInvoiceDocumentModel.Code => SalesInvoiceDocumentModel.Model,
         SalesDeliveryDocumentModel.Code => SalesDeliveryDocumentModel.Model,
         _ => null
