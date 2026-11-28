@@ -129,7 +129,7 @@ afterEach(() => {
   cleanup();
   window.removeEventListener(OPEN_PAGE_EVENT, onNavigate);
   window.removeEventListener(RECORDS_DELETED_EVENT, onDeleted);
-  for (const page of ['customer-create', 'customer-ledger', 'sales-order-create', 'sales-invoices']) setPageParams(page, {});
+  for (const page of ['customer-create', 'customer-ledger', 'sales-order-document', 'sales-invoices']) setPageParams(page, {});
 });
 
 describe('Cari Hesaplar standart tanımı', { timeout: 30000 }, () => {
@@ -179,8 +179,8 @@ describe('Cari Hesaplar standart tanımı', { timeout: 30000 }, () => {
     await select('FATİH KOKAY', C1);
     fireEvent.click(await menuItem(/Yeni sipariş/));
     await waitFor(() => expect(navigations).toHaveLength(1), T);
-    // "Yeni sipariş" sipariş kartının zorunlu tarihini de verir (orderDate = bugün, yerel tarih).
-    expect(navigations[0]).toEqual({ page: 'sales-order-create', params: { customerId: C1, orderDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) }, replace: false, from: KEY });
+    // "Yeni sipariş" Belge sayfasını (sales-order-document) açar; Belge cari önerisi almaz.
+    expect(navigations[0]).toEqual({ page: 'sales-order-document', params: {}, replace: false, from: KEY });
     // "Satış faturaları" ve "Adresler" düğmeleri kalktı (faturalar fatura listesinde cari süzgeciyle, adresler kartın Adresler sekmesinde).
     const names = await menuNames();
     expect(names.some((name) => /^Satış faturaları/.test(name))).toBe(false);

@@ -1801,3 +1801,9 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
 - **Sadeleşenler:** `inventory-stock-create` alanları altı sekmede toplandı; görsel önizleme ve varyant matrisi kaldırıldı; birimler tablo ve kaydedilmiş kartta açılan "Birim ekle" penceresi oldu. `inventory-warehouses` düzenleme penceresine özel alanlar eklendi, liste ve durum eylemleri korundu. `inventory-stock` negatif stok notları tek bilgiye indirildi; hareket penceresi geçmiş/ters kayıt yerine giriş ve takip satırlarını hedefliyor.
 - **Doğrulanan:** IntegrationTests projesi MSBuild ile derlendi; ERP Web ve Development Studio `npm run build` başarılı oldu. Depo standart Vitest dosyası 7/7, Studio `node --test tests/refOwners.test.mjs` 5/5 geçti.
 - **Açık doğrulamalar:** ERP stok-kartı Vitest dosyası 20 testten 8’inde beklenen akış/başlık farklarıyla başarısız; stok hareketindeki lot satırı testinde ızgara henüz pencerede bulunamadı. Studio dosyası Node yerleşik `node:test` kullandığından Vitest bu dosyayı test paketi olarak tanımıyor; doğrudan Node testi geçti. `dotnet test` ve canlı/görsel tarayıcı kontrolü bu işte koşturulmadı.
+### Ekranlar 3. dalga (2026-11-28)
+- `finance-account-create`, `hr-employee-create`, `fixed-asset-card` Kayıt kartı kalıbına taşındı (v2); duran varlık kartı salt okunur, edinim penceresi var.
+- `sales-order-create` kaldırıldı; `customers` (v4) ve `sales-orders` (v7) yeni siparişi `sales-order-document` Belge ekranında açar. Eski anahtar Belge'ye yönlenir.
+- Bilinen kayıp: cariden açılan yeni siparişte müşteri ön dolumu yok (Belge kalıbında ön dolum yok).
+- Studio: girdi alanlarında `readOnly` seçeneği.
+- Doğrulama: ilgili erp-web (44) ve Studio (95) vitest dosyaları yerelde geçti; .NET testleri CI'da.
