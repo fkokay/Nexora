@@ -95,6 +95,8 @@ services:
       ConnectionStrings__Tenant: Server=sqlserver,1433;Database=AIERPPlatform;Encrypt=True;TrustServerCertificate=True
       ConnectionStrings__AIStudio: Server=sqlserver,1433;Database=AIERPStudio;Encrypt=True;TrustServerCertificate=True
       Database__SeparationEnabled: "true"
+      # Kalıplı sistem standartları kopyası olmayan firmalara da sunulur ("*" = hepsi).
+      SystemPages__StandardEnabled__0: ${SYSTEM_PAGES_STANDARD_ENABLED:-*}
       Database__SeparationBackupPath: ${DATABASE_SEPARATION_BACKUP_PATH:-}
       Database__PlatformRuntimeLogin: aierp_platform_runtime
       Vault__Address: ${VAULT_ADDRESS:?Set VAULT_ADDRESS in .env}
