@@ -119,7 +119,6 @@ describe('Satış İrsaliyeleri standart tanımı', { timeout: 30000 }, () => {
     await waitFor(() => expect(opened.textContent).toContain('1 bedelsiz ve 0 fiyatsız satır var'), T);
     fireEvent.change(await within(opened).findByLabelText('Alıcı e-Fatura etiketi', {}, T), { target: { value: 'urn:mail:a@b.test' } });
     fireEvent.click(within(opened).getByRole('button', { name: 'Faturalaştır' }));
-    await h.confirm('“IRS-1” için satış faturası');
     await h.waitWrites(1);
     expect(h.writes()[0]).toMatchObject({ method: 'POST', url: `/api/sales/deliveries/${D1}/invoice` });
     const body = JSON.parse(h.writes()[0].body!);

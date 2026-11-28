@@ -596,9 +596,6 @@
           "saveQuery": "faturalastir",
           "saveLabel": "Faturalaştır",
           "closeOnSave": false,
-          "confirmEnabled": true,
-          "confirmText": "“{{irsaliye.rows[0].code}}” için satış faturası ve cari borç kaydı oluşturulsun mu?",
-          "successMessage": "Satış faturası oluşturuldu.",
           "refreshQueries": [
             "irsaliye",
             "irsaliyeler"
