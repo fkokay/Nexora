@@ -20,6 +20,20 @@ const standards: [string, Standard][] = [
   ["manufacturing-orders", JSON.parse(ordersJson)], ["manufacturing-order-create", JSON.parse(orderCreateJson)],
   ["manufacturing-recipes", JSON.parse(recipesJson)], ["manufacturing-cost-variance", JSON.parse(costVarianceJson)],
 ];
+describe('üretim kalıp yerleşimleri', () => {
+  it('emir listesi, emir kartı ve reçete listesi tasarım düzenlerini korur', () => {
+    const byKey = new Map(standards);
+    expect(byKey.get('manufacturing-orders')?.definition.template).toEqual({ name: 'list' });
+    expect(byKey.get('manufacturing-order-create')?.definition.template).toEqual({ name: 'record' });
+    expect(byKey.get('manufacturing-recipes')?.definition.template).toEqual({ name: 'list' });
+    const order = byKey.get('manufacturing-orders')!.definition.components;
+    expect(order.find((component) => component.id === 'liste')?.props.columns).toHaveLength(7);
+    expect(order.find((component) => component.id === 'operasyonTablosu')?.props.rowActions).toEqual(['opBaslatDugmesi', 'opTamamlaDugmesi']);
+    const create = byKey.get('manufacturing-order-create')!.definition.components;
+    expect(create.find((component) => component.id === 'siparisKarti')?.props.visibleWhen).toBe("uretimTuru.value == 'SalesOrder'");
+    expect(create.find((component) => component.id === 'icerikTablosu')?.props.slot).toBe('below');
+  });
+});
 const flatten = (list: Component[]): Component[] => list.flatMap((component) => [component, ...flatten(component.children ?? [])]);
 const CONDITION_PROPS = ["visibleWhen", "disabledWhen", "requiredWhen", "activeWhen", "sequenceWhen", "defaultWhen", "countWhen"];
 // Sorgu parametre türü tasarımcının listesinde olmalı (etiketi bilinmeyen tür ham adıyla döner).

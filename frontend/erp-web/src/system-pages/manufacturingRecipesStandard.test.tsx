@@ -16,7 +16,7 @@ import catalog from './manufacturingRecipesOperations.fixture.json';
 const { api } = vi.hoisted(() => ({ api: vi.fn() }));
 vi.mock('../erpApi', () => ({ api }));
 
-type Definition = { schemaVersion: number; components: { id: string; type: string; props?: Record<string, unknown> }[]; queries: { id: string; operation: string }[] };
+type Definition = { schemaVersion: number; template?: { name: string }; components: { id: string; type: string; props?: Record<string, unknown> }[]; queries: { id: string; operation: string }[] };
 const KEY = 'manufacturing-recipes';
 const standard = JSON.parse(readFileSync(resolve(process.cwd(), `../../src/Hosts/AIERP.Api/SystemPages/Standards/${KEY}.json`), 'utf8')) as { title: string; definition: Definition };
 
@@ -72,7 +72,8 @@ function setup(role = 'TenantAdmin') {
 }
 
 const T = { timeout: 10000 };
-const command = (id: string) => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>(`[data-command="${id}"]`)!;
+const command = (id: string) => id === 'more' ? screen.getByRole('button', { name: 'Diğer işlemler' })
+  : screen.getByRole('toolbar', { name: 'İşlemler' }).querySelector<HTMLElement>(`[data-command="${id}"]`)!;
 const ready = (id: string) => waitFor(() => expect(command(id).getAttribute('aria-disabled')).not.toBe('true'), T);
 const gets = () => calls.filter((call) => call.method === 'GET' && call.url.split('?')[0] === '/api/manufacturing/boms');
 const writes = () => calls.filter((call) => call.method !== 'GET');
@@ -114,6 +115,8 @@ describe('Tanımlı reçeteler standart tanımı', { timeout: 30000 }, () => {
   });
 
   it('lists every recipe without a status filter; content, usage and status columns', async () => {
+    expect(standard.definition.template).toEqual({ name: 'list' });
+    expect(standard.definition.components.find((component) => component.id === 'liste')?.props?.columns).toHaveLength(8);
     setup();
     await cell('Salça reçetesi');
     expect(gets().length).toBeGreaterThan(0);
@@ -152,7 +155,7 @@ describe('Tanımlı reçeteler standart tanımı', { timeout: 30000 }, () => {
     setup();
     await select('Salça reçetesi');
     const item = await menuItem(/^Sil/);
-    expect(item.getAttribute('aria-disabled')).toBe('true');
+    expect(item.hasAttribute('disabled') || item.getAttribute('aria-disabled') === 'true').toBe(true);
     closeMenu();
   });
 
@@ -161,7 +164,7 @@ describe('Tanımlı reçeteler standart tanımı', { timeout: 30000 }, () => {
     await select('Ketçap reçetesi');
     const lists = gets().length;
     const item = await menuItem(/^Sil/);
-    expect(item.getAttribute('aria-disabled')).not.toBe('true');
+    expect(item.hasAttribute('disabled') || item.getAttribute('aria-disabled') === 'true').toBe(false);
     fireEvent.click(item);
     const dialog = await screen.findByRole('alertdialog', {}, T);
     expect(dialog.textContent).toContain('RC-009 · Ketçap reçetesi reçetesi kalıcı olarak silinecek');
