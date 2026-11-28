@@ -92,7 +92,7 @@ describe('ReportsPage action bar', () => {
     setup();
     await loaded();
     expect(isDisabled(button('save'))).toBe(true);
-    expect(commandReason(button('save'))).toBe('Önce rapor adını girin');
+    await waitFor(() => expect(commandReason(button('save'))).toBe('Önce rapor adını girin'));
     fireEvent.change(screen.getByPlaceholderText(/Aktif müşteriler/), { target: { value: 'Yeni rapor' } });
     await waitFor(() => expect(isDisabled(button('save'))).toBe(false));
     fireEvent.click(button('save'));
@@ -120,7 +120,7 @@ describe('ReportsPage action bar', () => {
   it('Sil works on the opened saved report and stays admin-only', async () => {
     setup();
     await loaded();
-    expect(commandReason(button('delete'))).toBe('Önce kayıtlı bir rapor açın');
+    await waitFor(() => expect(commandReason(button('delete'))).toBe('Önce kayıtlı bir rapor açın'));
     fireEvent.click(screen.getAllByRole('button', { name: /Aktif cariler/ })[0]);
     await waitFor(() => expect(isDisabled(button('delete'))).toBe(false));
     expect(isDisabled(button('print'))).toBe(true);
@@ -130,7 +130,7 @@ describe('ReportsPage action bar', () => {
   it('a developer cannot delete; AI ile keşfet is in İşlemler', async () => {
     const { onNavigate } = setup('TenantDeveloper');
     await loaded();
-    expect(commandReason(button('delete'))).toBe('Silmek için yönetici yetkisi gerekir');
+    await waitFor(() => expect(commandReason(button('delete'))).toBe('Silmek için yönetici yetkisi gerekir'));
     fireEvent.click(button('more'));
     fireEvent.click(screen.getByRole('menuitem', { name: /AI ile keşfet/ }));
     expect(onNavigate).toHaveBeenCalledWith('erp-assistant');
@@ -139,7 +139,7 @@ describe('ReportsPage action bar', () => {
   it('a viewer cannot start or save a design', async () => {
     setup('Viewer');
     await loaded();
-    expect(commandReason(button('new'))).toBe('Rapor tasarlama yetkiniz yok');
-    expect(commandReason(button('save'))).toBe('Rapor tasarlama yetkiniz yok');
+    await waitFor(() => expect(commandReason(button('new'))).toBe('Rapor tasarlama yetkiniz yok'));
+    await waitFor(() => expect(commandReason(button('save'))).toBe('Rapor tasarlama yetkiniz yok'));
   });
 });

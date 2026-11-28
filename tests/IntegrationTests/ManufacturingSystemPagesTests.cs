@@ -297,7 +297,7 @@ public sealed class ManufacturingSystemPagesTests
     {
         var standard = SystemPageStandards.All[key];
         // Üretim ekranları 2. sürümde Liste ve Kayıt kartı kalıplarına taşındı.
-        var version = key == "manufacturing-cost-variance" || key is "manufacturing-orders" or "manufacturing-order-create" or "manufacturing-recipes" ? 2 : 1;
+        var version = key == "manufacturing-cost-variance" || key is "manufacturing-orders" or "manufacturing-order-create" ? 2 : key == "manufacturing-recipes" ? 3 : 1;
         Assert.Equal((version, "preview", title, "Üretim"), (standard.Version, standard.Stage, standard.Title, standard.Module));
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
         Assert.All(standard.Items, x => Assert.True(x.Since is 1 or 2 && x.Label.Length is > 0 and <= 80, x.Key));
@@ -375,15 +375,15 @@ public sealed class ManufacturingSystemPagesTests
     }
 
     [Fact]
-    public void Recipes_list_opens_the_legacy_card_and_guards_delete()
+    public void Recipes_list_opens_the_document_and_guards_delete()
     {
         const string key = "manufacturing-recipes";
         var view = Assert.Single(SystemPageStandards.All[key].ScreenViews);
         Assert.Equal(("manufacturing-recipes", "liste"), (view.Key, view.Component));
         var open = Props(key, "acDugmesi");
-        Assert.Equal(("erpPage", "manufacturing-recipe-create", true), ((string)open["actionType"]!, (string)open["pageKey"]!, (bool)open["legacyScreen"]!));
-        Assert.Equal(new[] { "bomId={{liste.seciliSatir.id}}" }, Strings(open["params"]));
-        Assert.True((bool)Props(key, "yeniDugmesi")["legacyScreen"]!);
+        Assert.Equal(("erpPage", "manufacturing-recipe-document"), ((string)open["actionType"]!, (string)open["pageKey"]!));
+        Assert.Equal(new[] { "id={{liste.seciliSatir.id}}" }, Strings(open["params"]));
+        Assert.Equal(("manufacturing-recipe-document", "newTab"), ((string)Props(key, "yeniDugmesi")["pageKey"]!, (string)Props(key, "yeniDugmesi")["target"]!));
         var delete = Props(key, "silDugmesi");
         Assert.Equal(("Üretim emri referansı olan reçeteler silinemez.", true), ((string)delete["disabledReason"]!, (bool)delete["confirmEnabled"]!));
         Assert.Contains("orderCount > 0", (string)delete["disabledWhen"]!);

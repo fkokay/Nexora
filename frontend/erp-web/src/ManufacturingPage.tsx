@@ -254,8 +254,9 @@ function renderWorkCenterCell(center: WorkCenter, key: string) {
   }
 }
 type OrderPageData = Page<Order> & { page: number; openOrderCount: number };
+type ManufacturingSection = ManufacturingPageKey | "manufacturing-recipe-create";
 const manufacturingSections: Record<
-  ManufacturingPageKey,
+  ManufacturingSection,
   { title: string; description: string }
 > = {
   "manufacturing-recipes": {
@@ -363,8 +364,8 @@ export default function ManufacturingPage({
   createOrderPage = false,
 }: {
   token: string;
-  section: ManufacturingPageKey;
-  onNavigate: (page: ManufacturingPageKey) => void;
+  section: ManufacturingSection;
+  onNavigate: (page: ManufacturingSection) => void;
   createOrderPage?: boolean;
 }) {
   const sectionLoadGeneration = useRef(0);
@@ -391,7 +392,7 @@ export default function ManufacturingPage({
   });
   const mutationIsCurrent = (captured: {
     epoch: number;
-    section: ManufacturingPageKey;
+    section: ManufacturingSection;
   }) =>
     captured.epoch === mutationEpoch.current &&
     captured.section === activeSection.current;
@@ -401,7 +402,7 @@ export default function ManufacturingPage({
   });
   const mrpRequestIsCurrent = (captured: {
     epoch: number;
-    section: ManufacturingPageKey;
+    section: ManufacturingSection;
     generation: number;
   }) =>
     captured.section === "manufacturing-mrp" &&
