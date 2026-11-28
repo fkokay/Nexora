@@ -321,16 +321,19 @@ public static class PlatformPermissionCatalog
         else if (path.StartsWith("/api/document-models/", StringComparison.OrdinalIgnoreCase))
         {
             // Belge modelleri hold no tenant data; "alan değişince" (POST …/fill) only reads stock cards. Read with the documents' own
-            // permission: the model code in the path names it (satis.teklif → quotes; stok.transfer → warehouse transfers; satis.siparis and
-            // anything else → orders). A new model adds its code here.
+            // permission: the model code in the path names its own purchasing/sales resource.
+            // A new model adds its code here.
             var modelPath = path["/api/document-models/".Length..];
-            resource = Resources.First(x => x.ResourceType == (modelPath.StartsWith("satis.teklif", StringComparison.OrdinalIgnoreCase)
-                ? "erp.sales-quotes"
+            var resourceType = modelPath.StartsWith("satis.teklif", StringComparison.OrdinalIgnoreCase) ? "erp.sales-quotes"
                 : modelPath.StartsWith("satis.fatura", StringComparison.OrdinalIgnoreCase) ? "erp.sales-invoices"
                 : modelPath.StartsWith("satis.irsaliye", StringComparison.OrdinalIgnoreCase) ? "erp.sales-deliveries"
+                : modelPath.StartsWith("satinalma.siparis", StringComparison.OrdinalIgnoreCase) ? "erp.purchase-orders"
+                : modelPath.StartsWith("satinalma.fatura", StringComparison.OrdinalIgnoreCase) ? "erp.purchase-invoices"
                 : modelPath.StartsWith("stok.transfer", StringComparison.OrdinalIgnoreCase) ? "erp.inventory-transfers"
                 : modelPath.StartsWith("muhasebe.", StringComparison.OrdinalIgnoreCase) ? "erp.general-ledger"
-                : modelPath.StartsWith("uretim.recete", StringComparison.OrdinalIgnoreCase) ? "erp.manufacturing" : "erp.sales-orders"));
+                : modelPath.StartsWith("uretim.recete", StringComparison.OrdinalIgnoreCase) ? "erp.manufacturing"
+                : "erp.sales-orders";
+            resource = Resources.First(x => x.ResourceType == resourceType);
             explicitReadAction = true;
         }
         resource ??= Resources.Where(x => path.Equals(x.RoutePrefix, StringComparison.OrdinalIgnoreCase)

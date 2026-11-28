@@ -56,7 +56,14 @@ public sealed class PurchasingErpOperationCatalogTests
     ];
 
     /// <summary>The purchasing system page operations (Faz 1 and Faz 2), whose contract tests live here.</summary>
-    internal static bool IsSystemPageOperation(string name) => IsFaz1Operation(name) || Faz2Operations.Contains(name, StringComparer.Ordinal);
+    internal static bool IsSystemPageOperation(string name) => IsFaz1Operation(name) || Faz2Operations.Contains(name, StringComparer.Ordinal)
+        || DocumentOperations.Contains(name, StringComparer.Ordinal);
+
+    /// <summary>Belge sayfası (satınalma sipariş ve fatura belge modelleri): load, fill and calculate operations.</summary>
+    internal static readonly string[] DocumentOperations =[
+        "satinalma.siparis.belge", "satinalma.siparis.doldur", "satinalma.siparis.hesapla",
+        "satinalma.fatura.belge", "satinalma.fatura.kayitBelgesi", "satinalma.fatura.doldur", "satinalma.fatura.hesapla"
+    ];
 
     private static readonly string[] InventoryCostOperations =
         ["satinalma.malKabul.ekMaliyetDagit", "satinalma.malKabul.ekMaliyetTersKayit", "satinalma.malKabul.ekMaliyetler", "satinalma.malKabul.listele"];
@@ -116,7 +123,7 @@ public sealed class PurchasingErpOperationCatalogTests
     public void Catalog_declares_the_purchasing_operations_and_nothing_else()
     {
         var purchasing = ErpOperationCatalog.All.Where(x => x.Module == "Satınalma").Select(x => x.Name).Order(StringComparer.Ordinal);
-        Assert.Equal(Faz1Operations.Concat(Faz2Operations).Concat(InventoryCostOperations).Order(StringComparer.Ordinal), purchasing);
+        Assert.Equal(Faz1Operations.Concat(Faz2Operations).Concat(DocumentOperations).Concat(InventoryCostOperations).Order(StringComparer.Ordinal), purchasing);
         Assert.All(ErpOperationCatalog.All.Where(x => x.Name.StartsWith("satinalma.", StringComparison.Ordinal)), x => Assert.Equal("Satınalma", x.Module));
         Assert.Equal(Faz1Operations.Length, Shapes.Count);
         foreach (var name in Faz1Operations)

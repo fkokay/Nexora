@@ -24,8 +24,11 @@ export function readPageTemplate(raw: unknown): PageTemplate | undefined {
   return name === "list" ? { name: "list" } : name === "record" ? { name: "record" } : name === "free" ? { name: "free" } : undefined;
 }
 
-/** Belge modelleri (sunucudaki `DocumentModelRegistry`): satış ve depo belge modelleri. */
-export const BELGE_DOCUMENTS = [{ code: "satis.siparis", label: "Satış siparişi" }, { code: "satis.teklif", label: "Satış teklifi" }, { code: "satis.fatura", label: "Satış faturası" }, { code: "satis.irsaliye", label: "Satış irsaliyesi" }, { code: "stok.transfer", label: "Depo transferi" }, { code: "uretim.recete", label: "Üretim reçetesi" }] as const;
+/** Belge modelleri (sunucudaki `DocumentModelRegistry`): satış, satınalma, depo ve üretim belge modelleri. */
+export const BELGE_DOCUMENTS = [{ code: "satis.siparis", label: "Satış siparişi" }, { code: "satis.teklif", label: "Satış teklifi" },
+  { code: "satis.fatura", label: "Satış faturası" }, { code: "satis.irsaliye", label: "Satış irsaliyesi" },
+  { code: "satinalma.siparis", label: "Satınalma siparişi" }, { code: "satinalma.fatura", label: "Satınalma faturası" },
+  { code: "stok.transfer", label: "Depo transferi" }, { code: "uretim.recete", label: "Üretim reçetesi" }] as const;
 
 /** Modelin yeni sayfadaki varsayılan başlık alanları ve satır kolonları (sunucu kodları modele göre denetler). */
 const BELGE_DEFAULTS: Record<string, { fields: string[]; columns: string[]; groups?: { code: string; columns: string[] }[] }> = {
@@ -33,6 +36,8 @@ const BELGE_DEFAULTS: Record<string, { fields: string[]; columns: string[]; grou
     columns: ["stockItemId", "quantity", "unitCode", "unitPrice", "discountPercent", "vatPercent", "availableQuantity", "lineTotal", "deliveredQuantity"] },
   "satis.teklif": { fields: ["code", "customerId", "quoteDate", "validUntil"],
     columns: ["stockItemId", "quantity", "unitCode", "unitPrice", "discountPercent", "vatPercent", "availableQuantity", "lineTotal"] },
+  "satinalma.siparis": { fields: ["code", "supplierId", "orderDate", "expectedReceiptDate", "targetWarehouseId", "currencyCode"], columns: ["stockItemId", "quantity", "unitCode", "unitPrice", "discountPercent", "vatPercent", "lineTotal"] },
+  "satinalma.fatura": { fields: ["invoiceNumber", "supplierId", "invoiceDate", "dueDate", "receiptCode", "currencyCode"], columns: ["description", "quantity", "unitCode", "unitPrice", "expenseAccountId", "vatRate", "total"] },
   "stok.transfer": { fields: ["code", "transferDate", "fromWarehouseId", "toWarehouseId"],
     columns: ["stockItemId", "quantity", "unitCode"] },
   "satis.irsaliye": { fields: ["code", "customerId", "deliveryDate", "warehouseId"],

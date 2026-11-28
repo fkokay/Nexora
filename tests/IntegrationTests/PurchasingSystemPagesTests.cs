@@ -34,7 +34,7 @@ public sealed class PurchasingSystemPagesTests
     /// <summary>Current version per standard: Satın Alma 2. dalga moved requests, orders and delivery notes to v3.</summary>
     private static readonly Dictionary<string, int> Versions = new(StringComparer.Ordinal)
     {
-        ["sales-requests"] = 3, ["sales-purchase-quotes"] = 2, ["sales-purchasing"] = 3, ["sales-purchase-delivery-notes"] = 3,
+        ["sales-requests"] = 3, ["sales-purchase-quotes"] = 2, ["sales-purchasing"] = 4, ["sales-purchase-delivery-notes"] = 3,
     };
 
     /// <summary>Non-purchasing reads a purchasing standard may bind (pickers of the Faz 2 line forms).</summary>

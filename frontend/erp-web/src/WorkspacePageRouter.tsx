@@ -430,6 +430,10 @@ function LegacyPageRouter({
   if (page === "sales-orders") return <SalesOrdersPage {...salesPageProps} />;
   if (page === "sales-order-create")
     return <SalesOrderCreateRedirect onNavigate={onNavigate} />;
+  if (page === "purchase-order-document")
+    return <LegacyDocumentCard onNavigate={onNavigate} documentKey="purchase-order-document" noun="Satınalma siparişi" openKey="sales-purchasing" openParam="id" createKey="purchase-order-document" />;
+  if (page === "purchase-invoice-document")
+    return <LegacyDocumentCard onNavigate={onNavigate} documentKey="purchase-invoice-document" noun="Satınalma faturası" openKey="sales-purchase-invoices" openParam="id" createKey="purchase-invoice-document" />;
   if (page === "sales-order-document")
     return <LegacyDocumentCard onNavigate={onNavigate} documentKey="sales-order-document" noun="Sipariş"
       openKey="sales-orders" openParam="orderId" createKey="sales-orders" />;

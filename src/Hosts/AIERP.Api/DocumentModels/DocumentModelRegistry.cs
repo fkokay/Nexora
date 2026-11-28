@@ -7,6 +7,8 @@ internal static class DocumentModelRegistry
     {
         SalesOrderDocumentModel.Code => SalesOrderDocumentModel.Model,
         SalesQuoteDocumentModel.Code => SalesQuoteDocumentModel.Model,
+        PurchaseOrderDocumentModel.Code => PurchaseOrderDocumentModel.Model,
+        PurchaseInvoiceDocumentModel.Code => PurchaseInvoiceDocumentModel.Model,
         InventoryTransferDocumentModel.Code => InventoryTransferDocumentModel.Model,
         JournalVoucherDocumentModel.Code => JournalVoucherDocumentModel.Model,
         SalesInvoiceDocumentModel.Code => SalesInvoiceDocumentModel.Model,

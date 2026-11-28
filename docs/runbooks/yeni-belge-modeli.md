@@ -1,5 +1,16 @@
 # Yeni belge modeli ekleme (kontrol listesi)
 
+## Satınalma modellerinden eklenen kontrol notları (2026-11-28)
+
+- Kaydetme yeteneği model başına değişir: satınalma siparişinde yalnızca yeni kayıt için `POST /api/purchasing/orders` vardır; mevcut sipariş belgesi salt okunur kalır. Standalone satınalma faturasında `POST/PUT /api/purchasing/standalone-invoices` yalnızca taslaklar içindir; `PUT` için GET yanıtındaki `rowVersion` değeri `expectedRowVersion` olarak geri gönderilmelidir. Mal kabulden üretilmiş `/api/purchasing/invoices/{id}` faturaları aynı Belge görünümünde salt okunur açılır.
+- Standalone fatura satırındaki `expenseAccountId` ile `standalonePurchaseReceiptLineId` birbirini dışlar. Fatura Belgesi yalnız gider hesabına bağlı bağımsız satır akışını sunuyorsa gider hesabını zorunlu yapın; mal kabul satırı seçimi için `satinalma.faturaTaslagi.malKabulSatirlari` parametreleri ve satır doldurma akışını ayrıca tamamlayın.
+- `DocumentBinding` varsayımı satış belgelerine özgüdür (müşteri, plasiyer, `stockItemId`, `/preview`). Yeni modelde tedarikçi, açıklama gibi farklı satır şekilleri varsa normalleştirme, başlık seçicisi, satır istek gövdesi, hesap yolu ve kaydetme yolu için açık bağ tanımlayın. Sadece `base` değerini değiştirmek yeterli değildir.
+- Hesap uçları yalnızca hesaplama yapıyorsa `ErpOperationCatalog` içinde HTTP yöntemi `POST` olsa da `kind/pageKind` değerini okuma olarak tanımlayın; bu, iş yazma yetkisi üretmeden model yolunu izin kataloğunda görünür kılar.
+- Var olan bir taslak muhasebeleştirme ucu belge eylemi olabilir: kaynak listede belgeyi salt okunur açma kuralı, standalone taslağın kendi `Draft` durumunda mevcut `POST /post` eylemini sunmasına engel değildir. Kaynak mal kabul faturalarında bu eylemi göstermeyin.
+
+- Salt okunur mal kabul faturasında mevcut iptal eylemi yine sunulabilir; `satinalma.fatura.iptal` rotası taslak kökünden değil `/api/purchasing/invoices/{id}/void` yolundançağrılır ve yalnız `Posted` durumunda gösterilir.
+- Liste eylemi `pageKey` tek başına yeterli değildir: action bar için `newAction/newPageCode`, `openAction/openPageCode/openParams`; satır AÇ için `rowOpenAction/rowOpenPageCode/rowOpenParams` ve bileşen `pageKey/params` eşleşmelidir. Liste standardı sürümünü artırın, tüm `items.since` değerlerini yeni sürüm geçmişiyle uyumlu tutun ve `updates` notu ekleyin.
+
 Belge modeli: ERP'de Belge kalıbıyla çizilen bir belgenin (başlık alanları, satırlar, durumlar, geçişler, toplamlar, işlem günlüğü) sunucudaki tanımı. İki örnek var: `satis.siparis` (ilk) ve `satis.teklif` (ikinci, bu listenin çıkarıldığı iş). Yeni model için en kısa yol `satis.teklif`i kopyalayıp uyarlamaktır; aşağıdaki her madde teklifte gerçekten dokunulan yeri gösterir.
 
 Sırayla gidin; her adımın sonunda ilgili testi çalıştırın. Şema değişikliği (EF migration) gerekmez: belge modeli yeni tablo istemez, işlem günlüğü ortak `TenantDocumentActivities` tablosundadır. Migration gerekiyorsa durun, model kapsamı fazla büyümüş demektir.
