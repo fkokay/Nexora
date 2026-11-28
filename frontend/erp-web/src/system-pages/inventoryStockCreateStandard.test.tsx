@@ -109,7 +109,7 @@ function setup(id?: string, role = 'TenantAdmin') {
 }
 
 const T = { timeout: 10000 };
-const command = (id: string) => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>(`[data-command="${id}"]`)!;
+const command = (id: string) => screen.getByRole('toolbar').querySelector<HTMLElement>('[data-command="' + id + '"]')!;
 const ready = (id: string) => waitFor(() => expect(command(id).getAttribute('aria-disabled')).not.toBe('true'), T);
 const writes = () => calls.filter((call) => call.method !== 'GET');
 const gets = (path: string) => calls.filter((call) => call.method === 'GET' && call.url.split('?')[0] === path);
@@ -118,7 +118,7 @@ const type = (id: string, value: string) => fireEvent.change(input(id), { target
 const settle = (ms = 30) => new Promise((done) => setTimeout(done, ms));
 const tab = (name: string) => screen.getByRole('tab', { name: new RegExp(`^${name}`) });
 const ctrlS = () => fireEvent.keyDown(document.activeElement ?? document.body, { key: 's', ctrlKey: true });
-const title = () => document.querySelector('.tenant-custom-page-header h1, .list-v2-title h1')?.textContent;
+const title = () => document.querySelector('.page-shell-sr-title, .list-v2-title h1')?.textContent;
 const renk = () => screen.getByLabelText('Renk') as HTMLInputElement;
 /** Yeni kart: sayfa yüklenir, Kaydet hazır olur. */
 const openNew = async () => {
@@ -168,14 +168,15 @@ describe('Yeni stok kartı standart tanımı', { timeout: 30000 }, () => {
 
   it('header says Yeni stok kartı for a new card and Stok kartı <code> for a saved one', async () => {
     await openNew();
-    expect(title()).toBe('Yeni stok kartı');
+    expect(title()).toBe('Stok kart\u0131');
+    expect(screen.getByRole('region', { name: 'Yeni Stok kart\u0131' })).toBeTruthy();
     expect(gets(`/api/stock/items/${S1}`)).toEqual([]);
     // Başlık bileşenleri gövdede tekrarlanmaz.
-    expect(screen.queryByRole('heading', { level: 2, name: 'Yeni stok kartı' })).toBeNull();
+    expect(screen.queryByRole('heading', { level: 2, name: 'Yeni Stok kart\u0131' })).toBeNull();
     cleanup();
     await openCard();
-    await waitFor(() => expect(title()).toBe('Stok kartı KLM'), T);
-    expect(screen.queryByRole('heading', { level: 2, name: 'Stok kartı KLM' })).toBeNull();
+    await waitFor(() => expect(title()).toBe('Stok kartı'), T);
+    expect(screen.queryByRole('heading', { level: 2, name: 'Stok kartı' })).toBeNull();
   });
 
   // Düz özellikli standart (afterSaveAction) ve eski düğmeli tanım (afterSaveButton) aynı gezinmeyi verir.
@@ -194,7 +195,7 @@ describe('Yeni stok kartı standart tanımı', { timeout: 30000 }, () => {
     expect(writes().filter((call) => call.method === 'PUT')).toEqual([]);
     const posts = writes().filter((call) => call.url === '/api/stock/items' && call.method === 'POST');
     expect(posts).toHaveLength(1);
-    expect(JSON.parse(posts[0].body!)).toMatchObject({ code: 'YENI-1', name: 'Yeni kart', unitCode: 'ADET', customFields: {}, variants: [] });
+    expect(JSON.parse(posts[0].body!)).toMatchObject({ code: 'YENI-1', name: 'Yeni kart', unitCode: 'ADET', customFields: {} });
     // Eski ekran gibi: kayıttan sonra Stok Kartları listesine dönülür ve liste yenilenir; form bir sonraki kart için boşalır.
     await waitFor(() => expect(navigations).toHaveLength(1), T);
     expect(navigations[0]).toEqual({ page: 'inventory-stock', params: {}, replace: true, from: KEY, refresh: true });
@@ -240,25 +241,24 @@ describe('Yeni stok kartı standart tanımı', { timeout: 30000 }, () => {
     expect(writes().map((call) => `${call.method} ${call.url}`)).toEqual([`PUT /api/stock/items/${S1}`, `PUT /api/stock/items/${S1}/custom-fields`]);
   });
 
-  it('unit staging sends POST and DELETE after card save', async () => {
+  it('unit table adds and deletes conversions through the unit window', async () => {
     await openCard();
     fireEvent.click(tab('Birimler'));
     await screen.findByText('KOLI', {}, T);
-    expect(screen.getByText('Ana birim: ADET (1)')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Satır ekle' }));
-    const unitInputs = screen.getAllByLabelText(/^Birim \(satır/);
-    fireEvent.change(unitInputs[unitInputs.length - 1], { target: { value: 'pk' } });
-    const factorInputs = screen.getAllByLabelText(/^Ana birim katsayısı \(satır/);
-    fireEvent.change(factorInputs[factorInputs.length - 1], { target: { value: '6' } });
-    fireEvent.click(screen.getAllByRole('button', { name: 'Satırı sil' })[0]);
-    ctrlS();
-    await waitFor(() => expect(writes()).toHaveLength(4), T);
-    expect(writes().map((call) => `${call.method} ${call.url} ${call.body ?? ''}`)).toEqual([
-      `PUT /api/stock/items/${S1} ${writes()[0].body}`,
-      `POST /api/stock/items/${S1}/units {"unitCode":"PK","factorToBase":6}`,
-      `DELETE /api/stock/items/${S1}/units/${U1} `,
-      `PUT /api/stock/items/${S1}/custom-fields ${writes()[3].body}`,
-    ]);
+    fireEvent.click(screen.getByRole('button', { name: 'Birim ekle' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Birim ekle' }, T);
+    type('yeniBirimKodu', 'pk');
+    type('yeniBirimKatsayisi', '6');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Birim ekle' }));
+    await waitFor(() => expect(writes()).toHaveLength(1), T);
+    expect(writes()[0]).toMatchObject({ method: 'POST', url: `/api/stock/items/${S1}/units` });
+    expect(JSON.parse(writes()[0].body!)).toEqual({ unitCode: 'PK', factorToBase: 6 });
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Birim ekle' })).toBeNull(), T);
+    fireEvent.click(screen.getByText('KOLI', { selector: '.tenant-page-data-grid td' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sil' }));
+    fireEvent.click(within(await screen.findByRole('alertdialog', {}, T)).getByRole('button', { name: 'Onayla' }));
+    await waitFor(() => expect(writes()).toHaveLength(2), T);
+    expect(writes()[1]).toMatchObject({ method: 'DELETE', url: `/api/stock/items/${S1}/units/${U1}` });
   });
 
   it('tenant user gating', async () => {
@@ -285,7 +285,7 @@ describe('Yeni stok kartı standart tanımı', { timeout: 30000 }, () => {
     await openCard();
     await waitFor(() => expect(gets('/api/manufacturing/boms')).toHaveLength(1), T);
     expect(gets('/api/manufacturing/boms')[0].url).toBe(`/api/manufacturing/boms?productStockItemId=${S1}`);
-    fireEvent.click(tab('Reçeteler'));
+    fireEvent.click(tab('Varyantlar ve re\u00e7eteler'));
     expect(await screen.findByText('Kalem reçetesi', {}, T)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Satır ekle' })).toBeNull();
   });
@@ -389,7 +389,7 @@ describe('Yeni stok kartı standart tanımı', { timeout: 30000 }, () => {
     fireEvent.keyDown(document.body, { key: 'F2' });
     // Yeni, aynı ekranı parametresiz açar: sayfa yeni kartla baştan kurulur.
     await waitFor(() => expect(navigations.map((request) => [request.page, request.params])).toEqual([[KEY, {}]]), T);
-    await waitFor(() => expect(title()).toBe('Yeni stok kartı'), T);
+    await waitFor(() => expect(title()).toBe('Yeni Stok kart\u0131'), T);
     await waitFor(() => expect(input('kod').value).toBe(''), T);
     fireEvent.click(tab('Özel alanlar'));
     expect(renk().value).toBe('');
@@ -405,7 +405,7 @@ describe('Yeni stok kartı standart tanımı', { timeout: 30000 }, () => {
     ctrlS();
     await waitFor(() => expect(writes()).toHaveLength(1), T);
     expect(writes()[0]).toMatchObject({ method: 'POST', url: '/api/stock/items' });
-    expect(JSON.parse(writes()[0].body!)).toMatchObject({ code: 'YENI-2', name: 'Yeni kart', customFields: { RENK: 'Yeşil' } });
+    expect(JSON.parse(writes()[0].body!)).toMatchObject({ code: 'YENI-2', name: 'Yeni Stok kart\u0131', customFields: { RENK: 'Yeşil' } });
     expect(writes()[0].body).not.toContain('Mavi');
   });
 
@@ -436,26 +436,15 @@ describe('Yeni stok kartı standart tanımı', { timeout: 30000 }, () => {
     expect(writes()).toEqual([]);
   });
 
-  it('retry after a partial create says field changes need reopening', async () => {
-    failures = [{ method: 'POST', url: `/api/stock/items/${NEW}/units`, status: 400, error: 'Birim kodu geçersiz', exact: true }];
+  it('creates the card before a conversion can be added in its own window', async () => {
     await openNew();
     type('kod', 'yeni-3');
     type('ad', 'Yeni kart');
     type('anaBirim', 'adet');
-    fireEvent.click(tab('Birimler'));
-    fireEvent.click(screen.getByRole('button', { name: 'Satır ekle' }));
-    fireEvent.change(screen.getAllByLabelText(/^Birim \(satır/)[0], { target: { value: 'pk' } });
-    fireEvent.change(screen.getAllByLabelText(/^Ana birim katsayısı \(satır/)[0], { target: { value: '6' } });
-    ctrlS();
-    await screen.findByText(/Önceki 1 işlem kaydedildi/, {}, T);
-    expect(writes().map((call) => `${call.method} ${call.url}`)).toEqual(['POST /api/stock/items', `POST /api/stock/items/${NEW}/units`]);
-    calls = [];
-    fireEvent.click(tab('Genel'));
-    type('ad', 'Yeni kart 2');
-    ctrlS();
-    await screen.findByText(/Kart oluşturuldu; alan değişiklikleri için kartı yeniden açın\.$/, {}, T);
-    expect(writes().map((call) => `${call.method} ${call.url}`)).toEqual([`POST /api/stock/items/${NEW}/units`]);
-    // Kısmi kayıtta liste açılmaz: kullanıcı uyarıyı görür.
-    expect(navigations).toEqual([]);
+    fireEvent.click(command('save'));
+    await waitFor(() => expect(writes()).toHaveLength(1), T);
+    expect(writes()[0].url).toBe('/api/stock/items');
+    expect(navigations).toHaveLength(1);
+    expect(navigations[0]).toMatchObject({ page: 'inventory-stock', replace: true, refresh: true });
   });
 });

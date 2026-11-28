@@ -1750,3 +1750,11 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
 - **Karşılıksız kalan:** `fixed-asset-create` özetinde "Aylık amortisman" hesaplanan göstergesi yok (kalıpta özet alanları hesap ifadesi bilmiyor; maliyet ve ömür gösterilir). Kaydetten sonra kıymet kartı açılmıyor: kalıbın "kayıttan sonra" komutu sayfa parametresi taşımadığı için kayıt sonrası kıymet listesi açılır. `fixed-assets` durum süzgeci seçenekleri yüklü satırlardan gelir (sunucuya giden seçimli süzgeç).
 - **Doğrulanan (yerel):** Üç standart yüklenir ve şemadan geçer; ilgili .NET testleri (`FixedAssetSystemPagesTests`, `FinanceSystemPagesTests`, `SystemPageStandardsTests`) ile ERP ve Studio standart vitest dosyaları kalıba uyarlandı ve geçti.
 - **Doğrulanmayan:** Ekranların canlıda gerçek firma kopyasıyla ve tarayıcıda görsel olarak denenmesi; eski firma kopyalarının standarda sıfırlanması bu işte yok.
+
+
+### 2026-11-28 stok ve depo yeniden tasarım, 2. dalga: üç standart kalıba çizildi
+
+- **Ne değişti:** `inventory-warehouses` v4 ve `inventory-stock` v3 Liste kalıbına, `inventory-stock-create` v2 Kayıt kartı kalıbına geçti. Depo düzenleme ve stok kartına özel alan blokları eklendi; stok hareketi tanımına lot/seri satır ızgarası eklendi.
+- **Sadeleşenler:** `inventory-stock-create` alanları altı sekmede toplandı; görsel önizleme ve varyant matrisi kaldırıldı; birimler tablo ve kaydedilmiş kartta açılan "Birim ekle" penceresi oldu. `inventory-warehouses` düzenleme penceresine özel alanlar eklendi, liste ve durum eylemleri korundu. `inventory-stock` negatif stok notları tek bilgiye indirildi; hareket penceresi geçmiş/ters kayıt yerine giriş ve takip satırlarını hedefliyor.
+- **Doğrulanan:** IntegrationTests projesi MSBuild ile derlendi; ERP Web ve Development Studio `npm run build` başarılı oldu. Depo standart Vitest dosyası 7/7, Studio `node --test tests/refOwners.test.mjs` 5/5 geçti.
+- **Açık doğrulamalar:** ERP stok-kartı Vitest dosyası 20 testten 8’inde beklenen akış/başlık farklarıyla başarısız; stok hareketindeki lot satırı testinde ızgara henüz pencerede bulunamadı. Studio dosyası Node yerleşik `node:test` kullandığından Vitest bu dosyayı test paketi olarak tanımıyor; doğrudan Node testi geçti. `dotnet test` ve canlı/görsel tarayıcı kontrolü bu işte koşturulmadı.

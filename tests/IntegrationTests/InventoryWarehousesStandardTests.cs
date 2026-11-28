@@ -3,7 +3,7 @@ using AIERP.Api;
 using Xunit;
 
 /// <summary>
-/// "Depo Yönetimi" standard (inventory-warehouses, Liste kalıbı, version 3): the list with its card group, the Yeni depo and
+/// "Depo Yönetimi" standard (inventory-warehouses, Liste kalıbı, version 4): the list with its card group, the Yeni depo and
 /// Düzenle windows, and the row actions. Writes are exactly create, update, deactivate and activate; custom fields are not in
 /// this version (the template windows have no custom field block).
 /// </summary>
@@ -15,11 +15,11 @@ public sealed class InventoryWarehousesStandardTests
     public void Header_is_preview_version_3_list_template()
     {
         var standard = SystemPageStandards.All[Key];
-        Assert.Equal((3, "preview", "Depo Yönetimi"), (standard.Version, standard.Stage, standard.Title));
+        Assert.Equal((4, "preview", "Depo Yönetimi"), (standard.Version, standard.Stage, standard.Title));
         Assert.Equal("Stok & Depo", standard.Module);
         Assert.Equal("list", (string)Definition()["template"]!["name"]!);
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
-        Assert.All(standard.Items, x => Assert.Equal(1, x.Since));
+        Assert.All(standard.Items, x => Assert.True(x.Since <= standard.Version, x.Key));
         var view = Assert.Single(standard.ScreenViews);
         Assert.Equal(("inventory-warehouses", "depoListesi"), (view.Key, view.Component));
     }
@@ -28,14 +28,13 @@ public sealed class InventoryWarehousesStandardTests
     public void Operations_are_read_list_and_four_writes_and_nothing_else()
     {
         var queries = Definition()["queries"]!.AsArray().OfType<JsonObject>().ToArray();
-        Assert.Equal(new[] { "depo.listele", "depo.konumlari", "depo.olustur", "depo.guncelle", "depo.pasifeAl", "depo.aktifEt" },
+        Assert.Equal(new[] { "depo.listele", "depo.konumlari", "depo.olustur", "depo.guncelle", "depo.pasifeAl", "depo.aktifEt", "depo.ozelAlanTanimlari", "depo.ozelAlanDegerleri", "depo.ozelAlanKaydet" },
             queries.Select(x => (string)x["operation"]!));
         Assert.All(queries.Select(x => (string)x["operation"]!), name => Assert.True(ErpOperationCatalog.TryGet(name, out var op) && !op.Deprecated, name));
-        Assert.Equal(new[] { "olustur", "guncelle", "pasifeAl", "aktifEt" }, queries.Where(x => (string)x["runOn"]! == "manual").Select(x => (string)x["id"]!));
-        // No custom field queries or block any more.
-        foreach (var id in new[] { "ozelTanimlar", "ozelDegerler", "ozelKaydet" })
-            Assert.DoesNotContain(queries, x => (string)x["id"]! == id);
-        Assert.DoesNotContain(AllComponents(), x => (string)x["type"]! == "customFieldsBlock");
+        Assert.Equal(new[] { "olustur", "guncelle", "pasifeAl", "aktifEt", "ozelKaydet" }, queries.Where(x => (string)x["runOn"]! == "manual").Select(x => (string)x["id"]!));
+        Assert.Contains(AllComponents(), x => (string)x["type"]! == "customFieldsBlock");
+        Assert.Equal("depo.ozelAlanKaydet", (string)Query("ozelKaydet")["operation"]!);
+        Assert.Equal("{{depoOzelAlanlar.degerler}}", Binding("ozelKaydet", "values"));
     }
 
     [Fact]
@@ -77,12 +76,14 @@ public sealed class InventoryWarehousesStandardTests
         Assert.Null(Props("yeniDepoKodu")["defaultValue"]);
 
         var edited = Props("duzenlePenceresi");
-        Assert.Equal(("guncelle", "Depo · {{depoListesi.seciliSatir.code}}"), ((string)edited["saveQuery"]!, (string)edited["title"]!));
+        Assert.Equal(("Depo \u00b7 {{depoListesi.seciliSatir.code}}", new[] { "guncelle", "ozelKaydet" }), ((string)edited["title"]!, Strings(edited["saveSequence"])));
         Assert.Equal(new[] { "depoKodu", "depoAdi" }, Strings(Props("duzenleFormu")["inputs"]));
         Assert.Equal("{{depoListesi.seciliSatir.code}}", (string)Props("depoKodu")["defaultValue"]!);
         Assert.Equal("{{depoListesi.seciliSatir.name}}", (string)Props("depoAdi")["defaultValue"]!);
         Assert.Equal("{{depoListesi.seciliSatir.rowVersion}}", Binding("guncelle", "rowVersion"));
         Assert.Equal("{{depoListesi.seciliSatir.id}}", Binding("guncelle", "warehouseId"));
+        Assert.Equal("dialog", (string)Props("depoOzelAlanlar")["slot"]!);
+        Assert.Equal("{{depoListesi.seciliSatir.id}}", Binding("ozelDegerler", "warehouseId"));
     }
 
     private static JsonObject Definition() => JsonNode.Parse(SystemPageStandards.All[Key].DefinitionJson)!.AsObject();

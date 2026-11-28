@@ -18,13 +18,13 @@ public sealed class InventoryStockStandardTests
     public void Header_is_preview_version_2_list_template()
     {
         var standard = SystemPageStandards.All[Key];
-        Assert.Equal(2, standard.Version);
+        Assert.Equal(3, standard.Version);
         Assert.Equal("preview", standard.Stage);
         Assert.Equal("Stok Kartları", standard.Title);
         Assert.Equal("Stok & Depo", standard.Module);
         Assert.Equal("list", (string)Definition()["template"]!["name"]!);
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
-        Assert.All(standard.Items, x => Assert.True(x.Since == 1 && x.Label.Length is > 0 and <= 80, x.Key));
+        Assert.All(standard.Items, x => Assert.True(x.Since <= standard.Version && x.Label.Length is > 0 and <= 80, x.Key));
     }
 
     [Fact]
@@ -250,20 +250,13 @@ public sealed class InventoryStockStandardTests
     }
 
     [Fact]
-    public void Negative_stock_is_a_conditional_note_above_the_list()
+    public void Negative_stock_is_a_single_conditional_note_above_the_list()
     {
-        var expected = new (string Id, string Title, string Variant, string VisibleWhen)[]
-        {
-            ("negatifStokKorumaAcik", "Negatif stok koruması açık", "success", "negatifStok.rows[0].allowNegativeStock == false"),
-            ("negatifStokKorumaKapali", "Negatif stoka izin veriliyor", "warning", "negatifStok.rows[0].allowNegativeStock == true")
-        };
-        foreach (var (id, title, variant, visibleWhen) in expected)
-        {
-            Assert.Equal("alert", (string)Component(id)["type"]!);
-            var props = Props(id);
-            Assert.Equal((title, variant, visibleWhen, "above"), ((string)props["title"]!, (string)props["variant"]!, (string)props["visibleWhen"]!, (string)props["slot"]!));
-            Assert.Contains("Değer ağırlıklı ortalama", (string)props["text"]!);
-        }
+        var props = Props("negatifStokKorumaAcik");
+        Assert.Equal("alert", (string)Component("negatifStokKorumaAcik")["type"]!);
+        Assert.Equal("negatifStok.rows[0].allowNegativeStock != null", (string)props["visibleWhen"]!);
+        Assert.Equal("above", (string)props["slot"]!);
+        Assert.DoesNotContain(AllComponents(), x => (string)x["id"]! == "negatifStokKorumaKapali");
         Assert.Equal("ayar.negatifStok", (string)Query("negatifStok")["operation"]!);
     }
 
@@ -276,7 +269,7 @@ public sealed class InventoryStockStandardTests
         var props = Props("hareketPenceresi");
         Assert.Equal(("dialog", "md", "dialogs"), ((string)props["presentation"]!, (string)props["size"]!, (string)props["slot"]!));
         Assert.Equal("Stok hareketi · {{liste.seciliSatir.balance.code}} · {{suzgec.seciliSatir.warehouseId.name}}", (string)props["title"]!);
-        Assert.Equal(new[] { "izlemeUyarisi", "hareketFormu" }, Strings(props["contains"]));
+        Assert.Equal(new[] { "hareketFormu", "hareketTakipIzgarasi" }, Strings(props["contains"]));
         Assert.Equal("hareketEkle", (string)props["saveQuery"]!);
         Assert.True((bool)props["closeOnSave"]!);
         Assert.True((bool)props["resetOnOpen"]!);
@@ -286,13 +279,11 @@ public sealed class InventoryStockStandardTests
         Assert.Equal("formCard", (string)Component("hareketFormu")["type"]!);
         Assert.Equal(new[] { "hareketYonu", "hareketTarihi", "hareketBirimi", "hareketMiktari", "hareketKonumu", "birimMaliyet", "hareketAciklamasi" },
             Strings(form["inputs"]));
-        // History table, reversal and the lot / serial grid are gone from the window.
-        foreach (var id in new[] { "hareketTablosu", "tersKayitDugmesi", "izlemeSatirlari" })
-            Assert.DoesNotContain(AllComponents(), x => (string)x["id"]! == id);
-        // Lot / serial cards cannot be entered here (a list parameter binds only to an editable grid): the window says so.
-        var warning = Props("izlemeUyarisi");
-        Assert.Equal("alert", (string)Component("izlemeUyarisi")["type"]!);
-        Assert.Equal("liste.seciliSatir.stockItem.trackingMode != 'None'", (string)warning["visibleWhen"]!);
+        var grid = Props("hareketTakipIzgarasi");
+        Assert.Equal("editableGrid", (string)Component("hareketTakipIzgarasi")["type"]!);
+        Assert.Equal("list", (string)grid["gridMode"]!);
+        Assert.Equal(200, (int)grid["maxRows"]!);
+        Assert.Equal(3, Strings(grid["gridColumns"]).Length);
     }
 
     [Fact]
@@ -310,7 +301,8 @@ public sealed class InventoryStockStandardTests
         Assert.True(ErpOperationCatalog.TryGet("stok.hareket.ekle", out var operation));
         // Every catalog parameter but the list-typed tracking one is bound, and nothing else.
         Assert.Equal(operation.Parameters.Where(x => x.Name != "tracking").Select(x => x.Name).Order(StringComparer.Ordinal), expected.Keys.Order(StringComparer.Ordinal));
-        Assert.Equal(expected.Count, insert["parameters"]!.AsArray().Count);
+        Assert.Equal(expected.Count + 1, insert["parameters"]!.AsArray().Count);
+        Assert.Equal("{{hareketTakipIzgarasi.satirlar}}", Binding("hareketEkle", "tracking"));
         foreach (var (parameter, binding) in expected) Assert.Equal(binding, Binding("hareketEkle", parameter));
 
         Assert.Equal("depo.konumlari", (string)Query("konumlar")["operation"]!);
