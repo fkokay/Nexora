@@ -36,9 +36,6 @@ const CrmOpportunitiesPage = lazy(() => import("./CrmOpportunitiesPage"));
 const ManufacturingRecipesPage = lazy(
   () => import("./ManufacturingRecipesPage"),
 );
-const ManufacturingRecipeCreatePage = lazy(
-  () => import("./ManufacturingRecipeCreatePage"),
-);
 const ManufacturingWorkCentersPage = lazy(
   () => import("./ManufacturingWorkCentersPage"),
 );
@@ -93,9 +90,6 @@ const PurchaseReceiptsPage = lazy(() => import("./PurchaseReceiptsPage"));
 const SalesReturnsPage = lazy(() => import("./SalesReturnsPage"));
 const SalesCustomerRequestsPage = lazy(() => import("./sales-customer-requests/SalesCustomerRequestsPage"));
 const PurchaseReturnsPage = lazy(() => import("./PurchaseReturnsPage"));
-const PurchaseInvoiceEntryScreenPage = lazy(
-  () => import("./PurchaseInvoiceEntryScreenPage"),
-);
 const SupplierInvoiceDraftsPage = lazy(
   () => import("./SupplierInvoiceDraftsPage"),
 );
@@ -358,7 +352,9 @@ function LegacyPageRouter({
   if (page === "manufacturing-recipes")
     return <ManufacturingRecipesPage {...manufacturingPageProps} />;
   if (page === "manufacturing-recipe-create")
-    return <ManufacturingRecipeCreatePage {...manufacturingPageProps} />;
+    return <LegacyCreateRedirect sourceKey="manufacturing-recipe-create" targetKey="manufacturing-recipe-document" noun="Reçete" onNavigate={onNavigate} />;
+  if (page === "manufacturing-recipe-document")
+    return <LegacyDocumentCard onNavigate={onNavigate} documentKey="manufacturing-recipe-document" noun="Reçete" openKey="manufacturing-recipes" openParam="id" createKey="manufacturing-recipe-document" />;
   if (page === "manufacturing-work-centers")
     return <ManufacturingWorkCentersPage {...manufacturingPageProps} />;
   if (page === "manufacturing-work-center-create")
@@ -445,9 +441,9 @@ function LegacyPageRouter({
       openKey="sales-deliveries" openParam="belgeIrsaliyeId" createKey="sales-delivery-create" />;
   if (page === "sales-invoice-document")
     return <LegacyDocumentCard onNavigate={onNavigate} documentKey="sales-invoice-document" noun="Fatura"
-      openKey="sales-invoices" openParam="belgeFaturaId" createKey="sales-invoice-create" />;
+      openKey="sales-invoices" openParam="belgeFaturaId" createKey="sales-invoices" />;
   if (page === "sales-invoice-create")
-    return <SalesInvoicesPage {...salesPageProps} openInvoiceCreate />;
+    return <LegacyCreateRedirect sourceKey="sales-invoice-create" targetKey="sales-invoice-document" noun="Fatura" onNavigate={onNavigate} />;
   if (page === "sales-invoices")
     return <SalesInvoicesPage {...salesPageProps} />;
   if (page === "sales-deliveries")
@@ -457,7 +453,9 @@ function LegacyPageRouter({
   if (page === "sales-purchasing")
     return <SupplierOrdersPage {...salesPageProps} />;
   if (page === "sales-purchase-order-create")
-    return <SupplierOrdersPage {...salesPageProps} createPurchaseOrderPage />;
+    return <LegacyCreateRedirect sourceKey={page} targetKey="purchase-order-document" noun="Satınalma siparişi" onNavigate={onNavigate} />;
+  if (page === "sales-purchase-invoice-entry")
+    return <LegacyCreateRedirect sourceKey={page} targetKey="purchase-invoice-document" noun="Satınalma faturası" onNavigate={onNavigate} />;
   if (page === "sales-purchase-invoices")
     return <PurchaseInvoicesPage {...salesPageProps} />;
   if (page === "sales-purchase-receipts")
@@ -468,8 +466,6 @@ function LegacyPageRouter({
     return <SalesReturnsPage token={token} role={tenant.role} onNavigate={onNavigate} />;
   if (page === "sales-purchase-returns")
     return <PurchaseReturnsPage token={token} role={tenant.role} onNavigate={onNavigate} />;
-  if (page === "sales-purchase-invoice-entry")
-    return <PurchaseInvoiceEntryScreenPage {...salesPageProps} />;
   if (page === "sales-purchase-invoice-drafts")
     return <SupplierInvoiceDraftsPage {...salesPageProps} />;
   if (page === "finance-instruments")
@@ -518,10 +514,11 @@ function LegacyPageRouter({
         onNavigate={onNavigate}
       />
     );
+  if (page === "finance-journal-vouchers")
+    return <LegacyCreateRedirect sourceKey="finance-journal-vouchers" targetKey="finance-journal-voucher-document" noun="Yevmiye fişi" onNavigate={onNavigate} />;
   if (
     page === "finance-ledger-chart" ||
     page === "finance-ledger-mappings" ||
-    page === "finance-journal-vouchers" ||
     page === "finance-journal-voucher-document" ||
     page === "finance-trial-balance" ||
     page === "finance-balance-sheet" ||
@@ -686,6 +683,21 @@ function LegacyPageRouter({
  * buraya düşer: `orderId` varsa o siparişin, yoksa boş Belge sayfası açılır; bu sekme kapanır. Belge sayfası bu firmada sistem
  * sayfası değilse `LegacyDocumentCard` siparişi eski listede açar, bu yüzden döngü olmaz.
  */
+function LegacyCreateRedirect({ sourceKey, targetKey, noun, onNavigate }: {
+  sourceKey: string; targetKey: string; noun: string; onNavigate: (page: string, label?: string) => void;
+}) {
+  const params = usePageParams(sourceKey);
+  const id = params.id ?? params.invoiceId ?? params.bomId ?? "";
+  useEffect(() => {
+    // Eski kimlik adları (invoiceId, bomId) hedefte id olur; ikinci kopya taşınmaz.
+    const { invoiceId: _invoiceId, bomId: _bomId, ...rest } = params;
+    setPageParams(targetKey, id ? { ...rest, id } : params);
+    onNavigate(targetKey);
+    requestClosePage(sourceKey);
+  }, [id, onNavigate, sourceKey, targetKey, JSON.stringify(params)]);
+  return <div className="panel page-loading" role="status">{noun} belgesi açılıyor…</div>;
+}
+
 function SalesOrderCreateRedirect({ onNavigate }: { onNavigate: (page: string, label?: string) => void }) {
   const params = usePageParams("sales-order-create");
   const orderId = params.orderId ?? "";

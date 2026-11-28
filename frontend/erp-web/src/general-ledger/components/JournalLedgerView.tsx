@@ -182,7 +182,7 @@ export function JournalLedgerView({
     disabledReason: onNavigate ? undefined : "Bu ekranda kullanılamaz",
     run: () => onNavigate?.("finance-transfer-sources"),
   };
-  const newVoucher = { disabledReason: onNavigate ? undefined : "Bu ekranda kullanılamaz", run: () => onNavigate?.("finance-journal-vouchers") };
+  const newVoucher = { disabledReason: onNavigate ? undefined : "Bu ekranda kullanılamaz", run: () => onNavigate?.("finance-journal-voucher-document") };
   const notDeletable = "Kaydedilmiş fiş silinemez — İşlemler › Ters kayıt oluştur";
   const commands: PageCommands = docId
     ? {

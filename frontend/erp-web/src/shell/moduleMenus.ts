@@ -20,23 +20,21 @@ export const SUBROUTE_PARENTS: Record<string, string> = {
   "sales-quote-create": "sales-quotes",
   "sales-order-create": "sales-orders",
   "sales-order-document": "sales-orders",
-  "finance-journal-voucher-document": "finance-journal-vouchers",
+  "finance-journal-voucher-document": "finance-journal-ledger",
   "sales-quote-document": "sales-quotes",
   'purchase-order-document': 'sales-purchasing',
   'purchase-invoice-document': 'sales-purchase-invoices',
   "inventory-transfer-document": "inventory-transfers",
   "sales-invoice-document": "sales-invoices",
   "sales-delivery-document": "sales-deliveries",
-  "sales-invoice-create": "sales-invoices",
   "sales-delivery-create": "sales-deliveries",
-  "sales-purchase-order-create": "sales-purchasing",
   "finance-account-create": "finance-accounts",
   "finance-credit-facility-create": "finance-credit-facilities",
   "finance-credit-schedule-create": "finance-credit-facilities",
   "finance-credit-movement-create": "finance-credit-facilities",
   "finance-credit-repayment-create": "finance-credit-facilities",
   "finance-credit-security-create": "finance-credit-facilities",
-  "manufacturing-recipe-create": "manufacturing-recipes",
+  "manufacturing-recipe-document": "manufacturing-recipes",
   "manufacturing-work-center-create": "manufacturing-work-centers",
   "manufacturing-order-create": "manufacturing-orders",
   "fixed-asset-create": "fixed-assets",
@@ -45,6 +43,10 @@ export const SUBROUTE_PARENTS: Record<string, string> = {
 
 /** Screens outside every module: home, assistant, settings and platform/customization tools. */
 export const STANDALONE_PAGES: string[] = [
+  // Eski oluşturma sayfaları: Belge ekranına yönlendirir, menüde yer almaz.
+  "sales-invoice-create",
+  "finance-journal-vouchers",
+  "manufacturing-recipe-create",
   "launcher",
   "dashboard",
   "erp-assistant",
@@ -63,6 +65,8 @@ export const STANDALONE_PAGES: string[] = [
   "custom-menus",
   "business-rules",
   "screen-views",
+  "sales-purchase-order-create",
+  "sales-purchase-invoice-entry",
 ];
 
 const warehousePages = ["inventory-warehouses", "inventory-transfers", "inventory-transfer-document", "inventory-locations"];
@@ -86,12 +90,12 @@ export const moduleMenus: ModuleMenu[] = [
   {
     railId: "sales",
     title: ["Satış", "Sales"],
-    pages: [...salesNavigationPages, "sales-quote-create", "sales-order-create", "sales-order-document", "sales-quote-document", "sales-invoice-document", "sales-delivery-document", "sales-invoice-create", "sales-delivery-create"],
+    pages: [...salesNavigationPages, "sales-quote-create", "sales-order-create", "sales-order-document", "sales-quote-document", "sales-invoice-document", "sales-delivery-document", "sales-delivery-create"],
   },
   {
     railId: "purchasing",
     title: ["Satın Alma", "Purchasing"],
-    pages: [...purchasingNavigationPages, "sales-purchase-order-create"],
+    pages: purchasingNavigationPages,
   },
   {
     railId: "finance",

@@ -824,7 +824,7 @@
         "props": {
           "text": "Faturala",
           "actionType": "erpPage",
-          "pageKey": "sales-purchase-invoice-entry",
+          "pageKey": "purchase-invoice-document",
           "target": "newTab",
           "params": [
             "receiptId={{kabulTablosu.seciliSatir.id}}"

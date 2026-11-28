@@ -15,6 +15,10 @@ internal static class DocumentModelEndpoints
     internal static void MapDocumentModelEndpoints(this WebApplication app)
     {
         app.MapJournalVoucherDocumentEndpoints();
+        app.MapGroup("/api/document-models").WithTags("Belge modelleri").RequireAuthorization()
+            .MapGet("/" + ManufacturingRecipeDocumentModel.Code + "/sample", (string? state) =>
+            state is null or "Active" or "Inactive" ? Results.Ok(ManufacturingRecipeDocumentModel.Sample(state != "Inactive"))
+                : Results.ValidationProblem(new Dictionary<string, string[]> { ["state"] = ["Bilinmeyen belge durumu."] }));
         var models = app.MapGroup("/api/document-models").WithTags("Belge modelleri").RequireAuthorization();
         models.MapGet("/{code}", (string code) =>
             DocumentModelRegistry.Find(code) is { } model ? Results.Ok(model) : Results.NotFound());
@@ -48,6 +52,16 @@ internal static class DocumentModelEndpoints
                     detail.Transfer.Status.ToString(), null, InventoryTransferDocumentModel.Candidates(detail.Transfer.Status), ct);
                 return Results.Ok(InventoryTransferDocumentModel.View(detail, allowed, activity));
             });
+
+        app.MapGet("/api/manufacturing/boms/{id:guid}/document", async (Guid id, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(user.FindFirstValue("tenant_id"), out var tenantId)) return Results.Forbid();
+            if (await ManufacturingEndpoints.ReadBomForDocumentAsync(db, tenantId, id, ct) is not { } recipe) return Results.NotFound();
+            var activity = await DocumentActivityLog.ReadAsync(db, tenantId, ManufacturingRecipeDocumentModel.Code, id, ct);
+            return Results.Ok(new ManufacturingRecipeDocumentView(recipe,
+                recipe.Lines.Sum(x => x.Quantity * (1m + x.ScrapPercent / 100m) * x.StandardUnitCostBase),
+                recipe.IsActive ? ["pasifeAl"] : ["etkinlestir"], activity, activity.Count == 0));
+        });
 
         app.MapGroup("/api/sales/quotes").WithTags("Satış Teklifleri").RequireAuthorization()
             .MapGet("/{id:guid}/document", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, IPlatformPermissionAuthorizer authorizer,

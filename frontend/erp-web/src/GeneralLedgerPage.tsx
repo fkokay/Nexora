@@ -992,7 +992,7 @@ export default function GeneralLedgerPage({
                   <ListTree size={20} />,
                 ],
                 [
-                  "finance-journal-vouchers",
+                  "finance-journal-voucher-document",
                   "Yevmiye Fişi",
                   "Dengeli manuel fiş oluşturun.",
                   <FileText size={20} />,

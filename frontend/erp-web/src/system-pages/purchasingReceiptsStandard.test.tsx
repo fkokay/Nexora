@@ -150,8 +150,8 @@ describe('Mal kabulleri standart tanımı', { timeout: 30000 }, () => {
     await waitFor(() => expect(h.gets(`/api/purchasing/receipts/${R1}`).length).toBeGreaterThan(0), T);
     fireEvent.click(await h.menuItem(/^Faturala/));
     await waitFor(() => expect(h.state.navigations).toHaveLength(1), T);
-    expect(h.state.navigations[0]).toMatchObject({ page: 'sales-purchase-invoice-entry', params: { receiptId: R1 } });
+    expect(h.state.navigations[0]).toMatchObject({ page: 'purchase-invoice-document', params: { receiptId: R1 } });
     expect(h.menuItems().some((item) => /Siparişsiz mal kabul/.test(item))).toBe(true);
-    expect(h.menuItems().some((item) => /Eski ekranda aç/.test(item))).toBe(false);
+    expect(h.menuItems().some((item) => /Eski ekran/.test(item))).toBe(false);
   });
 });

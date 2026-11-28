@@ -239,7 +239,7 @@ export function SalesPage({
     : createQuotePage
       ? "sales-quote-create"
       : createInvoicePage
-        ? "sales-invoice-create"
+        ? "sales-invoice-document"
         : createDeliveryPage
           ? "sales-delivery-create"
           : "";
@@ -513,7 +513,7 @@ export function SalesPage({
                   ? "purchase-invoices"
                   : section === "sales-purchase-receipts"
                     ? "purchase-receipts"
-                    : section === "sales-purchase-invoice-entry"
+                    : section === "purchase-invoice-document"
                       ? "purchase-invoice-entry"
                       : section === "sales-purchase-invoice-drafts"
                         ? "purchase-invoice-drafts"
@@ -2493,7 +2493,7 @@ export function SalesPage({
               }
             }}
             onChanged={() => load()}
-            onNew={() => onNavigate("sales-invoice-create")}
+            onNew={() => onNavigate("sales-invoice-document")}
             commandsSuspended={!!invoiceId || !!orderDetail}
           />
         ) : activeTab === "quotes" ? (
@@ -3864,7 +3864,7 @@ export function SalesPage({
           initialTab={invoiceInitialTab}
           onClose={() => { setInvoiceId(null); setInvoiceInitialTab("information"); }}
           onSaved={load}
-          newCommand={activeTab === "invoices" && !createInvoicePage ? { run: () => onNavigate("sales-invoice-create") } : detailNewCommand}
+          newCommand={activeTab === "invoices" && !createInvoicePage ? { run: () => onNavigate("sales-invoice-document") } : detailNewCommand}
         />
       )}
     </div>
@@ -7496,7 +7496,7 @@ function PurchasingPanel({
   if (detail) {
     // An open order (from the order list, or just created from a request): Mal kabul ekle moves to İşlemler.
     Object.assign(purchaseCommands, documentOpenCommands(() => void openOrder(detail.id)));
-    if (!requestsOnly) purchaseCommands.new = { run: () => onNavigate?.("sales-purchase-order-create") };
+    if (!requestsOnly) purchaseCommands.new = { run: () => onNavigate?.("purchase-order-document") };
     if (canReceiveOrder(detail.status))
       purchaseMore.push({
         id: "po-receipt",
@@ -7570,7 +7570,7 @@ function PurchasingPanel({
     purchaseMore.push(csvExportCommand(purchaseGridExportRef));
   } else {
     const order = purchaseTarget as PurchaseOrderSummary | undefined;
-    purchaseCommands.new = { primary: true, run: () => onNavigate?.("sales-purchase-order-create") };
+    purchaseCommands.new = { primary: true, run: () => onNavigate?.("purchase-order-document") };
     purchaseCommands.open = {
       disabledReason: order ? undefined : "Önce bir kayıt seçin",
       run: () => {

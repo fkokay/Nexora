@@ -82,9 +82,7 @@ function FinancePage({
     "finance-ledger-chart": "Tenant hesaplarını yönetin.",
     "finance-ledger-mappings":
       "Alt defter kaynaklarını muhasebe hesaplarıyla eşleştirin.",
-    "finance-journal-vouchers":
-      "Manuel yevmiye fişi oluşturun; borç ve alacak toplamları kayıtta doğrulanır.",
-    "finance-journal-voucher-document": "Yevmiye fi\u015fini Belge ekran\u0131nda a\u00e7\u0131n.",
+    "finance-journal-voucher-document": "Yevmiye fişini Belge ekranında açın.",
     "finance-trial-balance":
       "Dönem açılışlarını, borç/alacak hareketlerini ve kapanış bakiyelerini karşılaştırın.",
     "finance-balance-sheet":
@@ -795,7 +793,6 @@ function FinancePage({
     "finance-ledger": "overview",
     "finance-ledger-chart": "accounts",
     "finance-ledger-mappings": "mappings",
-    "finance-journal-vouchers": "voucher",
     "finance-trial-balance": "trial-balance",
     "finance-balance-sheet": "balance-sheet",
     "finance-journal-ledger": "journal-ledger",

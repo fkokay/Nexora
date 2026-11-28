@@ -380,7 +380,6 @@ public sealed class SalesSystemPagesTests
     [InlineData("sales-deliveries", "salesDeliveriesOperations.fixture.json")]
     [InlineData("sales-invoices", "salesInvoicesOperations.fixture.json")]
     // Aşama B cards.
-    [InlineData("sales-invoice-create", "salesInvoiceCreateOperations.fixture.json")]
     public async Task Frontend_fixture_matches_catalog(string key, string fixtureFile)
     {
         await using var factory = new ErpOperationCatalogTests.ErpOperationApiFactory();

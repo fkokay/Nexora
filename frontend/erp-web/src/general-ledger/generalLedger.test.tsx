@@ -227,7 +227,7 @@ describe('Yevmiye Defterleri list', () => {
     fireEvent.click(menuItem('journal-transfer-sources'));
     expect(navigate).toHaveBeenLastCalledWith('finance-transfer-sources');
     fireEvent.click(command('new'));
-    expect(navigate).toHaveBeenLastCalledWith('finance-journal-vouchers');
+    expect(navigate).toHaveBeenLastCalledWith('finance-journal-voucher-document');
     expect(document.querySelector('.doc-surface')).toBeNull();
   });
 

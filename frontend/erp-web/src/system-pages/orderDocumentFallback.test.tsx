@@ -13,6 +13,11 @@ vi.mock('../erpApi', () => ({ api }));
 const KEY = 'sales-order-document';
 const QUOTE_KEY = 'sales-quote-document';
 const INVOICE_KEY = 'sales-invoice-document';
+const OLD_INVOICE_KEY = 'sales-invoice-create';
+const OLD_RECIPE_KEY = 'manufacturing-recipe-create';
+const RECIPE_DOCUMENT_KEY = 'manufacturing-recipe-document';
+const OLD_VOUCHER_KEY = 'finance-journal-vouchers';
+const VOUCHER_DOCUMENT_KEY = 'finance-journal-voucher-document';
 const tenant = { id: 't1', name: 'Firma', role: 'TenantAdmin' } as unknown as AppTypes.Tenant;
 const noop = () => {};
 
@@ -26,7 +31,7 @@ function show(onNavigate: (page: string) => void, page = KEY) {
   </Suspense>);
 }
 
-afterEach(() => { cleanup(); setPageParams(KEY, {}); setPageParams('sales-orders', {}); setPageParams(QUOTE_KEY, {}); setPageParams('sales-quote-create', {}); setPageParams(INVOICE_KEY, {}); setPageParams('sales-invoices', {}); });
+afterEach(() => { cleanup(); setPageParams(KEY, {}); setPageParams('sales-orders', {}); setPageParams(QUOTE_KEY, {}); setPageParams('sales-quote-create', {}); setPageParams(INVOICE_KEY, {}); setPageParams(OLD_INVOICE_KEY, {}); setPageParams(OLD_RECIPE_KEY, {}); setPageParams(RECIPE_DOCUMENT_KEY, {}); setPageParams(OLD_VOUCHER_KEY, {}); setPageParams(VOUCHER_DOCUMENT_KEY, {}); setPageParams('sales-invoices', {}); });
 
 describe('Belge sipariş kartı açık değilse', () => {
   it('kimlikli sipariş eski listede o siparişin ayrıntısıyla açılır ve bu sekme kapanır', async () => {
@@ -92,6 +97,57 @@ describe('Belge fatura kartı açık değilse', () => {
   it('kimliksiz istek eski Yeni fatura ekranını açar', async () => {
     const onNavigate = vi.fn();
     show(onNavigate, INVOICE_KEY);
-    await waitFor(() => expect(onNavigate).toHaveBeenCalledWith('sales-invoice-create'));
+    await waitFor(() => expect(onNavigate).toHaveBeenCalledWith('sales-invoices'));
+  });
+});
+
+describe('Eski yeni fatura anahtarı', () => {
+  it('boş fatura Belgesine yönlenir ve eski sekmeyi kapatır', async () => {
+    const closed: string[] = [];
+    const onClose = (event: Event) => closed.push((event as CustomEvent<{ page: string }>).detail.page);
+    window.addEventListener(CLOSE_PAGE_EVENT, onClose);
+    try {
+      const onNavigate = vi.fn();
+      show(onNavigate, OLD_INVOICE_KEY);
+      await waitFor(() => expect(onNavigate).toHaveBeenCalledWith(INVOICE_KEY));
+      expect(closed).toContain(OLD_INVOICE_KEY);
+    } finally { window.removeEventListener(CLOSE_PAGE_EVENT, onClose); }
+  });
+});
+
+describe('Eski reçete oluşturma anahtarı', () => {
+  it('bomId parametresini Belge id parametresine taşır ve eski sekmeyi kapatır', async () => {
+    const closed: string[] = [];
+    const onClose = (event: Event) => closed.push((event as CustomEvent<{ page: string }>).detail.page);
+    window.addEventListener(CLOSE_PAGE_EVENT, onClose);
+    try {
+      setPageParams(OLD_RECIPE_KEY, { bomId: 'b1' });
+      const onNavigate = vi.fn();
+      show(onNavigate, OLD_RECIPE_KEY);
+      await waitFor(() => expect(onNavigate).toHaveBeenCalledWith(RECIPE_DOCUMENT_KEY));
+      expect(pageParamsOf(RECIPE_DOCUMENT_KEY)).toEqual({ id: 'b1' });
+      expect(closed).toContain(OLD_RECIPE_KEY);
+    } finally { window.removeEventListener(CLOSE_PAGE_EVENT, onClose); }
+  });
+
+  it('kimliksiz eski anahtar boş reçete Belgesine yönlenir', async () => {
+    const onNavigate = vi.fn();
+    show(onNavigate, OLD_RECIPE_KEY);
+    await waitFor(() => expect(onNavigate).toHaveBeenCalledWith(RECIPE_DOCUMENT_KEY));
+    expect(pageParamsOf(RECIPE_DOCUMENT_KEY)).toEqual({});
+  });
+});
+
+describe('Eski yevmiye fişi anahtarı', () => {
+  it('boş yevmiye Belgesine yönlenir ve eski sekmeyi kapatır', async () => {
+    const closed: string[] = [];
+    const onClose = (event: Event) => closed.push((event as CustomEvent<{ page: string }>).detail.page);
+    window.addEventListener(CLOSE_PAGE_EVENT, onClose);
+    try {
+      const onNavigate = vi.fn();
+      show(onNavigate, OLD_VOUCHER_KEY);
+      await waitFor(() => expect(onNavigate).toHaveBeenCalledWith(VOUCHER_DOCUMENT_KEY));
+      expect(closed).toContain(OLD_VOUCHER_KEY);
+    } finally { window.removeEventListener(CLOSE_PAGE_EVENT, onClose); }
   });
 });

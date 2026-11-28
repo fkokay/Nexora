@@ -504,20 +504,29 @@ internal static class PageTemplateRules
         if (components.ValueKind == JsonValueKind.Array && components.EnumerateArray().Any(HasDialog)) return PencereBelge;
         if (DocumentModelRegistry.Find(DocumentCode(root)) is not { } model) return UnknownDocument;
         if (components.ValueKind != JsonValueKind.Array) return Need("documentFields");
-        if (Place(components, BelgeSlots, out var placed) is { } placeError) return placeError;
+        var belgeSlots = new HashSet<string>(BelgeSlots, StringComparer.Ordinal);
+        foreach (var group in model.LineGroups ?? []) belgeSlots.Add(group.Code);
+        if (Place(components, belgeSlots, out var placed) is { } placeError) return placeError;
         foreach (var (component, slot, type) in placed)
         {
             if (slot == "actions" && type != "button") return WrongPart(slot, type, "button");
             var slotPart = BelgeParts.FirstOrDefault(x => x.Value == slot).Key;
             if (slotPart is not null && type != slotPart) return WrongPart(slot, type, slotPart);
-            if (slotPart is null && BelgeParts.ContainsKey(type)) return $"'{type}' yalnız '{BelgeParts[type]}' yerine konabilir.";
+            if (slotPart is null && BelgeParts.ContainsKey(type) && !(type == "documentLines" && (model.LineGroups ?? []).Any(g => g.Code == slot))) return $"'{type}' yalnız '{BelgeParts[type]}' yerine konabilir.";
             if (ScanBelge(component) is { } scanError) return scanError;
         }
-        foreach (var part in BelgeParts.Keys)
-            if (placed.Count(x => x.Type == part) != 1) return Need(part);
+        if (placed.Count(x => x.Type == "documentFields") != 1) return Need("documentFields");
+        if (placed.Count(x => x.Type == "documentSummary") != 1) return Need("documentSummary");
+        if (placed.Count(x => x.Type == "documentLines") != 1 + (model.LineGroups?.Count ?? 0)) return Need("documentLines");
 
         var fields = placed.Single(x => x.Type == "documentFields").Component;
-        var lines = placed.Single(x => x.Type == "documentLines").Component;
+        var lines = placed.Single(x => x.Type == "documentLines" && x.Slot == "lines").Component;
+        foreach (var group in model.LineGroups ?? [])
+        {
+            var groupPart = placed.FirstOrDefault(x => x.Type == "documentLines" && x.Slot == group.Code);
+            if (groupPart.Component.ValueKind == JsonValueKind.Undefined) return $"Belge kalıbında '{group.Label}' satır grubu eksik.";
+            if (Codes(groupPart.Component, "columns", group.Columns.Select(x => (x.Code, x.Label, x.Required)).ToList(), "kolonu") is { } groupError) return groupError;
+        }
         return Codes(fields, "fields", model.Fields.Select(x => (x.Code, x.Label, x.Required)).ToList(), "alanı")
             ?? Codes(lines, "columns", model.LineColumns.Select(x => (x.Code, x.Label, x.Required)).ToList(), "kolonu");
     }

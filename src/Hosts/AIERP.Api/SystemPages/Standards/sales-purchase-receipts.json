@@ -369,7 +369,7 @@
         "props": {
           "text": "Faturala",
           "actionType": "page",
-          "pageCode": "@sales-purchase-invoice-entry",
+          "pageCode": "@purchase-invoice-document",
           "target": "newTab",
           "params": [
             "receiptId={{liste.seciliSatir.id}}"
@@ -405,7 +405,7 @@
         "props": {
           "text": "Faturala",
           "actionType": "page",
-          "pageCode": "@sales-purchase-invoice-entry",
+          "pageCode": "@purchase-invoice-document",
           "target": "newTab",
           "params": [
             "receiptId={{liste.seciliSatir.id}}"

@@ -1811,6 +1811,14 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
 - **Doğrulanan (yerel):** Üç standart yüklenir ve şemadan geçer; ilgili .NET testleri (`FixedAssetSystemPagesTests`, `FinanceSystemPagesTests`, `SystemPageStandardsTests`) ile ERP ve Studio standart vitest dosyaları kalıba uyarlandı ve geçti.
 - **Doğrulanmayan:** Ekranların canlıda gerçek firma kopyasıyla ve tarayıcıda görsel olarak denenmesi; eski firma kopyalarının standarda sıfırlanması bu işte yok.
 
+
+### Üretim ekranları (2026-11-28)
+
+- **Yapıldı:** `manufacturing-orders` v2 Liste (7 sütun, 4 gösterge, durum süzgeci, durum komutları, Rota/Bileşenler/Üretimi bildir pencereleri); `manufacturing-order-create` v2 Kayıt kartı (Emir ve Reçete içeriği sekmeleri, koşullu satış siparişi bölümü, aktif reçeteye bağlı salt okunur bileşen önizlemesi); `manufacturing-recipes` v2 yalnız Liste. Mevcut sorgu ve yazma işlemleri korundu; reçete belge modeli ertelendi.
+- **Sadeleşenler:** Emir listesindeki çift İptal komutu tek komuta indi; onay metni başlamış operasyon uyarısını da içerir. Reçete önizleme tablosu Kayıt kartının `lines` yeri yeni kayıtta kaydetme sonrasına ertelediği için Reçete içeriği sekmesindeki özete eşlik ederek sayfa altında görünür.
+- **Lot/seri:** Üretimi bildir penceresinde izlemeli mamuller için lot/seri satır tablosu mevcut `finishedGoodsTracking` API bağlamasıyla korundu.
+- **Doğrulama:** Üretim ERP/Studio Vitest dosyaları çalıştırıldı; .NET testleri ve build bu işte çalıştırılmadı.
+- **Doğrulanmayan:** Kalıplı standartların sunucu şema doğrulaması ve canlı firma kopyasında/tarayıcıda görsel deneme; .NET testini ve build'i kullanıcı çalıştıracak.
 ### Satın Alma 2. dalga (2026-11-28)
 
 - **Değişen:** `sales-requests`, `sales-purchasing`, `sales-purchase-delivery-notes` ve `sales-purchase-returns` v3 Liste kalıbına taşındı; `sales-purchase-receipts` v3 oldu. Sürüm manifesti ve şema geçiş testindeki liste güncellendi; .NET, ERP ve Studio testleri yeni düzen beklentilerine uyarlandı.
@@ -1832,6 +1840,21 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
 - Bilinen kayıp: cariden açılan yeni siparişte müşteri ön dolumu yok (Belge kalıbında ön dolum yok).
 - Studio: girdi alanlarında `readOnly` seçeneği.
 - Doğrulama: ilgili erp-web (44) ve Studio (95) vitest dosyaları yerelde geçti; .NET testleri CI'da.
+# Üretim reçetesi Belgesi
+
+`uretim.recete` için Belge standardı eklendi; bileşenler ve adlandırılmış `rota` satır grubu mevcut reçete uçlarının POST/PUT/activate/deactivate işlemlerini kullanır. Liste Yeni/Aç komutları yeni Belge sayfasına gider; eski `manufacturing-recipe-create` standardı korunmuştur. İki grup kaydetme Vitest'i ve Studio varsayılan grup testi geçti. .NET build/test bu değişiklik için çalıştırılmadı; gerçek API ve tarayıcı akışı doğrulanmadı.
+
+### Eski oluşturma standartları kaldırıldı (2026-11-28)
+- `sales-invoice-create` ve `finance-journal-vouchers` standartları kaldırıldı; yeni fatura ve yevmiye fişi akışları Belge ekranlarına yönlendirildi.
+- `finance-journal-ledger` yevmiye listesi korundu.
+- Kalan eski anahtar referansları yalnızca eski rota yönlendirmesi ve arşiv/test kanıtı içindir.
+
+### 2026-11-28 — Üretim reçetesi listesi Belge bağlantısı
+
+`manufacturing-recipes` v3 Yeni ve Aç komutları `manufacturing-recipe-document` sayfasına bağlandı; Aç, seçili reçete kimliğini `id` parametresiyle taşır. Eski `manufacturing-recipe-create` anahtarı, varsa `bomId` değerini Belge `id` değerine çevirip yeni sayfaya yönlendirir. Eski oluşturma standardı için ayrı JSON veya versions kaydı bulunmadığından kaldırılacak dosya/satır yoktu. Reçete liste, Studio ve eski anahtar yönlendirme testleri güncellendi.
+## Satınalma belge kalıpları
+
+- `sales-purchase-order-create` ve `sales-purchase-invoice-entry` standartları kaldırıldı; eski bağlantılar ilgili satınalma Belge sayfalarına yönleniyor. Taslak faturalar standardı Liste kalıbına geçti, düzenleme `purchase-invoice-document` üzerinden açılıyor.
 
 ### 2026-11-28 siparişsiz mal kabul standardı ve izleme akışı
 

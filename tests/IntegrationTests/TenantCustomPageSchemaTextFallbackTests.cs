@@ -126,7 +126,7 @@ public sealed class TenantCustomPageSchemaTextFallbackTests
             summary["fields"]!.AsArray().Select(x => (string)x!));
         var customers = JsonNode.Parse(SystemPageStandards.All["customers"].DefinitionJson)!.AsObject();
         Assert.Equal("{{liste.seciliSatir.code}} · {{liste.seciliSatir.name}} cari kartı silinsin mi?", (string)Props(customers, "komutlar")["deleteConfirmText"]!);
-        foreach (var key in new[] { "customer-create", "customers", "finance-account-create", "sales-purchase-order-create" })
+        foreach (var key in new[] { "customer-create", "customers", "finance-account-create" })
             Assert.True(TenantCustomPageSchema.Validate(SystemPageStandards.All[key].DefinitionJson, out var error), $"{key}: {error}");
     }
 }
