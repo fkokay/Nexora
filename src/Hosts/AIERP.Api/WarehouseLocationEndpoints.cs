@@ -96,11 +96,17 @@ public static class WarehouseLocationEndpoints
                 .Select(x => new { x.Id, x.WarehouseId, x.Code, x.Name }).SingleOrDefaultAsync();
             if (location is null) return Results.NotFound();
             var cutoff = asOfDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
-            var balances = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.WarehouseId == warehouseId
+            // Sums first, then the stock cards: SQL Server cannot translate a GroupBy followed by a Join (500 on live).
+            var sums = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.WarehouseId == warehouseId
                     && x.StorageLocationId == locationId && x.EntryDate <= cutoff)
                 .GroupBy(x => x.StockItemId).Select(g => new { StockItemId = g.Key, Quantity = g.Sum(x => x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity) })
-                .Where(x => x.Quantity != 0m).Join(db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId), x => x.StockItemId, item => item.Id,
-                    (x, item) => new WarehouseLocationBalanceView(item.Id, item.Code, item.Name, item.UnitCode, x.Quantity)).OrderBy(x => x.StockItemCode).ToListAsync();
+                .Where(x => x.Quantity != 0m).ToListAsync();
+            var ids = sums.Select(x => x.StockItemId).ToList();
+            var items = await db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && ids.Contains(x.Id))
+                .Select(x => new { x.Id, x.Code, x.Name, x.UnitCode }).ToDictionaryAsync(x => x.Id);
+            var balances = sums.Where(x => items.ContainsKey(x.StockItemId))
+                .Select(x => { var item = items[x.StockItemId]; return new WarehouseLocationBalanceView(item.Id, item.Code, item.Name, item.UnitCode, x.Quantity); })
+                .OrderBy(x => x.StockItemCode, StringComparer.Ordinal).ToList();
             return Results.Ok(new { location.Id, location.WarehouseId, location.Code, location.Name, asOfDate = cutoff, items = balances });
         });
 
