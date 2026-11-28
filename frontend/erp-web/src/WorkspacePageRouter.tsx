@@ -516,6 +516,7 @@ function LegacyPageRouter({
     page === "finance-ledger-chart" ||
     page === "finance-ledger-mappings" ||
     page === "finance-journal-vouchers" ||
+    page === "finance-journal-voucher-document" ||
     page === "finance-trial-balance" ||
     page === "finance-balance-sheet" ||
     page === "finance-journal-ledger" ||

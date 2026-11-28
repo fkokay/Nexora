@@ -1,4 +1,9 @@
 # Master Prompt Phase Status
+### 2026-11-28 Genel muhasebe yevmiye fişi Belge modeli
+
+- `muhasebe.fis` (`finance-journal-voucher-document`) uses the existing manual journal POST and reversal endpoint; stored vouchers are read-only, with debit/credit balance enforced by the existing write validation. The journal list opens a voucher in the Belge screen, and New opens its blank draft.
+- Added model/standard and ERP template coverage. ERP Vitest passed (3 files, 11 tests); Development Studio `npm run build` passed. ERP `npm run build` stalled at `tsc -b` without output and was stopped. SQL Server/browser flows remain unverified; `dotnet test` was not run as requested.
+
 ### 2026-11-27 Finance wave 1 - four standards moved to List templates
 
 - `finance-accounts`, `finance-banks`, `finance-journal-ledger`, and `finance-trial-balance` are v2 List-template pages. Cash/bank use a selected-account summary card and statement dialog; the hidden account selector, step bar, and page-only statement totals were removed. Journal reversal actions moved to the selected row and voucher details open in a dialog; the page-only reversal metric and separate filter card were removed. Trial-balance parameters sit above the list and Muavin opens in a dialog; quick date buttons and the invalid-range alert were removed.
