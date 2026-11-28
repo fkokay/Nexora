@@ -782,7 +782,9 @@ public sealed record PurchaseReceiptLineWriteRequest(int OrderLineNumber, decima
     public DeliveryLinePriceInput Price => new(UnitPrice, DiscountPercent, VatPercent, IsFreeOfCharge);
 }
 public sealed record PurchaseReceiptWriteRequest(Guid RequestId, Guid WarehouseId, DateOnly ReceiptDate,
-    IReadOnlyList<PurchaseReceiptLineWriteRequest> Lines, IReadOnlyDictionary<string, string?>? CustomFields = null);
+    IReadOnlyList<PurchaseReceiptLineWriteRequest> Lines, IReadOnlyDictionary<string, string?>? CustomFields = null,
+    IReadOnlyList<PurchaseReceiptTrackingAllocationWriteRequest>? TrackingAllocations = null);
+public sealed record PurchaseReceiptTrackingAllocationWriteRequest(int OrderLineNumber, string TrackingCode, decimal Quantity, DateOnly? ExpiryDate = null);
 public sealed record PurchaseReceiptCustomFieldDefinitionView(Guid Id, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int Version, bool IsRequired, bool IsActive);
 public sealed record PurchaseReceiptCustomFieldDefinitionRevisionView(Guid Id, Guid DefinitionId, int Version, string Code, string Label,
     CustomFieldDataType DataType, int MaxLength, bool IsRequired, bool IsActive, string ChangeKind, Guid? ChangedByUserId, DateTimeOffset CreatedAt);

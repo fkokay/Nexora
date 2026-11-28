@@ -1832,3 +1832,11 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
 - Bilinen kayıp: cariden açılan yeni siparişte müşteri ön dolumu yok (Belge kalıbında ön dolum yok).
 - Studio: girdi alanlarında `readOnly` seçeneği.
 - Doğrulama: ilgili erp-web (44) ve Studio (95) vitest dosyaları yerelde geçti; .NET testleri CI'da.
+
+### 2026-11-28 siparişsiz mal kabul standardı ve izleme akışı
+
+- `sales-purchase-receipts` v4'e çıkarıldı. Siparişsiz mal kabul penceresi tedarikçi, depo, tarih ve satır tablosuyla eklendi; kayıt sırası taslak oluşturma, ardından post olarak `stopOnError: true` ile bağlandı. Eski siparişsiz kabul bağlantısı kaldırıldı.
+- Şema değişikliği yok. Lot/seri dağıtımı mevcut post isteğinin `tracking` alanına, her satır için `lineId`, `trackingCode`, `quantity` ve `expiryDate` biçiminde bağlı. Tekrarlanan lot/seri kodları ve toplamı tutmayan tahsisler reddediliyor.
+- Entegrasyon kapsamı: taslak ve post, stok hareketi/maliyet, takip miktarı uyuşmazlığı, aynı kabulde yinelenen lot ve başka tenant deposu reddi. Standart ve ERP Vitest kapsamı güncellendi.
+- Doğrulama: odaklı .NET koşusu (268 test, 266 geçti, 2 SQL Server kabul testi atlandı), ilgili erp-web Vitest dosyaları ve erp-web/development-studio `npx tsc -b` geçti.
+- Siparişli kabul penceresinde de (`sales-purchasing` v5, `updates` ile eski kopyalara eklenir) lot/seri tahsis penceresi eklendi; eski izlemeli kabul düğmesi korundu; dağıtımlar katalogdaki `trackingAllocations` alanıyla sipariş satırı numarasına bağlanıyor ve API bunları mevcut `lines[].tracking` request modeline dönüştürüyor.

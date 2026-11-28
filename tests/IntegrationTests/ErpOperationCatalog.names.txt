@@ -210,6 +210,8 @@ satinalma.malKabul.ozelAlanTanimlari
 satinalma.malKabul.satirlari
 satinalma.malKabul.sayfaliListe
 satinalma.malKabul.siparisSatirlari
+satinalma.malKabul.siparissizKaydet
+satinalma.malKabul.siparissizOlustur
 satinalma.siparis.belge
 satinalma.siparis.doldur
 satinalma.siparis.getir

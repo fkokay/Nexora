@@ -488,18 +488,34 @@ public static class StandaloneInventoryDocumentEndpoints
             if (requested > locationBalance && !allowNegative && item.TrackingMode == InventoryTrackingMode.None)
                 return Results.Conflict(new { error = $"{item.Code} için seçilen depo gözünde stok yetersiz.", locationBalance, requestedQuantity = requested });
         }
+        var documentTrackingCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var line in lines)
         {
             var item = await db.StockItems.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == line.StockItemId && x.IsActive, ct);
             if (item is null) return Results.Conflict(new { error = "Stok kartı bulunamadı veya pasif." });
-            var allocations = string.IsNullOrWhiteSpace(line.TrackingCode)
-                ? request.Tracking?.Where(x => x.LineId == line.Id).ToList() ?? []
+            // Allocations sent with the post request win; otherwise the line's own lot/serial code covers the whole quantity.
+            var sentAllocations = request.Tracking?.Where(x => x.LineId == line.Id).ToList() ?? [];
+            var allocations = sentAllocations.Count > 0 ? sentAllocations
+                : string.IsNullOrWhiteSpace(line.TrackingCode) ? []
                 : [new StandaloneTrackingAllocation(line.Id, line.TrackingCode, line.Quantity, line.ExpiryDate)];
             if (item.TrackingMode == InventoryTrackingMode.None && allocations.Count > 0) return Results.ValidationProblem(new Dictionary<string, string[]> { ["tracking"] = ["Takipsiz stok satırına lot/seri bilgisi verilemez."] });
-            if (item.TrackingMode != InventoryTrackingMode.None && (allocations.Count == 0 || allocations.Sum(x => x.Quantity) != line.Quantity || allocations.Any(x => string.IsNullOrWhiteSpace(x.TrackingCode) || x.Quantity <= 0m)))
+            if (item.TrackingMode != InventoryTrackingMode.None && (allocations.Count == 0 || allocations.Any(x => string.IsNullOrWhiteSpace(x.TrackingCode) || x.Quantity <= 0m)))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["tracking"] = ["Takipli stok için toplam miktarı karşılayan geçerli lot/seri bilgisi gereklidir."] });
+            if (item.TrackingMode != InventoryTrackingMode.None && allocations.Sum(x => x.Quantity) != line.Quantity)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["tracking"] = ["Takip satırlarının toplamı hareket miktarına eşit olmalıdır."] });
             if (item.TrackingMode == InventoryTrackingMode.Serial && allocations.Any(x => x.Quantity != 1m || x.ExpiryDate is not null)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["tracking"] = ["Seri numarası başına miktar 1 olmalı; son kullanım tarihi girilmemelidir."] });
             if (item.TrackingMode == InventoryTrackingMode.Lot && allocations.Any(x => x.ExpiryDate is null)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["tracking"] = ["Lot satırlarında son kullanım tarihi gereklidir."] });
+            foreach (var allocation in allocations)
+            {
+                if (!documentTrackingCodes.Add($"{item.Id:N}:{allocation.TrackingCode.Trim()}"))
+                    return Results.ValidationProblem(new Dictionary<string, string[]> { ["tracking"] = ["Aynı mal kabul içinde takip kodu tekrarlanamaz."] });
+                var prior = await db.InventoryTransactionTraces.AsNoTracking().Where(x => x.TenantId == tenantId && x.StockItemId == item.Id
+                    && x.TrackingCode == allocation.TrackingCode.Trim()).ToListAsync(ct);
+                if (item.TrackingMode == InventoryTrackingMode.Serial && prior.Count > 0)
+                    return Results.Conflict(new { error = $"Seri numarası {allocation.TrackingCode} daha önce kullanılmış." });
+                if (item.TrackingMode == InventoryTrackingMode.Lot && prior.Any(x => x.ExpiryDate != allocation.ExpiryDate))
+                    return Results.Conflict(new { error = $"Lot {allocation.TrackingCode} için son kullanma tarihi değiştirilemez." });
+            }
             var direction = line.IsSales ? InventoryDirection.Issue : InventoryDirection.Receipt;
             var movement = new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouseId, StorageLocationId = line.StorageLocationId, StockItemId = item.Id, EntryDate = date, Direction = direction,
                 Quantity = line.Quantity, UnitCostBase = line.UnitCost, CostPending = line.CostPending, Description = $"{(line.IsSales ? "Satış irsaliyesi" : "Siparişsiz satın alma mal kabulü")} {code}",
@@ -663,6 +679,7 @@ public sealed record StandaloneSalesDeliveryInvoiceLineWrite(int LineNumber, dec
     public DeliveryLinePriceInput Price => new(UnitPrice, DiscountPercent, VatPercent);
 }
 public sealed record StandalonePurchaseReceiptWrite(Guid RequestId, string Code, Guid SupplierId, Guid WarehouseId, DateOnly ReceiptDate, List<StandalonePurchaseReceiptLineWrite>? Lines);
+public sealed record StandalonePurchaseReceiptDraftResult(Guid Id, string Code, string Status);
 /// <summary>
 /// Standalone receipt line. <c>UnitPrice</c> (supplier currency, per entered unit) / discount / VAT / <c>IsFreeOfCharge</c> as on the other
 /// receipts; the stock cost is derived from the price. <c>UnitCostBase</c> (base currency, per entered unit) is the older way to give a cost

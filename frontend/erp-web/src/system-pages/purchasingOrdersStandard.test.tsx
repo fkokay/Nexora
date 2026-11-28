@@ -127,6 +127,7 @@ describe('Satınalma siparişleri standart tanımı', { timeout: 60000 }, () => 
         { orderLineNumber: 1, quantity: 6, unitCode: 'ADET' },
         { orderLineNumber: 3, quantity: 2, unitCode: 'RULO', storageLocationId: L1 },
       ],
+      trackingAllocations: [],
     });
     await waitFor(() => expect(screen.queryByRole('dialog', { name: /Mal kabul · SA-0001/ })).toBeNull(), T);
   });
@@ -155,6 +156,14 @@ describe('Satınalma siparişleri standart tanımı', { timeout: 60000 }, () => 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lot/seri izlemeli kabul (eski ekran)' }));
     await waitFor(() => expect(h.state.navigations).toHaveLength(1), T);
     expect(h.state.navigations[0]).toMatchObject({ page: KEY, params: { purchaseOrderId: P1 }, legacy: true });
+  });
+
+  it('opens a lot and serial allocation window inside the order receipt flow', async () => {
+    const dialog = await openReceiptDialog();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Lot/seri dağılımı' }));
+    const trackingDialog = await screen.findByRole('dialog', { name: 'Lot/seri dağılımı' }, T);
+    expect(within(trackingDialog).getByRole('button', { name: 'Satır ekle' })).toBeTruthy();
+    expect(h.state.navigations).toEqual([]);
   });
 
   it('opens a read-only order detail window from the row action', async () => {

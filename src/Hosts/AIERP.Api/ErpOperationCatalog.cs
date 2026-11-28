@@ -124,7 +124,7 @@ internal static partial class ErpOperationCatalog
         ["unvaluedQuantity"] = "Maliyetsiz miktar", ["baseCurrencyCode"] = "Ana para birimi", ["factorToBase"] = "Ana birim katsayısı",
         ["parentLocationId"] = "Üst konum",
         ["customFields"] = "Özel alanlar", ["variants"] = "Varyantlar", ["attributes"] = "Özellikler",
-        ["tracking"] = "Lot / seri dağılımı", ["trackingCode"] = "Lot / seri kodu", ["expiryDate"] = "Son kullanma tarihi",
+        ["tracking"] = "Lot / seri dağılımı", ["trackingAllocations"] = "Lot / seri dağılımı", ["trackingCode"] = "Lot / seri kodu", ["expiryDate"] = "Son kullanma tarihi",
         ["values"] = "Özel alan değerleri",
         ["productStockItemId"] = "Mamul stok kartı", ["productName"] = "Mamul", ["productTrackingMode"] = "Mamul izleme türü",
         ["outputQuantity"] = "Çıktı miktarı", ["orderCount"] = "Üretim emri sayısı", ["tenantId"] = "Firma kimliği",

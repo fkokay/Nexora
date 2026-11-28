@@ -1,9 +1,9 @@
 {
   "screenKey": "sales-purchase-receipts",
   "title": "Mal kabulleri",
-  "description": "Tedarikçi siparişlerinden depoya giren mal kabul belgelerini inceleyin.",
+  "description": "Tedarikçi siparişlerinden ve siparişsiz girişlerden depoya alınan mal kabul belgelerini inceleyin.",
   "module": "Satın Alma",
-  "version": 3,
+  "version": 4,
   "stage": "preview",
   "items": {
     "component:suzgec": {
@@ -166,6 +166,143 @@
       "requires": [
         "component:liste"
       ]
+    },
+    "component:siparissizDugmesi": {
+      "since": 4,
+      "label": "Siparişsiz mal kabul komutu",
+      "requires": [
+        "component:siparissizPencere",
+        "component:komutlar"
+      ]
+    },
+    "component:siparissizPencere": {
+      "since": 4,
+      "label": "Siparişsiz mal kabul penceresi",
+      "requires": [
+        "component:siparissizBilgileri",
+        "component:siparissizKalemleri",
+        "component:siparissizIstekKimligi",
+        "query:tedarikciSecenekleri",
+        "query:depoSecenekleri",
+        "query:stokSecenekleri",
+        "query:siparissizTaslak",
+        "query:siparissizKaydet"
+      ]
+    },
+    "component:siparissizBilgileri": {
+      "since": 4,
+      "label": "Siparişsiz kabul bilgileri",
+      "requires": [
+        "component:siparissizTedarikci",
+        "component:siparissizDepo",
+        "component:siparissizTarih",
+        "component:siparissizKod",
+        "component:siparissizPencere"
+      ]
+    },
+    "component:siparissizTedarikci": {
+      "since": 4,
+      "label": "Tedarikçi seçimi",
+      "requires": [
+        "query:tedarikciSecenekleri",
+        "component:siparissizPencere",
+        "component:siparissizBilgileri"
+      ]
+    },
+    "component:siparissizDepo": {
+      "since": 4,
+      "label": "Depo seçimi",
+      "requires": [
+        "query:depoSecenekleri",
+        "component:siparissizPencere",
+        "component:siparissizBilgileri"
+      ]
+    },
+    "component:siparissizTarih": {
+      "since": 4,
+      "label": "Kabul tarihi",
+      "requires": [
+        "component:siparissizPencere",
+        "component:siparissizBilgileri"
+      ]
+    },
+    "component:siparissizKod": {
+      "since": 4,
+      "label": "Mal kabul numarası",
+      "requires": [
+        "component:siparissizPencere",
+        "component:siparissizBilgileri"
+      ]
+    },
+    "component:siparissizSecenekSayfasi": {
+      "since": 4,
+      "label": "Siparişsiz kabul seçici sayfası (gizli)",
+      "requires": [
+        "component:siparissizPencere"
+      ]
+    },
+    "component:siparissizSecenekBoyutu": {
+      "since": 4,
+      "label": "Siparişsiz kabul seçici sayfa boyutu (gizli)",
+      "requires": [
+        "component:siparissizPencere"
+      ]
+    },
+    "component:siparissizIstekKimligi": {
+      "since": 4,
+      "label": " İstek kimliği",
+      "requires": [
+        "component:siparissizPencere"
+      ]
+    },
+    "component:siparissizKalemleri": {
+      "since": 4,
+      "label": "Siparişsiz kabul satırları",
+      "requires": [
+        "query:stokSecenekleri",
+        "query:siparissizTaslak",
+        "query:siparissizKaydet",
+        "component:siparissizPencere"
+      ]
+    },
+    "query:tedarikciSecenekleri": {
+      "since": 4,
+      "label": "Tedarikçi seçenekleri",
+      "requires": [
+        "component:siparissizSecenekSayfasi",
+        "component:siparissizSecenekBoyutu",
+        "component:siparissizPencere"
+      ]
+    },
+    "query:depoSecenekleri": {
+      "since": 4,
+      "label": "Depo seçenekleri",
+      "requires": [
+        "component:siparissizPencere"
+      ]
+    },
+    "query:stokSecenekleri": {
+      "since": 4,
+      "label": "Stok seçenekleri",
+      "requires": [
+        "component:siparissizSecenekSayfasi",
+        "component:siparissizSecenekBoyutu",
+        "component:siparissizPencere"
+      ]
+    },
+    "query:siparissizTaslak": {
+      "since": 4,
+      "label": "Siparişsiz kabul taslağı oluştur",
+      "requires": [
+        "component:siparissizPencere"
+      ]
+    },
+    "query:siparissizKaydet": {
+      "since": 4,
+      "label": "Siparişsiz kabulü kaydet",
+      "requires": [
+        "component:siparissizPencere"
+      ]
     }
   },
   "screenViews": [
@@ -197,6 +334,7 @@
           "exportTable": "liste",
           "titleCount": "{{kabuller.meta.totalCount}}",
           "moreButtons": [
+            "siparissizDugmesi",
             "faturalaDugmesi",
             "iptalMenuDugmesi",
             "faturaAcDugmesi"
@@ -656,6 +794,168 @@
           "emptyText": "Satır yok.",
           "slot": "dialog"
         }
+      },
+      {
+        "id": "siparissizDugmesi",
+        "type": "button",
+        "name": "siparissizDugmesi",
+        "props": {
+          "text": "Siparişsiz mal kabul",
+          "actionType": "openDialog",
+          "dialogId": "siparissizPencere",
+          "slot": "actions"
+        }
+      },
+      {
+        "id": "siparissizPencere",
+        "type": "dialog",
+        "name": "siparissizPencere",
+        "props": {
+          "presentation": "dialog",
+          "size": "xl",
+          "title": "Siparişsiz mal kabul",
+          "contains": [
+            "siparissizBilgileri",
+            "siparissizKalemleri",
+            "siparissizIstekKimligi",
+            "siparissizSecenekSayfasi",
+            "siparissizSecenekBoyutu"
+          ],
+          "saveSequence": [
+            "siparissizTaslak",
+            "siparissizKaydet"
+          ],
+          "stopOnError": true,
+          "slot": "dialogs"
+        }
+      },
+      {
+        "id": "siparissizBilgileri",
+        "type": "formCard",
+        "name": "siparissizBilgileri",
+        "props": {
+          "title": "Kabul bilgileri",
+          "columns": 2,
+          "inputs": [
+            "siparissizTedarikci",
+            "siparissizDepo",
+            "siparissizTarih",
+            "siparissizKod"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "siparissizTedarikci",
+        "type": "input",
+        "name": "siparissizTedarikci",
+        "props": {
+          "inputType": "lookup",
+          "label": "Tedarikçi",
+          "required": true,
+          "optionsQuery": "tedarikciSecenekleri",
+          "optionValueColumn": "id",
+          "optionLabelColumn": "name",
+          "optionDescriptionColumn": "code",
+          "minChars": 0,
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "siparissizDepo",
+        "type": "input",
+        "name": "siparissizDepo",
+        "props": {
+          "inputType": "lookup",
+          "label": "Depo",
+          "required": true,
+          "optionsQuery": "depoSecenekleri",
+          "optionValueColumn": "id",
+          "optionLabelColumn": "name",
+          "optionDescriptionColumn": "code",
+          "minChars": 0,
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "siparissizTarih",
+        "type": "input",
+        "name": "siparissizTarih",
+        "props": {
+          "inputType": "date",
+          "label": "Tarih",
+          "required": true,
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "siparissizKod",
+        "type": "input",
+        "name": "siparissizKod",
+        "props": {
+          "inputType": "text",
+          "label": "Mal kabul no",
+          "required": true,
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "siparissizSecenekSayfasi",
+        "type": "input",
+        "name": "siparissizSecenekSayfasi",
+        "props": {
+          "inputType": "text",
+          "label": "Seçici sayfası",
+          "hidden": true,
+          "defaultValue": "1",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "siparissizSecenekBoyutu",
+        "type": "input",
+        "name": "siparissizSecenekBoyutu",
+        "props": {
+          "inputType": "text",
+          "label": "Seçici sayfa boyutu",
+          "hidden": true,
+          "defaultValue": "100",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "siparissizIstekKimligi",
+        "type": "input",
+        "name": "siparissizIstekKimligi",
+        "props": {
+          "inputType": "text",
+          "label": "Tekrar deneme kimliği",
+          "hidden": true,
+          "autoId": true,
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "siparissizKalemleri",
+        "type": "editableGrid",
+        "name": "siparissizKalemleri",
+        "props": {
+          "title": "Mal kabul satırları",
+          "gridMode": "list",
+          "gridColumns": [
+            "stockItemId|Stok|lookup:stokSecenekleri:id:code:name|required",
+            "quantity|Miktar|number|required",
+            "unitCode|Birim|text|required",
+            "unitCostBase|Birim maliyet|number|required",
+            "storageLocationId|Konum|text",
+            "trackingCode|Lot/seri kodu|text",
+            "expiryDate|Son kullanma|date"
+          ],
+          "maxRows": 100,
+          "minRows": 1,
+          "addLabel": "Satır ekle",
+          "slot": "dialog"
+        }
       }
     ],
     "queries": [
@@ -730,6 +1030,115 @@
           {
             "name": "id",
             "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "tedarikciSecenekleri",
+        "name": "tedarikciSecenekleri",
+        "kind": "read",
+        "operation": "satinalma.faturaTaslagi.tedarikciler",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "q",
+            "binding": "{{siparissizTedarikci.search}}",
+            "type": "text"
+          },
+          {
+            "name": "page",
+            "binding": "{{siparissizSecenekSayfasi.value}}",
+            "type": "int"
+          },
+          {
+            "name": "pageSize",
+            "binding": "{{siparissizSecenekBoyutu.value}}",
+            "type": "int"
+          }
+        ]
+      },
+      {
+        "id": "depoSecenekleri",
+        "name": "depoSecenekleri",
+        "kind": "read",
+        "operation": "depo.listele",
+        "runOn": "load",
+        "parameters": []
+      },
+      {
+        "id": "stokSecenekleri",
+        "name": "stokSecenekleri",
+        "kind": "read",
+        "operation": "stok.kart.listele",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "q",
+            "binding": "{{siparissizKalemleri.stockItemId.search}}",
+            "type": "text"
+          },
+          {
+            "name": "page",
+            "binding": "{{siparissizSecenekSayfasi.value}}",
+            "type": "int"
+          },
+          {
+            "name": "pageSize",
+            "binding": "{{siparissizSecenekBoyutu.value}}",
+            "type": "int"
+          }
+        ]
+      },
+      {
+        "id": "siparissizTaslak",
+        "name": "siparissizTaslak",
+        "kind": "insert",
+        "operation": "satinalma.malKabul.siparissizOlustur",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "requestId",
+            "binding": "{{siparissizIstekKimligi.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "code",
+            "binding": "{{siparissizKod.value}}",
+            "type": "text"
+          },
+          {
+            "name": "supplierId",
+            "binding": "{{siparissizTedarikci.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "warehouseId",
+            "binding": "{{siparissizDepo.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "receiptDate",
+            "binding": "{{siparissizTarih.value}}",
+            "type": "date"
+          },
+          {
+            "name": "lines",
+            "binding": "{{siparissizKalemleri.satirlar}}",
+            "type": "list"
+          }
+        ]
+      },
+      {
+        "id": "siparissizKaydet",
+        "name": "siparissizKaydet",
+        "kind": "update",
+        "operation": "satinalma.malKabul.siparissizKaydet",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{onceki.sonuc.id}}",
             "type": "guid"
           }
         ]

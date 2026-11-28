@@ -46,7 +46,7 @@ public sealed class PurchasingErpOperationCatalogTests
     internal static readonly string[] Faz2Operations =
     [
         "satinalma.talep.olustur", "satinalma.talep.teklifKaydet", "satinalma.talep.siparisOlustur", "satinalma.siparis.olustur",
-        "satinalma.malKabul.olustur", "satinalma.malKabul.siparisSatirlari",
+        "satinalma.malKabul.olustur", "satinalma.malKabul.siparissizOlustur", "satinalma.malKabul.siparissizKaydet", "satinalma.malKabul.siparisSatirlari",
         "satinalma.irsaliye.olustur", "satinalma.irsaliye.siparisIrsaliyeleri", "satinalma.irsaliye.siparisSatirlari",
         "satinalma.irsaliye.malKabulBagla", "satinalma.irsaliye.malKabulBaglantisiKaldir",
         "satinalma.iade.olustur", "satinalma.fatura.iadeEdilebilirSatirlar",
@@ -457,7 +457,11 @@ public sealed class PurchasingErpOperationCatalogTests
         { "satinalma.siparis.olustur", "POST", "/api/purchasing/orders",
             "code:body:text*,supplierId:body:guid*,orderDate:body:date*,currencyCode:body:text*,notes:body:text,expectedReceiptDate:body:date,targetWarehouseId:body:guid,lines:body:list[stockItemId:guid*|quantity:decimal*|unitPrice:decimal*|discountPercent:decimal|vatPercent:decimal|unitCode:text],customFields:body:map", "record", null },
         { "satinalma.malKabul.olustur", "POST", "/api/purchasing/orders/{id}/receipts",
-            "id:route:guid*,requestId:body:guid*,warehouseId:body:guid*,receiptDate:body:date*,lines:body:list[orderLineNumber:int*|quantity:decimal*|unitCode:text|storageLocationId:guid|unitPrice:decimal|discountPercent:decimal|vatPercent:decimal|isFreeOfCharge:bool],customFields:body:map", "record", null },
+            "id:route:guid*,requestId:body:guid*,warehouseId:body:guid*,receiptDate:body:date*,lines:body:list[orderLineNumber:int*|quantity:decimal*|unitCode:text|storageLocationId:guid|unitPrice:decimal|discountPercent:decimal|vatPercent:decimal|isFreeOfCharge:bool],trackingAllocations:body:list[orderLineNumber:int*|trackingCode:text*|quantity:decimal*|expiryDate:date],customFields:body:map", "record", null },
+        { "satinalma.malKabul.siparissizOlustur", "POST", "/api/purchasing/standalone-receipts",
+            "requestId:body:guid*,code:body:text*,supplierId:body:guid*,warehouseId:body:guid*,receiptDate:body:date*,lines:body:list[stockItemId:guid*|quantity:decimal*|unitCode:text|unitCostBase:decimal|trackingCode:text|expiryDate:date|storageLocationId:guid|unitPrice:decimal|discountPercent:decimal|vatPercent:decimal|isFreeOfCharge:bool]", "record", null },
+        { "satinalma.malKabul.siparissizKaydet", "POST", "/api/purchasing/standalone-receipts/{id}/post",
+            "id:route:guid*,tracking:body:list[lineId:guid*|trackingCode:text*|quantity:decimal*|expiryDate:date]", "record", null },
         { "satinalma.malKabul.siparisSatirlari", "GET", "/api/purchasing/orders/{id}", "id:route:guid*", "list", "lines" },
         { "satinalma.irsaliye.olustur", "POST", "/api/purchasing/delivery-notes/orders/{orderId}",
             "orderId:route:guid*,documentNumber:body:text*,documentDate:body:date*,purchaseReceiptId:body:guid,lines:body:list[orderLineNumber:int*|quantity:decimal*|unitCode:text|unitPrice:decimal|discountPercent:decimal|vatPercent:decimal|isFreeOfCharge:bool]", "record", null },
@@ -503,7 +507,7 @@ public sealed class PurchasingErpOperationCatalogTests
         Assert.Equal(name is "satinalma.talep.teklifKaydet" or "satinalma.talep.siparisOlustur", op.RequiresTenantAdmin);
         if (op.Kind == "write")
             Assert.Equal(name is "satinalma.irsaliye.malKabulBagla" or "satinalma.irsaliye.malKabulBaglantisiKaldir" or "satinalma.faturaTaslagi.guncelle"
-                or "satinalma.faturaTaslagi.muhasebelestir" ? "update" : "insert", op.PageKind);
+                or "satinalma.faturaTaslagi.muhasebelestir" or "satinalma.malKabul.siparissizKaydet" ? "update" : "insert", op.PageKind);
         Assert.Equal(name is "satinalma.faturaTaslagi.listele" or "satinalma.faturaTaslagi.tedarikciler" ? "page,pageSize,totalCount" : "",
             string.Join(",", op.Result.MetaPaths));
         Assert.Equal(op.Result.Columns.Count, op.Result.Columns.Select(x => x.Code).Distinct(StringComparer.Ordinal).Count());
@@ -514,7 +518,7 @@ public sealed class PurchasingErpOperationCatalogTests
     {
         Assert.Equal(Faz2Operations.Length, Faz2Shapes.Count);
         // requestId exists (and is required) exactly where the body has one; the other writes rely on 409 checks.
-        string[] keyed = ["satinalma.malKabul.olustur", "satinalma.iade.olustur", "satinalma.faturaTaslagi.olustur"];
+        string[] keyed = ["satinalma.malKabul.olustur", "satinalma.malKabul.siparissizOlustur", "satinalma.iade.olustur", "satinalma.faturaTaslagi.olustur"];
         foreach (var name in Faz2Operations.Where(x => Op(x).Kind == "write"))
             Assert.Equal(keyed.Contains(name), Op(name).Parameters.Any(x => x is { Name: "requestId", In: "body", Type: "guid", Required: true }));
         // Every column and list item has a label (a missing one fails startup); spot-check the new codes.

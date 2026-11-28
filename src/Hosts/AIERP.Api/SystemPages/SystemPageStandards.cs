@@ -411,6 +411,8 @@ internal static class SystemPageStandards
                     if (kept.Length == 0 && ids.Length > 0) tabs.RemoveAt(i);
                     else tabs[i] = label + "=" + string.Join(",", kept);
                 }
+            // Windows added in a later version leave the older window content lists.
+            if (type == "dialog") StripList(props, "contains", removed, dropWhenEmpty: false);
             if (type == "actionBar")
             {
                 foreach (var key in new[] { "newInputs", "moreButtons" }) StripList(props, key, removed, dropWhenEmpty: true);

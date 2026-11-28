@@ -20,7 +20,7 @@ public sealed class PurchasingFaz2SystemPagesTests
     private static readonly string[] Keys = ["sales-purchase-order-create", "sales-requests", "sales-purchasing"];
     private static readonly Dictionary<string, int> Versions = new(StringComparer.Ordinal)
     {
-        ["sales-purchase-order-create"] = 1, ["sales-requests"] = 3, ["sales-purchasing"] = 4,
+        ["sales-purchase-order-create"] = 1, ["sales-requests"] = 3, ["sales-purchasing"] = 5,
     };
 
     /// <summary>Every line grid of these pages: grid → (page, write query, fill query or null).</summary>
@@ -65,7 +65,8 @@ public sealed class PurchasingFaz2SystemPagesTests
                 var v3 = key == "sales-requests"
                     ? new HashSet<string>(["component:talepDetayPenceresi", "component:talepDetayBasligi", "component:talepDetaySekmeleri"])
                     : new HashSet<string>(["component:siparisDetayPenceresi", "component:siparisDetayBasligi", "component:siparisDetaySekmeleri"]);
-                Assert.True(item.Since == (v3.Contains(item.Key) ? 3 : faz1.Contains(item.Key) ? 1 : 2), $"{key}: {item.Key} since {item.Since}");
+                var v5 = key == "sales-purchasing" && (item.Key is "component:kabulIzlemeDugmesi" or "component:kabulIzlemePenceresi" or "component:kabulIzlemeIzgarasi");
+                Assert.True(item.Since == (v5 ? 5 : v3.Contains(item.Key) ? 3 : faz1.Contains(item.Key) ? 1 : 2), $"{key}: {item.Key} since {item.Since}");
             }
         }
         Assert.All(Mine["sales-purchase-order-create"].Items, x => Assert.Equal(1, x.Since));
@@ -109,7 +110,7 @@ public sealed class PurchasingFaz2SystemPagesTests
             var grid = Props(key, gridId);
             Assert.Equal("list", (string)grid["gridMode"]!);
             var write = Query(key, writeId);
-            var lines = write["parameters"]!.AsArray().OfType<JsonObject>().Single(x => (string)x["type"]! == "list");
+            var lines = write["parameters"]!.AsArray().OfType<JsonObject>().Single(x => (string)x["type"]! == "list" && (string)x["binding"]! == $"{{{{{gridId}.satirlar}}}}");
             Assert.Equal($"{{{{{gridId}.satirlar}}}}", (string)lines["binding"]!);
             var items = Op((string)write["operation"]!).Parameters.Single(x => x.Name == (string)lines["name"]!).Items!;
             var columns = GridColumns(grid);
@@ -223,6 +224,7 @@ public sealed class PurchasingFaz2SystemPagesTests
         {
             ["id"] = "{{liste.seciliSatir.id}}", ["requestId"] = "{{kabulIstekKimligi.value}}", ["warehouseId"] = "{{kabulDepo.value}}",
             ["receiptDate"] = "{{kabulTarihi.value}}", ["lines"] = "{{kabulKalemleri.satirlar}}",
+            ["trackingAllocations"] = "{{kabulIzlemeIzgarasi.satirlar}}",
         }, Bindings(save));
         var requestId = Props(key, "kabulIstekKimligi");
         Assert.True(requestId["autoId"]!.GetValue<bool>() && requestId["hidden"]!.GetValue<bool>());
@@ -234,8 +236,13 @@ public sealed class PurchasingFaz2SystemPagesTests
 
         // The document opens the dialog; the list and panel commands open the order document first (one fill source).
         Assert.Equal(("openDialog", "malKabulPenceresi"), ((string)Props(key, "malKabulDugmesi")["actionType"]!, (string)Props(key, "malKabulDugmesi")["dialogId"]!));
-        // The current receipt endpoint is order-bound and the list grid cannot serialize nested tracking allocations.
+        // The legacy lot/serial command stays for older firm copies; the receipt window also opens its own allocation window.
         Assert.Contains("izlemeliKabulDugmesi", Strings(dialog["contains"]));
+        Assert.Contains("kabulIzlemeDugmesi", Strings(dialog["contains"]));
+        Assert.Equal("{{kabulIzlemeIzgarasi.satirlar}}", Bindings(Query(key, "malKabulOlustur"))["trackingAllocations"]);
+        Assert.Equal(("openDialog", "kabulIzlemePenceresi"), ((string)Props(key, "kabulIzlemeDugmesi")["actionType"]!, (string)Props(key, "kabulIzlemeDugmesi")["dialogId"]!));
+        Assert.Equal(new[] { "orderLineNumber", "trackingCode", "quantity", "expiryDate" },
+            Strings(Props(key, "kabulIzlemeIzgarasi")["gridColumns"]).Select(x => x.Split('|')[0]));
     }
 
     // ---- sales-requests v3 ----

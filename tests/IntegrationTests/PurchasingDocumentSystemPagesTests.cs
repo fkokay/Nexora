@@ -40,7 +40,7 @@ public sealed class PurchasingDocumentSystemPagesTests
     /// <summary>Versions: receipts and returns are v3 Liste-template standards (Satın Alma 2. dalga).</summary>
     private static readonly Dictionary<string, int> Versions = new(StringComparer.Ordinal)
     {
-        ["sales-purchase-receipts"] = 3, ["sales-purchase-invoice-entry"] = 1, ["sales-purchase-invoices"] = 4, ["sales-purchase-returns"] = 3,
+        ["sales-purchase-receipts"] = 4, ["sales-purchase-invoice-entry"] = 1, ["sales-purchase-invoices"] = 4, ["sales-purchase-returns"] = 3,
     };
 
     /// <summary>The page params each legacy purchasing screen reads (K7 readers); a legacy command sends only these.</summary>
@@ -91,7 +91,7 @@ public sealed class PurchasingDocumentSystemPagesTests
             var name = (string)query["operation"]!;
             Assert.True(ErpOperationCatalog.TryGet(name, out var op) && !op.Deprecated, name);
             // Faz 2: the return dialogs also pick a warehouse and its locations.
-            Assert.True(name.StartsWith("satinalma.", StringComparison.Ordinal) || name is "depo.listele" or "depo.konumlari", name);
+            Assert.True(name.StartsWith("satinalma.", StringComparison.Ordinal) || name is "depo.listele" or "depo.konumlari" or "stok.kart.listele", name);
             Assert.Equal(op.Kind == "read" ? "read" : op.PageKind, (string)query["kind"]!);
             var bound = query["parameters"]!.AsArray().OfType<JsonObject>().Select(x => (string)x["name"]!).ToArray();
             Assert.All(bound, parameter => Assert.Contains(op.Parameters, x => x.Name == parameter));
@@ -124,7 +124,7 @@ public sealed class PurchasingDocumentSystemPagesTests
         {
             var id = (string)query["id"]!;
             var buttons = components.Where(x => (string?)x["type"] == "button" && (string?)x["props"]!["queryId"] == id).ToArray();
-            var dialogs = components.Where(x => (string?)x["type"] == "dialog" && (string?)x["props"]!["saveQuery"] == id).ToArray();
+            var dialogs = components.Where(x => (string?)x["type"] == "dialog" && ((string?)x["props"]!["saveQuery"] == id || (x["props"]!["saveSequence"] is JsonArray sequence && Strings(sequence).Contains(id)))).ToArray();
             var bars = components.Where(x => (string?)x["type"] == "actionBar" && (string?)x["props"]!["saveQuery"] == id).ToArray();
             Assert.True(buttons.Length + dialogs.Length + bars.Length > 0, $"{key}: '{id}' hiçbir komuta bağlı değil.");
             foreach (var button in buttons)
@@ -137,7 +137,7 @@ public sealed class PurchasingDocumentSystemPagesTests
             }
             // A dialog or the bar save are the input step of the write: they own required inputs bound to the query. Neither
             // takes errorMessage (button-only); the server's error text reaches the user as is.
-            foreach (var owner in dialogs.Concat(bars))
+            foreach (var owner in dialogs.Where(x => (string?)x["props"]!["saveQuery"] == id || Strings(x["props"]!["saveSequence"])[0] == id).Concat(bars))
                 Assert.Contains(query["parameters"]!.AsArray().OfType<JsonObject>(), x => Input(definition, BindingRoot((string)x["binding"]!))?["props"]?["required"] is not null);
             // A body requestId is a hidden input that keeps a new GUID per attempt.
             foreach (var parameter in query["parameters"]!.AsArray().OfType<JsonObject>().Where(x => (string)x["name"]! == "requestId"))
@@ -159,7 +159,7 @@ public sealed class PurchasingDocumentSystemPagesTests
         var writes = KeyList().SelectMany(x => Queries(Definition(x.Key))).Where(x => (string)x["kind"]! != "read")
             .Where(x => x["parameters"]!.AsArray().OfType<JsonObject>().Any(p => (string)p["name"]! == "requestId"))
             .Select(x => (string)x["operation"]!).Distinct().ToArray();
-        Assert.Equal(new[] { "satinalma.fatura.odemeEkle", "satinalma.iade.olustur" }, writes.Order(StringComparer.Ordinal));
+        Assert.Equal(new[] { "satinalma.fatura.odemeEkle", "satinalma.iade.olustur", "satinalma.malKabul.siparissizOlustur" }, writes.Order(StringComparer.Ordinal));
         Assert.Equal("{{istekKimligi.value}}", Binding("sales-purchase-invoices", "odemeEkle", "requestId"));
         Assert.Equal("{{iadeKimligi.value}}", Binding("sales-purchase-returns", "iadeOlustur", "requestId"));
     }
@@ -237,6 +237,21 @@ public sealed class PurchasingDocumentSystemPagesTests
         Assert.Equal(("purchase-receipts", "liste"), (view.Key, view.Component));
         Assert.True(TenantScreenViewEndpoints.TryGetCatalogFields("purchase-receipts", out var fields));
         Assert.Equal(fields.Where(x => x.Key != "actions").Select(x => x.Key), view.Fields.Keys);
+    }
+
+    [Fact]
+    public void Receipts_standard_has_the_orderless_dialog_and_catalog_backed_draft_post_sequence()
+    {
+        const string key = "sales-purchase-receipts";
+        var dialog = Props(key, "siparissizPencere");
+        Assert.Equal(new[] { "siparissizTaslak", "siparissizKaydet" }, Strings(dialog["saveSequence"]));
+        Assert.True((bool)dialog["stopOnError"]!);
+        var bound = Queries(Definition(key)).Single(x => (string)x["id"]! == "siparissizTaslak")["parameters"]!.AsArray().OfType<JsonObject>().Select(x => (string)x["name"]!).ToHashSet(StringComparer.Ordinal);
+        Assert.Superset(new HashSet<string>(["supplierId", "warehouseId", "receiptDate", "lines"]), bound);
+        Assert.Equal("satinalma.malKabul.siparissizOlustur", Operation(key, "siparissizTaslak"));
+        Assert.Equal("satinalma.malKabul.siparissizKaydet", Operation(key, "siparissizKaydet"));
+        Assert.Equal(7, Strings(Props(key, "siparissizKalemleri")["gridColumns"]).Length);
+        Assert.Contains(SystemPageStandards.All[key].Items, x => x.Key == "component:siparissizPencere" && x.Since == 4);
     }
 
     [Fact]
