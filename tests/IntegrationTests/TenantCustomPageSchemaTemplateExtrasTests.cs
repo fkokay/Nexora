@@ -184,9 +184,8 @@ public sealed class TenantCustomPageSchemaTemplateExtrasTests
     public void Grid_in_a_window_follows_the_small_set()
     {
         Rejected(GridWindow(Grid(extra: new { gridMode = "stage", sourceQuery = "liste" }), plain: true), SatirKip);
-        Rejected(GridWindow(Grid(extra: new { gridColumns = new[] { "kod|Kod|calc:liste:x" } }), plain: true), "Pencerede satır tablosu yalnız metin, sayı, tarih, onay kutusu ve seçim (lookup) sütunlarını alır: kod.");
         Rejected(GridWindow(Grid(extra: new { gridColumns = new[] { "kod|Kod|number|step:0.5" } }), plain: true), "'step' pencerede satır tablosunda kullanılamaz.");
-        Rejected(GridWindow(Grid(extra: new { formulas = new { a = "b" } }), plain: true), "'formulas' pencerede satır tablosunda kullanılamaz.");
+        Rejected(GridWindow(Grid(extra: new { gridColumns = new[] { "trackingCode|Kod|text", "quantity|Miktar|number", "price|Fiyat|number" }, formulas = new { quantity = "price * 2" } }), plain: true), "'formulas' pencerede satır tablosunda kullanılamaz.");
         Rejected(GridWindow(Grid(extra: new { fixedRowLabel = "Satır" }), plain: true), "'fixedRowLabel' pencerede satır tablosunda kullanılamaz.");
         Rejected(GridWindow(Grid(extra: new { totals = new[] { "quantity" } }), plain: true), "'totals' pencerede satır tablosunda kullanılamaz.");
         Rejected(GridWindow(Grid(extra: new { maxRows = 201 }), plain: true), SatirSinir);
@@ -197,9 +196,9 @@ public sealed class TenantCustomPageSchemaTemplateExtrasTests
     {
         Accepted(GridWindow(Grid(extra: new
         {
-            gridColumns = new[] { "stockItemId|Stok|lookup:liste:x:x:x|required", "lineNo|Kalem|text|readOnly", "quantity|Miktar|number|min:0" },
-            fillQuery = "liste", fillColumns = new Dictionary<string, string> { ["stockItemId"] = "x", ["quantity"] = "x" }, skipWhenZero = "quantity",
-            columnStaticOptions = new[] { "stockItemId=a=Varsayılan" }
+            gridColumns = new[] { "trackingCode|Lot|lookup:liste:x:x:x|required", "quantity|Miktar|number|min:0", "expiryDate|SKT|date|readOnly" },
+            fillQuery = "liste", fillColumns = new Dictionary<string, string> { ["trackingCode"] = "x", ["quantity"] = "x" }, skipWhenZero = "quantity",
+            columnStaticOptions = new[] { "trackingCode=a=Varsayılan" }
         })));
     }
 

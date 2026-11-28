@@ -11,7 +11,7 @@ public sealed class TenantCustomPageSchemaTemplateFeatures2Tests
     private static readonly object[] Queries =
     [
         new { id = "kalemler", name = "kalemler", kind = "read", sql = "SELECT 1 AS y", parameters = Array.Empty<object>(), runOn = "load" },
-        new { id = "ilceler", name = "ilceler", kind = "read", sql = "SELECT 1 AS id, 'a' AS name", runOn = "load",
+        new { id = "ilceler", name = "ilceler", kind = "read", sql = "SELECT 1 AS id, 'a' AS name WHERE @il IS NOT NULL", runOn = "load",
             parameters = new object[] { new { name = "il", binding = "{{il.value}}", type = "text" } } }
     ];
 
