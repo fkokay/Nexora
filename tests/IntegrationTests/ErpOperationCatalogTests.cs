@@ -701,7 +701,8 @@ public sealed class ErpOperationCatalogTests
             ["depo.olustur"] = ["customFields"],
             ["depo.ozelAlanKaydet"] = ["values"],
             ["depo.transfer.olustur"] = ["lines"],
-            ["depo.transfer.belge"] = ["transferId"]
+            ["depo.transfer.belge"] = ["transferId"],
+            ["depo.transfer.doldur"] = ["field", "value", "customerId", "orderDate"]
         };
         // The cari.*, crm.*, satis.*, finans.*, ik.*, new uretim.* and Satınalma system page operations are new names with their own contract tests
         // (CustomerSystemPagesTests, CrmSystemPagesTests, SalesSystemPagesTests, FinanceSystemPagesTests, ManufacturingSystemPagesTests, PurchasingErpOperationCatalogTests).
