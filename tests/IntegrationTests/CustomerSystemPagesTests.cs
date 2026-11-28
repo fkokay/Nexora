@@ -474,7 +474,7 @@ public sealed class CustomerSystemPagesTests
 
     [Theory]
     // Satış & cari 1. dalga: customers v3 (Liste), customer-create v2 (Kayıt kartı), customer-ledger v3 (Liste) kalıplarına çizildi.
-    [InlineData("customers", "Cari Hesaplar", 3)]
+    [InlineData("customers", "Cari Hesaplar", 4)]
     [InlineData("customer-create", "Cari kart", 3)]
     [InlineData("customer-ledger", "Cari Hesap Hareketleri", 3)]
     public void Standard_is_preview_and_uses_catalog_operations(string key, string title, int version)

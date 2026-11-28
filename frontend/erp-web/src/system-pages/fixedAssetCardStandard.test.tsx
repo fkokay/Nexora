@@ -115,7 +115,6 @@ function setup(assetId: string | null = A1) {
 }
 
 const T = { timeout: 10000 };
-const command = (id: string) => screen.getByRole('toolbar', { name: 'İşlemler' }).querySelector<HTMLElement>(`[data-command="${id}"]`);
 const moreButton = () => screen.getByRole('toolbar', { name: 'İşlemler' }).querySelector<HTMLElement>('[data-command="more"]') ?? within(screen.getByRole('toolbar', { name: 'İşlemler' })).getByRole('button', { name: 'Diğer işlemler' });
 const gets = (path: string) => calls.filter((call) => call.method === 'GET' && call.url.split('?')[0] === path);
 const writes = () => calls.filter((call) => call.method !== 'GET');

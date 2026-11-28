@@ -24,7 +24,7 @@ public sealed class TemplatedStandardsTests
     }
 
     [Theory]
-    [InlineData("sales-orders", 6)]
+    [InlineData("sales-orders", 7)]
     [InlineData("sales-invoices", 4)]
     [InlineData("sales-deliveries", 2)]
     [InlineData("inventory-cost", 2)]
