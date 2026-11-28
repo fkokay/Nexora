@@ -1,12 +1,12 @@
 {
   "screenKey": "sales-orders", "title": "Satış Siparişleri",
   "description": "Bağımsız veya kabul edilen tekliflerden oluşan siparişleri ve sevkiyat süreçlerini yönetin.", "module": "Satış & cari",
-  "version": 6, "stage": "preview",
+  "version": 7, "stage": "preview",
   "items": {
     "component:komutlar": {"since": 1, "label": "İşlem çubuğu", "requires": ["component:acDugmesi", "component:duzenleDugmesi", "component:irsaliyeOlusturDugmesi", "component:liste", "component:suzgec", "component:yeniDugmesi", "query:siparisSil", "query:siparisler"]},
-    "component:yeniDugmesi": {"since": 1, "label": "Yeni sipariş komutu (tarih bugün)"},
+    "component:yeniDugmesi": {"since": 1, "label": "Yeni sipariş komutu (Belge sayfası)"},
     "component:acDugmesi": {"since": 1, "label": "Siparişi aç komutu", "requires": ["component:liste", "component:siparisPenceresi"]},
-    "component:duzenleDugmesi": {"since": 1, "label": "Düzenle komutu (sipariş kartı: kimlik, müşteri, tarih)", "requires": ["component:liste"]},
+    "component:duzenleDugmesi": {"since": 1, "label": "Düzenle komutu (Belge sayfası)", "requires": ["component:liste"]},
     "component:irsaliyeOlusturDugmesi": {"since": 1, "label": "İrsaliye oluştur komutu (eski ekran)", "requires": ["component:liste"]},
     "component:onaylaDugmesi": {"since": 3, "label": "Onayla komutu (taslak sipariş)", "requires": ["component:liste", "query:onayla"]},
     "component:onayiGeriAlDugmesi": {"since": 3, "label": "Onayı geri al komutu (sevksiz onaylı sipariş)", "requires": ["component:liste", "query:onayiGeriAl"]},
@@ -70,10 +70,10 @@
     "schemaVersion": 2,
     "components": [
       { "id": "komutlar", "type": "actionBar", "name": "komutlar", "props": { "newButton": "yeniDugmesi", "openButton": "acDugmesi", "deleteQuery": "siparisSil", "deleteConfirmText": "{{liste.seciliSatir.code}} · {{liste.seciliSatir.customerName}} siparişi silinsin mi?", "focusInput": "suzgec", "exportTable": "liste", "titleCount": "{{siparisler.meta.totalCount}}", "moreButtons": ["belgedeAcDugmesi", "duzenleDugmesi", "irsaliyeOlusturDugmesi", "onaylaDugmesi", "onayiGeriAlDugmesi", "iptalDugmesi"], "commandWhen": ["delete=kullanici.rol == 'TenantAdmin' && liste.seciliSatir.id != null"], "hiddenCommands": ["save", "print"], "slot": "commands" } },
-      { "id": "yeniDugmesi", "type": "button", "name": "yeniDugmesi", "props": { "text": "Yeni sipariş", "actionType": "erpPage", "pageKey": "sales-order-create", "target": "newTab", "params": ["customerId={{sayfa.parametre.customerId}}", "orderDate={{bugun}}"], "slot": "actions" } },
+      { "id": "yeniDugmesi", "type": "button", "name": "yeniDugmesi", "props": { "text": "Yeni sipariş", "actionType": "erpPage", "pageKey": "sales-order-document", "target": "newTab", "slot": "actions" } },
       { "id": "acDugmesi", "type": "button", "name": "acDugmesi", "props": { "text": "Aç", "icon": "open", "actionType": "openDialog", "dialogId": "siparisPenceresi", "disabledWhen": "liste.seciliSatir.id == null", "disabledReason": "Önce bir kayıt seçin", "slot": "rowActions" } },
       { "id": "belgedeAcDugmesi", "type": "button", "name": "belgedeAcDugmesi", "props": { "text": "Belgede aç", "actionType": "erpPage", "pageKey": "sales-order-document", "target": "newTab", "params": ["id={{liste.seciliSatir.id}}"], "visibleWhen": "liste.seciliSatir.id != null", "slot": "actions" } },
-      { "id": "duzenleDugmesi", "type": "button", "name": "duzenleDugmesi", "props": { "text": "Düzenle", "actionType": "erpPage", "pageKey": "sales-order-create", "target": "newTab", "params": ["orderId={{liste.seciliSatir.id}}", "customerId={{liste.seciliSatir.customerId}}", "orderDate={{liste.seciliSatir.orderDate}}"], "visibleWhen": "liste.seciliSatir.status == 'Draft'", "slot": "actions" } },
+      { "id": "duzenleDugmesi", "type": "button", "name": "duzenleDugmesi", "props": { "text": "Düzenle", "actionType": "erpPage", "pageKey": "sales-order-document", "target": "newTab", "params": ["id={{liste.seciliSatir.id}}"], "visibleWhen": "liste.seciliSatir.status == 'Draft'", "slot": "actions" } },
       { "id": "onaylaDugmesi", "type": "button", "name": "onaylaDugmesi", "props": { "text": "Onayla", "actionType": "query", "queryId": "onayla", "visibleWhen": "liste.seciliSatir.status == 'Draft'", "successMessage": "Sipariş onaylandı.", "refreshQueries": ["siparisler", "siparis"], "slot": "actions" } },
       { "id": "onayiGeriAlDugmesi", "type": "button", "name": "onayiGeriAlDugmesi", "props": { "text": "Onayı geri al", "actionType": "query", "queryId": "onayiGeriAl", "visibleWhen": "liste.seciliSatir.status == 'Open'", "successMessage": "Siparişin onayı geri alındı; sipariş taslakta.", "refreshQueries": ["siparisler", "siparis"], "slot": "actions" } },
       { "id": "iptalDugmesi", "type": "button", "name": "iptalDugmesi", "props": { "text": "İptal et", "actionType": "query", "queryId": "iptal", "promptLabel": "Gerekçe", "promptRequired": true, "promptMaxLength": 500, "promptText": "{{liste.seciliSatir.code}} siparişi iptal edilsin mi? Aktif stok rezervasyonları bırakılır; gerekçe işlem günlüğüne yazılır.", "visibleWhen": "liste.seciliSatir.status == 'Draft' || liste.seciliSatir.status == 'Open'", "successMessage": "Sipariş iptal edildi.", "refreshQueries": ["siparisler", "siparis"], "slot": "actions" } },

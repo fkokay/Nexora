@@ -212,21 +212,6 @@ public sealed class SystemPageRequiredUpdateTests
             .Where(x => x.CustomPageId == pageId).OrderBy(x => x.Revision).Select(x => x.ChangeKind).ToListAsync());
     }
 
-    [Fact]
-    public async Task Old_sales_order_card_lets_drafts_be_edited()
-    {
-        await using var app = await StartApplicationAsync();
-        await SeedRowAsync(app, TenantA, "sales-order-create", Fixture("sales-order-create-v1.json"), published: true, 1);
-        using var client = Client(app, Mehmet, "TenantUser");
-
-        var definition = await PublishedDefinitionAsync(client, "sales-order-create");
-
-        var standard = Standard("sales-order-create");
-        Assert.True(JsonNode.DeepEquals(Find(standard, "komutlar")!["props"]!["commandWhen"], Find(definition, "komutlar")!["props"]!["commandWhen"]));
-        foreach (var prop in new[] { "disabledWhen", "disabledReason" })
-            Assert.True(JsonNode.DeepEquals(Find(standard, "kalemler")!["props"]![prop], Find(definition, "kalemler")!["props"]![prop]), prop);
-        Assert.True(JsonNode.DeepEquals(Find(standard, "duzenlemeUyarisi"), Find(definition, "duzenlemeUyarisi")));
-    }
 
     [Fact]
     public async Task Failed_write_serves_the_stored_copy()

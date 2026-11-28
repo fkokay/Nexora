@@ -1802,3 +1802,9 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
 - **Lot/seri:** Üretimi bildir penceresinde izlemeli mamuller için lot/seri satır tablosu mevcut `finishedGoodsTracking` API bağlamasıyla korundu.
 - **Doğrulama:** Üretim ERP/Studio Vitest dosyaları çalıştırıldı; .NET testleri ve build bu işte çalıştırılmadı.
 - **Doğrulanmayan:** Kalıplı standartların sunucu şema doğrulaması ve canlı firma kopyasında/tarayıcıda görsel deneme; .NET testini ve build'i kullanıcı çalıştıracak.
+### Ekranlar 3. dalga (2026-11-28)
+- `finance-account-create`, `hr-employee-create`, `fixed-asset-card` Kayıt kartı kalıbına taşındı (v2); duran varlık kartı salt okunur, edinim penceresi var.
+- `sales-order-create` kaldırıldı; `customers` (v4) ve `sales-orders` (v7) yeni siparişi `sales-order-document` Belge ekranında açar. Eski anahtar Belge'ye yönlenir.
+- Bilinen kayıp: cariden açılan yeni siparişte müşteri ön dolumu yok (Belge kalıbında ön dolum yok).
+- Studio: girdi alanlarında `readOnly` seçeneği.
+- Doğrulama: ilgili erp-web (44) ve Studio (95) vitest dosyaları yerelde geçti; .NET testleri CI'da.

@@ -12,7 +12,7 @@ public sealed class SalesCariWave1StandardTests
 {
     public static TheoryData<string, string, int> Pages => new()
     {
-        { "customers", "list", 3 },
+        { "customers", "list", 4 },
         { "customer-ledger", "list", 3 },
         { "crm-opportunities", "list", 2 },
         { "customer-create", "record", 3 },
