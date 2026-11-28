@@ -689,7 +689,9 @@ function LegacyCreateRedirect({ sourceKey, targetKey, noun, onNavigate }: {
   const params = usePageParams(sourceKey);
   const id = params.id ?? params.invoiceId ?? params.bomId ?? "";
   useEffect(() => {
-    setPageParams(targetKey, id ? { ...params, id } : params);
+    // Eski kimlik adları (invoiceId, bomId) hedefte id olur; ikinci kopya taşınmaz.
+    const { invoiceId: _invoiceId, bomId: _bomId, ...rest } = params;
+    setPageParams(targetKey, id ? { ...rest, id } : params);
     onNavigate(targetKey);
     requestClosePage(sourceKey);
   }, [id, onNavigate, sourceKey, targetKey, JSON.stringify(params)]);
