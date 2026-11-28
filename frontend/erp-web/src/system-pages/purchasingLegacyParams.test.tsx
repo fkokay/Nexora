@@ -76,7 +76,7 @@ beforeAll(() => {
     new Response(JSON.stringify(respond(url)), { status: 200, headers: { 'Content-Type': 'application/json' } }));
 });
 afterAll(() => vi.unstubAllGlobals());
-const KEYS = ['sales-purchase-delivery-notes', 'sales-requests', 'sales-purchasing', 'sales-purchase-receipts', 'sales-purchase-invoice-entry', 'sales-purchase-invoices', 't'];
+const KEYS = ['sales-purchase-delivery-notes', 'sales-requests', 'sales-purchasing', 'sales-purchase-receipts', 'sales-purchase-invoices', 't'];
 afterEach(() => {
   cleanup();
   apiMock.mockClear();
@@ -157,22 +157,9 @@ describe('eski satınalma ekranları sayfa parametreleri', { timeout: 30000 }, (
     expect(pageParamsOf('sales-purchase-invoices')).toEqual({});
   });
 
-  it('Fatura girişi preselects receiptId on the loaded page', async () => {
-    setPageParams('sales-purchase-invoice-entry', { receiptId: 'r1' });
-    renderScreen(<PurchaseInvoiceEntryPage token="t" role="TenantUser" />);
-    await screen.findByLabelText(/Tedarikçi fatura no/, {}, T);
-    expect(fetched('/api/purchasing/receipts/r1')).toBe(false);
-    expect(pageParamsOf('sales-purchase-invoice-entry')).toEqual({});
-  });
 
-  it('Fatura girişi searches by the receipt code when receiptId is not on the loaded page, then preselects it', async () => {
-    setPageParams('sales-purchase-invoice-entry', { receiptId: 'r9' });
-    renderScreen(<PurchaseInvoiceEntryPage token="t" role="TenantUser" />);
-    await waitFor(() => expect(fetchedUrl((url) => url.startsWith('/api/purchasing/invoices/entry/receipts?') && url.includes('q=MK-9'))).toBe(true), T);
-    await screen.findByLabelText(/Tedarikçi fatura no/, {}, T);
-    expect(fetched('/api/purchasing/receipts/r9')).toBe(true);
-    expect(document.body.textContent).toContain('MK-9');
-  });
+
+
 
   it('İrsaliyeler opens the create / link view on purchaseOrderId', async () => {
     setPageParams('sales-purchase-delivery-notes', { purchaseOrderId: 'po1' });

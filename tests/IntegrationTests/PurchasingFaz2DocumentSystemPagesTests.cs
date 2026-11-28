@@ -35,7 +35,7 @@ public sealed class PurchasingFaz2DocumentSystemPagesTests
         { "sales-purchase-delivery-notes", "Satınalma İrsaliyeleri", 3 },
         { "sales-purchase-invoices", "Satınalma Faturaları", 4 },
         { "sales-purchase-returns", "Satınalma İadeleri", 3 },
-        { "sales-purchase-invoice-drafts", "Satınalma faturası taslakları", 1 },
+        { "sales-purchase-invoice-drafts", "Satınalma faturası taslakları", 2 },
     };
 
     /// <summary>Every fill grid: (page, grid, fill query, fill operation, the dialog that saves it).</summary>
@@ -160,8 +160,8 @@ public sealed class PurchasingFaz2DocumentSystemPagesTests
         var writes = KeyList().SelectMany(x => Queries(Definition(x.Key))).Where(x => (string)x["kind"]! != "read")
             .Where(x => x["parameters"]!.AsArray().OfType<JsonObject>().Any(p => (string)p["name"]! == "requestId"))
             .Select(x => (string)x["operation"]!).Distinct().Order(StringComparer.Ordinal).ToArray();
-        Assert.Equal(new[] { "satinalma.fatura.odemeEkle", "satinalma.faturaTaslagi.olustur", "satinalma.iade.olustur" }, writes);
-        // No body key: delivery note create (duplicate document number → 409) and the draft update (expectedRowVersion → 409).
+        Assert.Equal(new[] { "satinalma.fatura.odemeEkle", "satinalma.iade.olustur" }, writes);
+        // Draft creation moved to the purchase-invoice-document page (Belge). No body key: delivery note create (duplicate document number → 409) and the draft update (expectedRowVersion → 409).
         Assert.DoesNotContain(Op("satinalma.irsaliye.olustur").Parameters, x => x.Name == "requestId");
         Assert.DoesNotContain(Op("satinalma.faturaTaslagi.guncelle").Parameters, x => x.Name == "requestId");
     }
@@ -285,104 +285,19 @@ public sealed class PurchasingFaz2DocumentSystemPagesTests
 
     // ---- Satınalma faturası taslakları v1 ----
 
-    [Theory]
-    [InlineData("yeniSatirlar", "yeniKabulSatirlari", null)]
-    [InlineData("duzenleSatirlar", "duzenleKabulSatirlari", "taslakSatirlari")]
-    public void Draft_lines_are_numbered_computed_and_totalled(string grid, string receiptLines, string? fillQuery)
-    {
-        const string key = "sales-purchase-invoice-drafts";
-        var props = Props(key, grid);
-        Assert.Equal(("list", "lineNumber", 100, 1), ((string)props["gridMode"]!, (string)props["rowNumberColumn"]!, (int)props["maxRows"]!, (int)props["minRows"]!));
-        Assert.Equal(fillQuery, (string?)props["fillQuery"]);
-        // Chained formulas: the total uses the rounded parts, so total = subtotal − discount + tax holds on every line (F2-3).
-        var formulas = props["formulas"]!.AsObject().ToDictionary(x => x.Key, x => (string)x.Value!);
-        Assert.Equal(new Dictionary<string, string>
-        {
-            ["subtotal"] = "quantity * unitPrice",
-            ["taxAmount"] = "(subtotal - discountAmount) * vatRate / 100",
-            ["total"] = "subtotal - discountAmount + taxAmount",
-        }, formulas);
-        Assert.Equal(new[] { "subtotal", "discountAmount", "taxAmount", "total" }, Strings(props["totals"]));
-        var columns = Strings(props["gridColumns"]).Select(x => x.Split('|')[0]).ToArray();
-        Assert.Equal(12, columns.Length);
-        // Every line item of the write is a grid column (the server needs unique positive line numbers: rowNumberColumn).
-        var items = Op("satinalma.faturaTaslagi.olustur").Parameters.Single(x => x.Name == "lines").Items!.Select(x => x.Code).ToArray();
-        Assert.Equal(items.Order(StringComparer.Ordinal), columns.Order(StringComparer.Ordinal));
-        Assert.Contains($"standalonePurchaseReceiptLineId|Mal kabul satırı|lookup:{receiptLines}:lineId:receiptCode:stockName", Strings(props["gridColumns"]));
-        Assert.Contains("expenseAccountId|Gider hesabı|lookup:giderHesaplari:id:code:name", Strings(props["gridColumns"]));
-        var fills = props["lookupFills"]!.AsObject();
-        Assert.Equal(("stockName", "quantity", "unitCode", "unitCostBase"),
-            ((string)fills["standalonePurchaseReceiptLineId"]!["description"]!, (string)fills["standalonePurchaseReceiptLineId"]!["quantity"]!,
-             (string)fills["standalonePurchaseReceiptLineId"]!["unitCode"]!, (string)fills["standalonePurchaseReceiptLineId"]!["unitPrice"]!));
-        Assert.Equal("name", (string)fills["expenseAccountId"]!["description"]!);
-        Assert.Equal(("satinalma.faturaTaslagi.giderHesaplari", "satinalma.faturaTaslagi.malKabulSatirlari"), (Operation(key, "giderHesaplari"), Operation(key, receiptLines)));
-
-        // The header amounts are the grid totals.
-        var write = grid == "yeniSatirlar" ? "taslakOlustur" : "taslakGuncelle";
-        foreach (var (parameter, column) in new[] { ("subtotal", "subtotal"), ("discountTotal", "discountAmount"), ("taxTotal", "taxAmount"), ("grandTotal", "total") })
-            Assert.Equal($"{{{{{grid}.toplam.{column}}}}}", Binding(key, write, parameter));
-        Assert.Equal($"{{{{{grid}.satirlar}}}}", Binding(key, write, "lines"));
-    }
-
     [Fact]
-    public void Draft_create_edit_and_post()
+    public void Invoice_drafts_use_the_list_template_and_open_the_invoice_document()
     {
         const string key = "sales-purchase-invoice-drafts";
-        Assert.Equal(("satinalma.faturaTaslagi.listele", "{{suzgec.q}}", "{{liste.sayfa}}", "{{liste.sayfaBoyutu}}"),
-            (Operation(key, "taslaklar"), Binding(key, "taslaklar", "q"), Binding(key, "taslaklar", "page"), Binding(key, "taslaklar", "pageSize")));
-        foreach (var (query, operation) in new[] { ("taslak", "satinalma.faturaTaslagi.getir"), ("taslakSatirlari", "satinalma.faturaTaslagi.satirlari") })
-            Assert.Equal((operation, "{{liste.seciliSatir.id}}"), (Operation(key, query), Binding(key, query, "id")));
-
-        // Create: own dialog (fresh inputs, no fill), request key, supplier picker of the draft endpoint.
-        Assert.Equal(("taslakOlustur", "satinalma.faturaTaslagi.olustur"), ((string)Props(key, "yeniTaslakPenceresi")["saveQuery"]!, Operation(key, "taslakOlustur")));
-        Assert.Equal(("{{yeniIstekKimligi.value}}", "{{yeniTedarikci.value}}", "{{yeniDoviz.value}}"),
-            (Binding(key, "taslakOlustur", "requestId"), Binding(key, "taslakOlustur", "supplierId"), Binding(key, "taslakOlustur", "currencyCode")));
-        foreach (var (query, picker) in new[] { ("yeniTedarikciler", "yeniTedarikci"), ("duzenleTedarikciler", "duzenleTedarikci") })
-        {
-            Assert.Equal(("satinalma.faturaTaslagi.tedarikciler", $"{{{{{picker}.search}}}}"), (Operation(key, query), Binding(key, query, "q")));
-            Assert.Equal(("{{secenekSayfasi.value}}", "{{secenekBoyutu.value}}"), (Binding(key, query, "page"), Binding(key, query, "pageSize")));
-            Assert.Equal(new[] { (picker == "yeniTedarikci" ? "yeniSatirlar" : "duzenleSatirlar") + ".standalonePurchaseReceiptLineId" }, Strings(Props(key, picker)["clearsOnChange"]));
-        }
-        Assert.Equal(("1", "100"), ((string)Props(key, "secenekSayfasi")["defaultValue"]!, (string)Props(key, "secenekBoyutu")["defaultValue"]!));
-        Assert.Equal(("{{yeniTedarikci.value}}", "{{yeniFaturaTarihi.value}}"), (Binding(key, "yeniKabulSatirlari", "supplierId"), Binding(key, "yeniKabulSatirlari", "invoiceDate")));
-        Assert.Equal("{{taslak.rows[0].id}}", Binding(key, "duzenleKabulSatirlari", "draftId"));
-
-        // Edit: the saved draft, its row version and its lines; refreshes the record after the save.
-        Assert.Equal(("taslakGuncelle", "satinalma.faturaTaslagi.guncelle"), ((string)Props(key, "duzenlePenceresi")["saveQuery"]!, Operation(key, "taslakGuncelle")));
-        Assert.Equal(("{{taslak.rows[0].id}}", "{{taslak.rows[0].rowVersion}}"), (Binding(key, "taslakGuncelle", "id"), Binding(key, "taslakGuncelle", "expectedRowVersion")));
-        Assert.Equal(new[] { "taslaklar", "taslak", "taslakSatirlari" }, Strings(Props(key, "duzenlePenceresi")["refreshQueries"]));
-        foreach (var (input, column) in new[] { ("duzenleTedarikci", "supplierId"), ("duzenleFaturaNo", "invoiceNumber"), ("duzenleFaturaTarihi", "invoiceDate"),
-                     ("duzenleVade", "dueDate"), ("duzenleDoviz", "currencyCode"), ("duzenleNotlar", "notes") })
-            Assert.Equal($"{{{{taslak.rows[0].{column}}}}}", (string)Props(key, input)["defaultValue"]!);
-        foreach (var opener in new[] { "duzenleDugmesi", "duzenleSatir", "detayDuzenle" })
-            Assert.Equal(("openDialog", "duzenlePenceresi"), ((string)Props(key, opener)["actionType"]!, (string)Props(key, opener)["dialogId"]!));
-        Assert.Equal("liste.seciliSatir.id == null || liste.seciliSatir.status != 'Draft'", (string)Props(key, "duzenleDugmesi")["disabledWhen"]!);
-
-        // Muhasebeleştir: the saved selected draft, confirmed, only while it is a draft.
-        Assert.Equal(("satinalma.faturaTaslagi.muhasebelestir", "{{liste.seciliSatir.id}}"), (Operation(key, "muhasebelestir"), Binding(key, "muhasebelestir", "id")));
-        foreach (var button in new[] { "muhasebelestirDugmesi", "muhasebelestirSatir" })
-        {
-            var props = Props(key, button);
-            Assert.Equal(("muhasebelestir", true), ((string)props["queryId"]!, (bool)props["confirmEnabled"]!));
-            Assert.False(string.IsNullOrWhiteSpace((string?)props["errorMessage"]));
-            Assert.Equal(new[] { "taslaklar", "taslak" }, Strings(props["refreshQueries"]));
-        }
-        Assert.Equal("liste.seciliSatir.id == null || liste.seciliSatir.status != 'Draft'", (string)Props(key, "muhasebelestirDugmesi")["disabledWhen"]!);
-        Assert.Equal("liste.seciliSatir.status == 'Draft'", (string)Props(key, "muhasebelestirSatir")["visibleWhen"]!);
-
-        // The legacy screen stays reachable as the last İşlemler command; the invoices page opens this standard.
-        var legacy = Assert.Single(Components(Definition(key)), x => (bool?)x["props"]?["legacyScreen"] == true);
-        Assert.Equal(("eskiEkranDugmesi", "sales-purchase-invoice-drafts"), ((string)legacy["id"]!, (string)legacy["props"]!["pageKey"]!));
-        Assert.Null(legacy["props"]!["params"]);
-        Assert.Equal("eskiEkranDugmesi", Strings(Props(key, "komutlar")["moreButtons"]).Last());
-        var drafts = Props("sales-purchase-invoices", "taslaklarDugmesi");
-        Assert.Equal(("erpPage", "sales-purchase-invoice-drafts"), ((string)drafts["actionType"]!, (string)drafts["pageKey"]!));
-        Assert.Null(drafts["legacyScreen"]);
-
-        var view = Assert.Single(SystemPageStandards.All[key].ScreenViews);
-        Assert.Equal(("standalone-invoice-drafts", "liste"), (view.Key, view.Component));
-        Assert.True(TenantScreenViewEndpoints.TryGetCatalogFields("standalone-invoice-drafts", out var fields));
-        Assert.Equal(fields.Where(x => x.Key != "actions").Select(x => x.Key).Order(StringComparer.Ordinal), view.Fields.Keys.Order(StringComparer.Ordinal));
+        var definition = Definition(key);
+        Assert.Equal("list", (string)definition["template"]!["name"]!);
+        Assert.DoesNotContain(Components(definition), x => (string?)x["type"] == "editableGrid");
+        var table = Props(key, "liste");
+        Assert.InRange(Strings(table["columns"]).Length, 1, 8);
+        Assert.Null(table["width"]);
+        Assert.Null(table["widthWhen"]);
+        Assert.Equal(("erpPage", "purchase-invoice-document"), ((string)Props(key, "duzenleDugmesi")["actionType"]!, (string)Props(key, "duzenleDugmesi")["pageKey"]!));
+        Assert.Equal("purchase-invoice-document", (string)Props("sales-purchase-invoices", "taslaklarDugmesi")["pageKey"]!);
     }
 
     [Theory]

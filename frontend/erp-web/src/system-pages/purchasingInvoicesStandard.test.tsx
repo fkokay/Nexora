@@ -109,13 +109,13 @@ describe('Alış faturaları standart tanımı', { timeout: 60000 }, () => {
     expect(h.writes()[0]).toMatchObject({ method: 'POST', url: `/api/purchasing/invoices/${I2}/void` });
   });
 
-  it('Mal kabulsüz fatura opens the drafts system page, İade oluştur the returns page; no Eski ekranda aç', async () => {
+  it('Mal kabulsüz fatura opens the invoice document, İade oluştur the returns page; no Eski ekranda aç', async () => {
     h.setup();
     await h.selectRow('AF-0002');
     await waitFor(() => expect(h.gets(`/api/purchasing/invoices/${I2}`).length).toBeGreaterThan(0), T);
     fireEvent.click(await h.menuItem(/^Mal kabulsüz fatura/));
     await waitFor(() => expect(h.state.navigations).toHaveLength(1), T);
-    expect(h.state.navigations[0]).toMatchObject({ page: 'sales-purchase-invoice-drafts' });
+    expect(h.state.navigations[0]).toMatchObject({ page: 'purchase-invoice-document' });
     expect(h.state.navigations[0].legacy).toBeFalsy();
     fireEvent.click(await h.menuItem(/^İade oluştur/));
     await waitFor(() => expect(h.state.navigations).toHaveLength(2), T);

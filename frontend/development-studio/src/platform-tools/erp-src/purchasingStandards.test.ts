@@ -9,10 +9,8 @@ import salesPurchaseQuotesJson from "../../../../../src/Hosts/AIERP.Api/SystemPa
 import salesPurchasingJson from "../../../../../src/Hosts/AIERP.Api/SystemPages/Standards/sales-purchasing.json?raw";
 import salesPurchaseDeliveryNotesJson from "../../../../../src/Hosts/AIERP.Api/SystemPages/Standards/sales-purchase-delivery-notes.json?raw";
 import salesPurchaseReceiptsJson from "../../../../../src/Hosts/AIERP.Api/SystemPages/Standards/sales-purchase-receipts.json?raw";
-import salesPurchaseInvoiceEntryJson from "../../../../../src/Hosts/AIERP.Api/SystemPages/Standards/sales-purchase-invoice-entry.json?raw";
 import salesPurchaseInvoicesJson from "../../../../../src/Hosts/AIERP.Api/SystemPages/Standards/sales-purchase-invoices.json?raw";
 import salesPurchaseReturnsJson from "../../../../../src/Hosts/AIERP.Api/SystemPages/Standards/sales-purchase-returns.json?raw";
-import salesPurchaseOrderCreateJson from "../../../../../src/Hosts/AIERP.Api/SystemPages/Standards/sales-purchase-order-create.json?raw";
 import salesPurchaseInvoiceDraftsJson from "../../../../../src/Hosts/AIERP.Api/SystemPages/Standards/sales-purchase-invoice-drafts.json?raw";
 
 // Satınalma standartları (src/Hosts/AIERP.Api/SystemPages/Standards/sales-*.json, Faz 1 + Satın Alma 2. dalga): tasarımcıda tanınmayan tür/özellik
@@ -20,7 +18,7 @@ import salesPurchaseInvoiceDraftsJson from "../../../../../src/Hosts/AIERP.Api/S
 type Component = { id: string; type: string; name?: string; props: Record<string, unknown>; children?: Component[] };
 type Standard = { definition: { queries: { id: string; name: string }[]; components: Component[]; template?: unknown } };
 const { reconcileDefinition, managedKeys, contentFields, palette } = designerInternals;
-const standards: [string, Standard][] = [["sales-requests", JSON.parse(salesRequestsJson)], ["sales-purchase-quotes", JSON.parse(salesPurchaseQuotesJson)], ["sales-purchasing", JSON.parse(salesPurchasingJson)], ["sales-purchase-delivery-notes", JSON.parse(salesPurchaseDeliveryNotesJson)], ["sales-purchase-receipts", JSON.parse(salesPurchaseReceiptsJson)], ["sales-purchase-invoice-entry", JSON.parse(salesPurchaseInvoiceEntryJson)], ["sales-purchase-invoices", JSON.parse(salesPurchaseInvoicesJson)], ["sales-purchase-returns", JSON.parse(salesPurchaseReturnsJson)], ["sales-purchase-order-create", JSON.parse(salesPurchaseOrderCreateJson)], ["sales-purchase-invoice-drafts", JSON.parse(salesPurchaseInvoiceDraftsJson)]];
+const standards: [string, Standard][] = [["sales-requests", JSON.parse(salesRequestsJson)], ["sales-purchase-quotes", JSON.parse(salesPurchaseQuotesJson)], ["sales-purchasing", JSON.parse(salesPurchasingJson)], ["sales-purchase-delivery-notes", JSON.parse(salesPurchaseDeliveryNotesJson)], ["sales-purchase-receipts", JSON.parse(salesPurchaseReceiptsJson)], ["sales-purchase-invoices", JSON.parse(salesPurchaseInvoicesJson)], ["sales-purchase-returns", JSON.parse(salesPurchaseReturnsJson)], ["sales-purchase-invoice-drafts", JSON.parse(salesPurchaseInvoiceDraftsJson)]];
 const flatten = (list: Component[]): Component[] => list.flatMap((component) => [component, ...flatten(component.children ?? [])]);
 const CONDITION_PROPS = ["visibleWhen", "disabledWhen", "requiredWhen", "activeWhen", "sequenceWhen", "defaultWhen", "countWhen"];
 

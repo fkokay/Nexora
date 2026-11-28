@@ -1,345 +1,280 @@
 {
-  "screenKey": "sales-purchase-invoice-drafts", "title": "Satınalma faturası taslakları",
-  "description": "Mal kabulsüz hizmet ve masraf faturalarını gider hesaplı satırlarla taslak olarak girin, düzenleyin ve muhasebeleştirin.", "module": "Satın Alma",
-  "version": 1, "stage": "preview",
+  "screenKey": "sales-purchase-invoice-drafts",
+  "title": "Satınalma faturası taslakları",
+  "description": "Satınalma faturası taslaklarını izleyin; düzenleme Belge sayfasında açılır.",
+  "module": "Satın Alma",
+  "version": 2,
+  "stage": "preview",
   "items": {
-    "component:komutlar": {"since": 1, "label": "İşlem çubuğu", "requires": ["component:suzgec", "component:liste", "component:yeniTaslakDugmesi", "component:duzenleDugmesi", "component:muhasebelestirDugmesi", "component:eskiEkranDugmesi", "query:taslaklar"]},
-    "component:taslakGostergesi": {"since": 1, "label": "Taslak göstergesi (bu sayfa)", "requires": ["query:taslaklar"]},
-    "component:muhasebeGostergesi": {"since": 1, "label": "Muhasebeleşti göstergesi (bu sayfa)", "requires": ["query:taslaklar"]},
-    "component:suzgec": {"since": 1, "label": "Süzgeç alanı (arama)", "requires": ["component:liste"]},
-    "component:detayPaneli": {"since": 1, "label": "Detay paneli anahtarı"},
-    "component:secenekSayfasi": {"since": 1, "label": "Tedarikçi seçici sayfası (gizli)"},
-    "component:secenekBoyutu": {"since": 1, "label": "Tedarikçi seçici sayfa boyutu (gizli)"},
-    "component:liste": {"since": 1, "label": "Fatura taslakları listesi", "requires": ["component:detayPaneli", "component:duzenleDugmesi", "component:duzenleSatir", "component:muhasebelestirSatir", "query:taslaklar"]},
-    "component:detayKarti": {"since": 1, "label": "Detay paneli", "requires": ["component:detayPaneli", "component:liste", "component:ozetPaneli", "component:panelSatirlari", "component:duzenlePenceresi", "query:taslak"]},
-    "component:ozetPaneli": {"since": 1, "label": "Detay: Özet", "requires": ["component:liste"]},
-    "component:panelSatirlari": {"since": 1, "label": "Detay: Satırlar", "requires": ["query:taslakSatirlari"]},
-    "component:yeniTaslakDugmesi": {"since": 1, "label": "Yeni taslak komutu", "requires": ["component:yeniTaslakPenceresi"]},
-    "component:yeniTaslakPenceresi": {"since": 1, "label": "Yeni fatura taslağı penceresi", "requires": ["component:yeniBilgiler", "component:yeniIstekKimligi", "component:yeniSatirlar", "component:yeniToplamlar", "component:yeniNotu", "query:taslakOlustur", "query:taslaklar"]},
-    "component:yeniBilgiler": {"since": 1, "label": "Yeni taslak: Fatura bilgileri", "requires": ["component:yeniTedarikci", "component:yeniFaturaNo", "component:yeniFaturaTarihi", "component:yeniVade", "component:yeniDoviz", "component:yeniNotlar"]},
-    "component:yeniTedarikci": {"since": 1, "label": "Yeni taslak alanı: Tedarikçi", "requires": ["component:yeniSatirlar", "component:secenekSayfasi", "component:secenekBoyutu", "query:yeniTedarikciler"]},
-    "component:yeniFaturaNo": {"since": 1, "label": "Yeni taslak alanı: Tedarikçi fatura no"},
-    "component:yeniFaturaTarihi": {"since": 1, "label": "Yeni taslak alanı: Fatura tarihi"},
-    "component:yeniVade": {"since": 1, "label": "Yeni taslak alanı: Vade tarihi"},
-    "component:yeniDoviz": {"since": 1, "label": "Yeni taslak alanı: Para birimi"},
-    "component:yeniNotlar": {"since": 1, "label": "Yeni taslak alanı: Not"},
-    "component:yeniIstekKimligi": {"since": 1, "label": "Yeni taslak tekrar deneme kimliği (gizli)"},
-    "component:yeniSatirlar": {"since": 1, "label": "Yeni taslak satırları", "requires": ["query:giderHesaplari", "query:yeniKabulSatirlari"]},
-    "component:yeniToplamlar": {"since": 1, "label": "Yeni taslak toplamları", "requires": ["component:yeniSatirlar", "component:yeniDoviz"]},
-    "component:yeniNotu": {"since": 1, "label": "Yeni taslak notu"},
-    "component:duzenleDugmesi": {"since": 1, "label": "Taslağı düzenle komutu", "requires": ["component:duzenlePenceresi", "component:liste"]},
-    "component:duzenleSatir": {"since": 1, "label": "Düzenle satır düğmesi", "requires": ["component:duzenlePenceresi", "component:liste"]},
-    "component:duzenlePenceresi": {"since": 1, "label": "Fatura taslağını düzenleme penceresi", "requires": ["component:duzenleBilgiler", "component:duzenleSatirlar", "component:duzenleToplamlar", "component:duzenleNotu", "query:taslakGuncelle", "query:taslaklar", "query:taslak", "query:taslakSatirlari"]},
-    "component:duzenleBilgiler": {"since": 1, "label": "Düzenleme: Fatura bilgileri", "requires": ["component:duzenleTedarikci", "component:duzenleFaturaNo", "component:duzenleFaturaTarihi", "component:duzenleVade", "component:duzenleDoviz", "component:duzenleNotlar"]},
-    "component:duzenleTedarikci": {"since": 1, "label": "Düzenleme alanı: Tedarikçi", "requires": ["component:duzenleSatirlar", "component:secenekSayfasi", "component:secenekBoyutu", "query:duzenleTedarikciler", "query:taslak"]},
-    "component:duzenleFaturaNo": {"since": 1, "label": "Düzenleme alanı: Tedarikçi fatura no", "requires": ["query:taslak"]},
-    "component:duzenleFaturaTarihi": {"since": 1, "label": "Düzenleme alanı: Fatura tarihi", "requires": ["query:taslak"]},
-    "component:duzenleVade": {"since": 1, "label": "Düzenleme alanı: Vade tarihi", "requires": ["query:taslak"]},
-    "component:duzenleDoviz": {"since": 1, "label": "Düzenleme alanı: Para birimi", "requires": ["query:taslak"]},
-    "component:duzenleNotlar": {"since": 1, "label": "Düzenleme alanı: Not", "requires": ["query:taslak"]},
-    "component:duzenleSatirlar": {"since": 1, "label": "Düzenleme: Taslak satırları", "requires": ["query:taslakSatirlari", "query:giderHesaplari", "query:duzenleKabulSatirlari"]},
-    "component:duzenleToplamlar": {"since": 1, "label": "Düzenleme: Toplamlar", "requires": ["component:duzenleSatirlar", "component:duzenleDoviz"]},
-    "component:duzenleNotu": {"since": 1, "label": "Düzenleme notu"},
-    "component:muhasebelestirDugmesi": {"since": 1, "label": "Muhasebeleştir komutu", "requires": ["component:liste", "query:muhasebelestir", "query:taslaklar", "query:taslak"]},
-    "component:muhasebelestirSatir": {"since": 1, "label": "Muhasebeleştir satır düğmesi", "requires": ["component:liste", "query:muhasebelestir", "query:taslaklar", "query:taslak"]},
-    "component:eskiEkranDugmesi": {"since": 1, "label": "Eski ekranda aç komutu"},
-    "query:taslaklar": {"since": 1, "label": "Fatura taslaklarını listele", "requires": ["component:suzgec", "component:liste"]},
-    "query:taslak": {"since": 1, "label": "Seçili fatura taslağı", "requires": ["component:liste"]},
-    "query:taslakSatirlari": {"since": 1, "label": "Seçili taslağın satırları", "requires": ["component:liste"]},
-    "query:giderHesaplari": {"since": 1, "label": "Aktif gider hesapları"},
-    "query:yeniTedarikciler": {"since": 1, "label": "Tedarikçi seçenekleri (yeni taslak)", "requires": ["component:yeniTedarikci", "component:secenekSayfasi", "component:secenekBoyutu"]},
-    "query:duzenleTedarikciler": {"since": 1, "label": "Tedarikçi seçenekleri (düzenleme)", "requires": ["component:duzenleTedarikci", "component:secenekSayfasi", "component:secenekBoyutu"]},
-    "query:yeniKabulSatirlari": {"since": 1, "label": "Siparişsiz mal kabul satırları (yeni taslak)", "requires": ["component:yeniTedarikci", "component:yeniFaturaTarihi"]},
-    "query:duzenleKabulSatirlari": {"since": 1, "label": "Siparişsiz mal kabul satırları (düzenleme)", "requires": ["component:duzenleTedarikci", "component:duzenleFaturaTarihi", "query:taslak"]},
-    "query:taslakOlustur": {"since": 1, "label": "Fatura taslağı oluştur",
-      "requires": ["component:yeniIstekKimligi", "component:yeniTedarikci", "component:yeniFaturaNo", "component:yeniFaturaTarihi", "component:yeniVade", "component:yeniDoviz", "component:yeniNotlar", "component:yeniSatirlar"]},
-    "query:taslakGuncelle": {"since": 1, "label": "Fatura taslağını güncelle",
-      "requires": ["component:duzenleTedarikci", "component:duzenleFaturaNo", "component:duzenleFaturaTarihi", "component:duzenleVade", "component:duzenleDoviz", "component:duzenleNotlar", "component:duzenleSatirlar", "query:taslak"]},
-    "query:muhasebelestir": {"since": 1, "label": "Fatura taslağını muhasebeleştir", "requires": ["component:liste"]}
+    "component:komutlar": {
+      "since": 1,
+      "label": "İşlem çubuğu",
+      "requires": [
+        "component:suzgec",
+        "component:liste",
+        "component:duzenleDugmesi",
+        "component:muhasebelestirDugmesi",
+        "query:taslaklar"
+      ]
+    },
+    "component:suzgec": {
+      "since": 1,
+      "label": "Arama süzgeci",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:liste": {
+      "since": 1,
+      "label": "Fatura taslakları listesi",
+      "requires": [
+        "query:taslaklar"
+      ]
+    },
+    "component:duzenleDugmesi": {
+      "since": 2,
+      "label": "Taslağı Belge sayfasında düzenle"
+    },
+    "component:muhasebelestirDugmesi": {
+      "since": 1,
+      "label": "Muhasebeleştir komutu",
+      "requires": [
+        "query:muhasebelestir",
+        "query:taslaklar"
+      ]
+    },
+    "component:muhasebelestirSatir": {
+      "since": 2,
+      "label": "Satır muhasebeleştir komutu",
+      "requires": [
+        "component:liste",
+        "query:muhasebelestir"
+      ]
+    },
+    "query:taslaklar": {
+      "since": 1,
+      "label": "Fatura taslaklarını listele",
+      "requires": [
+        "component:liste",
+        "component:suzgec"
+      ]
+    },
+    "query:muhasebelestir": {
+      "since": 1,
+      "label": "Fatura taslağını muhasebeleştir",
+      "requires": [
+        "component:liste"
+      ]
+    }
   },
-  "screenViews": [ { "key": "standalone-invoice-drafts", "component": "liste",
-                     "fields": { "invoiceNumber": "invoiceNumber", "supplierName": "supplierName", "invoiceDate": "invoiceDate", "dueDate": "dueDate",
-                                 "currencyCode": "currencyCode", "grandTotal": "grandTotal", "lineCount": "lineCount", "createdAt": "createdAt",
-                                 "status": "status" } } ],
+  "screenViews": [
+    {
+      "key": "standalone-invoice-drafts",
+      "component": "liste",
+      "fields": {
+        "invoiceNumber": "invoiceNumber",
+        "supplierName": "supplierName",
+        "invoiceDate": "invoiceDate",
+        "dueDate": "dueDate",
+        "currencyCode": "currencyCode",
+        "grandTotal": "grandTotal",
+        "status": "status"
+      }
+    }
+  ],
   "definition": {
     "schemaVersion": 2,
     "components": [
-      { "id": "komutlar", "type": "actionBar", "name": "komutlar",
-        "props": { "newButton": "yeniTaslakDugmesi", "openButton": "duzenleDugmesi", "focusInput": "suzgec", "exportTable": "liste",
-                   "titleCount": "{{taslaklar.meta.totalCount}}",
-                   "moreButtons": ["muhasebelestirDugmesi", "eskiEkranDugmesi"],
-                   "hiddenCommands": ["save", "delete", "print"] } },
-
-      { "id": "taslakGostergesi", "type": "metric", "name": "taslakGostergesi",
-        "props": { "title": "Taslak", "query": "taslaklar", "countWhen": "taslaklar.satir.status == 'Draft'", "icon": "file-text",
-                   "variant": "warning", "description": "bu sayfa · muhasebeleşmedi", "width": 3 } },
-      { "id": "muhasebeGostergesi", "type": "metric", "name": "muhasebeGostergesi",
-        "props": { "title": "Muhasebeleşti", "query": "taslaklar", "countWhen": "taslaklar.satir.status == 'Posted'", "icon": "receipt",
-                   "variant": "success", "description": "bu sayfa", "width": 3 } },
-
-      { "id": "suzgec", "type": "filterBar", "name": "suzgec",
-        "props": { "table": "liste", "width": 12, "search": true, "searchPlaceholder": "Fatura no veya tedarikçi ara", "searchParam": "q" } },
-      { "id": "detayPaneli", "type": "input", "name": "detayPaneli",
-        "props": { "inputType": "checkbox", "label": "Detay paneli", "icon": "panel", "defaultWhen": "sayfa.genis == true" } },
-      { "id": "secenekSayfasi", "type": "input", "name": "secenekSayfasi",
-        "props": { "inputType": "text", "label": "Tedarikçi seçici sayfası", "hidden": true, "defaultValue": "1" } },
-      { "id": "secenekBoyutu", "type": "input", "name": "secenekBoyutu",
-        "props": { "inputType": "text", "label": "Tedarikçi seçici sayfa boyutu", "hidden": true, "defaultValue": "100" } },
-
-      { "id": "liste", "type": "dataTable", "name": "liste",
-        "props": { "title": "Fatura taslakları", "query": "taslaklar", "paging": "server", "pageSize": 25, "width": 12,
-                   "widthWhen": "8=detayPaneli.value == true && liste.seciliSatir.id != null",
-                   "detailToggleInput": "detayPaneli",
-                   "columns": ["invoiceNumber", "invoiceDate", "supplierName", "dueDate", "grandTotal", "lineCount", "status"],
-                   "columnLabels": ["invoiceNumber=Fatura no", "invoiceDate=Fatura tarihi", "supplierName=Tedarikçi", "dueDate=Vade",
-                                    "grandTotal=Genel toplam", "lineCount=Satır", "status=Durum", "currencyCode=Döviz", "createdAt=Kaydedilme"],
-                   "columnUnits": ["grandTotal=currencyCode"],
-                   "columnFormats": ["invoiceNumber=code", "invoiceDate=date", "dueDate=date", "grandTotal=money", "lineCount=number",
-                                     "status=status", "createdAt=date"],
-                   "valueLabels": ["status:Draft=Taslak", "status:Posted=Muhasebeleşti"],
-                   "toneMap": ["Taslak=warning", "Muhasebeleşti=success"],
-                   "rowActions": ["duzenleSatir", "muhasebelestirSatir"], "rowOpenAction": "duzenleDugmesi",
-                   "emptyText": "Fatura taslağı yok. Mal kabulsüz hizmet veya masraf faturası için Yeni ile taslak oluşturun." } },
-      { "id": "duzenleDugmesi", "type": "button", "name": "duzenleDugmesi",
-        "props": { "text": "Düzenle", "icon": "open", "actionType": "openDialog", "dialogId": "duzenlePenceresi",
-                   "disabledWhen": "liste.seciliSatir.id == null || liste.seciliSatir.status != 'Draft'",
-                   "disabledReason": "Yalnız muhasebeleşmemiş bir taslak düzenlenebilir." } },
-      { "id": "duzenleSatir", "type": "button", "name": "duzenleSatir",
-        "props": { "text": "Düzenle", "actionType": "openDialog", "dialogId": "duzenlePenceresi",
-                   "visibleWhen": "liste.seciliSatir.status == 'Draft'" } },
-      { "id": "muhasebelestirSatir", "type": "button", "name": "muhasebelestirSatir",
-        "props": { "text": "Muhasebeleştir", "actionType": "query", "queryId": "muhasebelestir", "confirmEnabled": true,
-                   "confirmText": "{{liste.seciliSatir.invoiceNumber}} taslağı muhasebeleştirilsin mi? Yevmiye fişi ve tedarikçi borcu oluşur; muhasebeleşen taslak düzenlenemez.",
-                   "successMessage": "Fatura taslağı muhasebeleştirildi; yevmiye fişi ve cari hareket oluşturuldu.",
-                   "errorMessage": "Fatura taslağı muhasebeleştirilemedi.", "refreshQueries": ["taslaklar", "taslak"],
-                   "visibleWhen": "liste.seciliSatir.status == 'Draft'" } },
-
-      { "id": "detayKarti", "type": "card", "name": "detayKarti",
-        "props": { "variant": "panel", "title": "{{liste.seciliSatir.invoiceNumber}}", "description": "{{liste.seciliSatir.supplierName}}",
-                   "closeInput": "detayPaneli", "width": 4,
-                   "visibleWhen": "detayPaneli.value == true && liste.seciliSatir.id != null" },
-        "children": [
-          { "id": "detayTaslak", "type": "badge", "name": "detayTaslak",
-            "props": { "text": "Taslak", "variant": "warning", "visibleWhen": "liste.seciliSatir.status == 'Draft'" } },
-          { "id": "detayMuhasebelesti", "type": "badge", "name": "detayMuhasebelesti",
-            "props": { "text": "Muhasebeleşti", "variant": "success", "visibleWhen": "liste.seciliSatir.status == 'Posted'" } },
-          { "id": "genelToplamGostergesi", "type": "metric", "name": "genelToplamGostergesi",
-            "props": { "title": "Genel toplam", "value": "{{liste.seciliSatir.grandTotal}}", "format": "money", "width": 6, "icon": "receipt",
-                       "description": "{{liste.seciliSatir.currencyCode}}" } },
-          { "id": "araToplamGostergesi", "type": "metric", "name": "araToplamGostergesi",
-            "props": { "title": "Ara toplam", "value": "{{taslak.rows[0].subtotal}}", "format": "money", "width": 6, "icon": "calculator",
-                       "description": "İskonto {{taslak.rows[0].discountTotal}}" } },
-          { "id": "kdvGostergesi", "type": "metric", "name": "kdvGostergesi",
-            "props": { "title": "KDV", "value": "{{taslak.rows[0].taxTotal}}", "format": "money", "width": 6, "icon": "landmark",
-                       "description": "{{taslak.rows[0].currencyCode}}" } },
-          { "id": "vadeGostergesi", "type": "metric", "name": "vadeGostergesi",
-            "props": { "title": "Vade", "value": "{{liste.seciliSatir.dueDate}}", "format": "date", "width": 6, "icon": "calendar" } },
-          { "id": "detaySekmeleri", "type": "tabs", "name": "detaySekmeleri",
-            "props": { "tabs": ["Özet=ozetPaneli", "Satırlar=panelSatirlari"] } },
-          { "id": "detayNot", "type": "text", "name": "detayNot",
-            "props": { "title": "Not", "text": "{{taslak.rows[0].notes}}", "visibleWhen": "taslak.rows[0].notes != null" } },
-          { "id": "detayDuzenle", "type": "button", "name": "detayDuzenle",
-            "props": { "text": "Taslağı düzenle ›", "actionType": "openDialog", "dialogId": "duzenlePenceresi",
-                       "visibleWhen": "liste.seciliSatir.status == 'Draft'" } }
-        ] },
-      { "id": "ozetPaneli", "type": "contextPanel", "name": "ozetPaneli",
-        "props": { "table": "liste", "width": 12,
-                   "fields": ["invoiceDate=Fatura tarihi", "dueDate=Vade", "currencyCode=Döviz", "lineCount=Satır sayısı", "status=Durum",
-                              "createdAt=Kaydedilme"] } },
-      { "id": "panelSatirlari", "type": "dataTable", "name": "panelSatirlari",
-        "props": { "title": "Satırlar", "query": "taslakSatirlari", "width": 12, "showGridSearch": false, "showColumnFilters": false,
-                   "showColumnChooser": false, "showExport": false, "showPivot": false, "showCsv": false, "showSelectedExport": false,
-                   "columns": ["lineNumber", "description", "quantity", "taxAmount", "total"],
-                   "columnLabels": ["lineNumber=#", "description=Açıklama", "quantity=Miktar", "taxAmount=KDV", "total=Toplam"],
-                   "columnUnits": ["quantity=unitCode"],
-                   "columnFormats": ["lineNumber=number", "quantity=number", "taxAmount=money", "total=money"],
-                   "emptyText": "Satır yok." } },
-
-      { "id": "yeniTaslakDugmesi", "type": "button", "name": "yeniTaslakDugmesi",
-        "props": { "text": "Yeni taslak", "actionType": "openDialog", "dialogId": "yeniTaslakPenceresi" } },
-      { "id": "yeniTaslakPenceresi", "type": "dialog", "name": "yeniTaslakPenceresi",
-        "props": { "presentation": "dialog", "size": "xl", "title": "Yeni satınalma faturası taslağı",
-                   "contains": ["yeniBilgiler", "yeniIstekKimligi", "yeniSatirlar", "yeniToplamlar", "yeniNotu"],
-                   "saveQuery": "taslakOlustur", "saveLabel": "Taslağı kaydet", "closeOnSave": true, "resetOnOpen": true,
-                   "refreshQueries": ["taslaklar"] } },
-      { "id": "yeniBilgiler", "type": "formCard", "name": "yeniBilgiler",
-        "props": { "title": "Fatura bilgileri", "columns": 3,
-                   "inputs": ["yeniTedarikci", "yeniFaturaNo", "yeniFaturaTarihi", "yeniVade", "yeniDoviz", "yeniNotlar"] } },
-      { "id": "yeniTedarikci", "type": "input", "name": "yeniTedarikci",
-        "props": { "inputType": "lookup", "label": "Tedarikçi", "required": true, "optionsQuery": "yeniTedarikciler", "optionValueColumn": "id",
-                   "optionLabelColumn": "name", "optionDescriptionColumn": "currencyCode", "minChars": 0,
-                   "clearsOnChange": ["yeniSatirlar.standalonePurchaseReceiptLineId"] } },
-      { "id": "yeniFaturaNo", "type": "input", "name": "yeniFaturaNo",
-        "props": { "inputType": "text", "label": "Tedarikçi fatura no", "required": true, "maxLength": 100, "placeholder": "HZM-2026-0042" } },
-      { "id": "yeniFaturaTarihi", "type": "input", "name": "yeniFaturaTarihi",
-        "props": { "inputType": "date", "label": "Fatura tarihi", "required": true, "defaultValue": "{{bugun}}" } },
-      { "id": "yeniVade", "type": "input", "name": "yeniVade",
-        "props": { "inputType": "date", "label": "Vade tarihi" } },
-      { "id": "yeniDoviz", "type": "input", "name": "yeniDoviz",
-        "props": { "inputType": "text", "label": "Para birimi", "required": true, "maxLength": 3, "upperCase": true, "defaultValue": "TRY",
-                   "pattern": "^[A-Z]{3}$", "patternMessage": "Para birimi 3 harfli kod olmalıdır (ör. TRY)." } },
-      { "id": "yeniNotlar", "type": "input", "name": "yeniNotlar",
-        "props": { "inputType": "text", "label": "Not", "maxLength": 1000 } },
-      { "id": "yeniIstekKimligi", "type": "input", "name": "yeniIstekKimligi",
-        "props": { "inputType": "text", "label": "Taslak tekrar deneme kimliği", "hidden": true, "autoId": true } },
-      { "id": "yeniSatirlar", "type": "editableGrid", "name": "yeniSatirlar",
-        "props": { "gridMode": "list", "title": "Fatura satırları", "addLabel": "Satır ekle", "maxRows": 100, "minRows": 1,
-                   "gridColumns": ["lineNumber|#|number|readOnly",
-                                   "standalonePurchaseReceiptLineId|Mal kabul satırı|lookup:yeniKabulSatirlari:lineId:receiptCode:stockName",
-                                   "expenseAccountId|Gider hesabı|lookup:giderHesaplari:id:code:name",
-                                   "description|Açıklama|text|required,maxLength:240",
-                                   "quantity|Miktar|number|min:0,step:0.0001",
-                                   "unitCode|Birim|text|maxLength:12",
-                                   "unitPrice|Birim fiyat|number|min:0,step:0.0001",
-                                   "subtotal|Ara toplam|number",
-                                   "discountAmount|İskonto|number|min:0,step:0.01",
-                                   "vatRate|KDV %|number|min:0,max:100,step:0.01",
-                                   "taxAmount|KDV|number",
-                                   "total|Toplam|number"],
-                   "columnOptionsWhen": ["expenseAccountId=satir.isActive == true"],
-                   "rowNumberColumn": "lineNumber",
-                   "formulas": { "subtotal": "quantity * unitPrice", "taxAmount": "(subtotal - discountAmount) * vatRate / 100",
-                                 "total": "subtotal - discountAmount + taxAmount" },
-                   "lookupFills": { "standalonePurchaseReceiptLineId": { "description": "stockName", "quantity": "quantity", "unitCode": "unitCode", "unitPrice": "unitCostBase" },
-                                    "expenseAccountId": { "description": "name" } },
-                   "totals": ["subtotal", "discountAmount", "taxAmount", "total"] } },
-      { "id": "yeniToplamlar", "type": "recordHeader", "name": "yeniToplamlar",
-        "props": { "title": "Belge toplamları",
-                   "fields": ["Ara toplam={{yeniSatirlar.toplam.subtotal}}", "İskonto={{yeniSatirlar.toplam.discountAmount}}",
-                              "KDV={{yeniSatirlar.toplam.taxAmount}}", "Genel toplam={{yeniSatirlar.toplam.total}}"],
-                   "fieldFormats": ["Ara toplam=money", "İskonto=money", "KDV=money", "Genel toplam=money"],
-                   "fieldUnits": ["Ara toplam={{yeniDoviz.value}}", "İskonto={{yeniDoviz.value}}", "KDV={{yeniDoviz.value}}", "Genel toplam={{yeniDoviz.value}}"] } },
-      { "id": "yeniNotu", "type": "text", "name": "yeniNotu",
-        "props": { "text": "Ara toplam, KDV ve toplam satırdan hesaplanır; belge toplamları satır toplamlarıdır. Siparişsiz mal kabul satırı seçilen satırda gider hesabı seçmeyin; diğer satırlarda gider hesabı zorunludur (muhasebeleştirmede denetlenir). Taslak kaydı muhasebe kaydı oluşturmaz." } },
-
-      { "id": "duzenlePenceresi", "type": "dialog", "name": "duzenlePenceresi",
-        "props": { "presentation": "dialog", "size": "xl", "title": "Fatura taslağı · {{taslak.rows[0].invoiceNumber}}",
-                   "contains": ["duzenleBilgiler", "duzenleSatirlar", "duzenleToplamlar", "duzenleNotu"],
-                   "saveQuery": "taslakGuncelle", "saveLabel": "Değişiklikleri kaydet", "closeOnSave": true, "resetOnOpen": true,
-                   "refreshQueries": ["taslaklar", "taslak", "taslakSatirlari"] } },
-      { "id": "duzenleBilgiler", "type": "formCard", "name": "duzenleBilgiler",
-        "props": { "title": "Fatura bilgileri", "columns": 3,
-                   "inputs": ["duzenleTedarikci", "duzenleFaturaNo", "duzenleFaturaTarihi", "duzenleVade", "duzenleDoviz", "duzenleNotlar"] } },
-      { "id": "duzenleTedarikci", "type": "input", "name": "duzenleTedarikci",
-        "props": { "inputType": "lookup", "label": "Tedarikçi", "required": true, "optionsQuery": "duzenleTedarikciler", "optionValueColumn": "id",
-                   "optionLabelColumn": "name", "optionDescriptionColumn": "currencyCode", "minChars": 0,
-                   "defaultValue": "{{taslak.rows[0].supplierId}}",
-                   "clearsOnChange": ["duzenleSatirlar.standalonePurchaseReceiptLineId"] } },
-      { "id": "duzenleFaturaNo", "type": "input", "name": "duzenleFaturaNo",
-        "props": { "inputType": "text", "label": "Tedarikçi fatura no", "required": true, "maxLength": 100,
-                   "defaultValue": "{{taslak.rows[0].invoiceNumber}}" } },
-      { "id": "duzenleFaturaTarihi", "type": "input", "name": "duzenleFaturaTarihi",
-        "props": { "inputType": "date", "label": "Fatura tarihi", "required": true, "defaultValue": "{{taslak.rows[0].invoiceDate}}" } },
-      { "id": "duzenleVade", "type": "input", "name": "duzenleVade",
-        "props": { "inputType": "date", "label": "Vade tarihi", "defaultValue": "{{taslak.rows[0].dueDate}}" } },
-      { "id": "duzenleDoviz", "type": "input", "name": "duzenleDoviz",
-        "props": { "inputType": "text", "label": "Para birimi", "required": true, "maxLength": 3, "upperCase": true,
-                   "defaultValue": "{{taslak.rows[0].currencyCode}}",
-                   "pattern": "^[A-Z]{3}$", "patternMessage": "Para birimi 3 harfli kod olmalıdır (ör. TRY)." } },
-      { "id": "duzenleNotlar", "type": "input", "name": "duzenleNotlar",
-        "props": { "inputType": "text", "label": "Not", "maxLength": 1000, "defaultValue": "{{taslak.rows[0].notes}}" } },
-      { "id": "duzenleSatirlar", "type": "editableGrid", "name": "duzenleSatirlar",
-        "props": { "gridMode": "list", "title": "Fatura satırları", "addLabel": "Satır ekle", "maxRows": 100, "minRows": 1,
-                   "gridColumns": ["lineNumber|#|number|readOnly",
-                                   "standalonePurchaseReceiptLineId|Mal kabul satırı|lookup:duzenleKabulSatirlari:lineId:receiptCode:stockName",
-                                   "expenseAccountId|Gider hesabı|lookup:giderHesaplari:id:code:name",
-                                   "description|Açıklama|text|required,maxLength:240",
-                                   "quantity|Miktar|number|min:0,step:0.0001",
-                                   "unitCode|Birim|text|maxLength:12",
-                                   "unitPrice|Birim fiyat|number|min:0,step:0.0001",
-                                   "subtotal|Ara toplam|number",
-                                   "discountAmount|İskonto|number|min:0,step:0.01",
-                                   "vatRate|KDV %|number|min:0,max:100,step:0.01",
-                                   "taxAmount|KDV|number",
-                                   "total|Toplam|number"],
-                   "columnOptionsWhen": ["expenseAccountId=satir.isActive == true"],
-                   "fillQuery": "taslakSatirlari",
-                   "rowNumberColumn": "lineNumber",
-                   "formulas": { "subtotal": "quantity * unitPrice", "taxAmount": "(subtotal - discountAmount) * vatRate / 100",
-                                 "total": "subtotal - discountAmount + taxAmount" },
-                   "lookupFills": { "standalonePurchaseReceiptLineId": { "description": "stockName", "quantity": "quantity", "unitCode": "unitCode", "unitPrice": "unitCostBase" },
-                                    "expenseAccountId": { "description": "name" } },
-                   "totals": ["subtotal", "discountAmount", "taxAmount", "total"] } },
-      { "id": "duzenleToplamlar", "type": "recordHeader", "name": "duzenleToplamlar",
-        "props": { "title": "Belge toplamları",
-                   "fields": ["Ara toplam={{duzenleSatirlar.toplam.subtotal}}", "İskonto={{duzenleSatirlar.toplam.discountAmount}}",
-                              "KDV={{duzenleSatirlar.toplam.taxAmount}}", "Genel toplam={{duzenleSatirlar.toplam.total}}"],
-                   "fieldFormats": ["Ara toplam=money", "İskonto=money", "KDV=money", "Genel toplam=money"],
-                   "fieldUnits": ["Ara toplam={{duzenleDoviz.value}}", "İskonto={{duzenleDoviz.value}}", "KDV={{duzenleDoviz.value}}", "Genel toplam={{duzenleDoviz.value}}"] } },
-      { "id": "duzenleNotu", "type": "text", "name": "duzenleNotu",
-        "props": { "text": "Kayıt bütün satırları değiştirir. Tutarlar satırdan yeniden hesaplanır. Taslak bu arada başka biri tarafından değiştirildiyse kayıt reddedilir; taslağı yenileyip tekrar deneyin." } },
-
-      { "id": "muhasebelestirDugmesi", "type": "button", "name": "muhasebelestirDugmesi",
-        "props": { "text": "Muhasebeleştir", "actionType": "query", "queryId": "muhasebelestir", "confirmEnabled": true,
-                   "confirmText": "{{liste.seciliSatir.invoiceNumber}} taslağı muhasebeleştirilsin mi? Yevmiye fişi ve tedarikçi borcu oluşur; muhasebeleşen taslak düzenlenemez.",
-                   "successMessage": "Fatura taslağı muhasebeleştirildi; yevmiye fişi ve cari hareket oluşturuldu.",
-                   "errorMessage": "Fatura taslağı muhasebeleştirilemedi.", "refreshQueries": ["taslaklar", "taslak"],
-                   "disabledWhen": "liste.seciliSatir.id == null || liste.seciliSatir.status != 'Draft'",
-                   "disabledReason": "Yalnız muhasebeleşmemiş bir taslak muhasebeleştirilir." } },
-      { "id": "eskiEkranDugmesi", "type": "button", "name": "eskiEkranDugmesi",
-        "props": { "text": "Eski ekranda aç", "actionType": "erpPage", "pageKey": "sales-purchase-invoice-drafts", "legacyScreen": true } }
+      {
+        "id": "komutlar",
+        "type": "actionBar",
+        "name": "komutlar",
+        "props": {
+          "newAction": "page",
+          "newPageCode": "@purchase-invoice-document",
+          "newTarget": "newTab",
+          "openAction": "page",
+          "openPageCode": "@purchase-invoice-document",
+          "openTarget": "newTab",
+          "openTable": "liste",
+          "openParams": [
+            "id={{liste.seciliSatir.id}}"
+          ],
+          "focusInput": "suzgec",
+          "exportTable": "liste",
+          "titleCount": "{{taslaklar.meta.totalCount}}",
+          "moreButtons": [
+            "muhasebelestirDugmesi"
+          ],
+          "hiddenCommands": [
+            "save",
+            "delete",
+            "print"
+          ],
+          "slot": "commands"
+        }
+      },
+      {
+        "id": "duzenleDugmesi",
+        "type": "button",
+        "name": "duzenleDugmesi",
+        "props": {
+          "text": "Düzenle",
+          "actionType": "erpPage",
+          "pageKey": "purchase-invoice-document",
+          "target": "newTab",
+          "params": [
+            "id={{liste.seciliSatir.id}}"
+          ],
+          "disabledWhen": "liste.seciliSatir.id == null || liste.seciliSatir.status != 'Draft'",
+          "disabledReason": "Yalnız taslaklar düzenlenebilir.",
+          "slot": "rowActions"
+        }
+      },
+      {
+        "id": "muhasebelestirDugmesi",
+        "type": "button",
+        "name": "muhasebelestirDugmesi",
+        "props": {
+          "text": "Muhasebeleştir",
+          "actionType": "query",
+          "queryId": "muhasebelestir",
+          "confirmEnabled": true,
+          "confirmText": "{{liste.seciliSatir.invoiceNumber}} taslağı muhasebeleştirilsin mi? Yevmiye fişi ve tedarikçi borcu oluşur; muhasebeleşen taslak düzenlenemez.",
+          "successMessage": "Fatura taslağı muhasebeleştirildi; yevmiye fişi ve cari hareket oluşturuldu.",
+          "refreshQueries": [
+            "taslaklar"
+          ],
+          "disabledWhen": "liste.seciliSatir.id == null || liste.seciliSatir.status != 'Draft'",
+          "disabledReason": "Yalnız taslaklar muhasebeleştirilebilir.",
+          "slot": "actions"
+        }
+      },
+      {
+        "id": "muhasebelestirSatir",
+        "type": "button",
+        "name": "muhasebelestirSatir",
+        "props": {
+          "text": "Muhasebeleştir",
+          "actionType": "query",
+          "queryId": "muhasebelestir",
+          "confirmEnabled": true,
+          "confirmText": "{{liste.seciliSatir.invoiceNumber}} taslağı muhasebeleştirilsin mi? Yevmiye fişi ve tedarikçi borcu oluşur; muhasebeleşen taslak düzenlenemez.",
+          "successMessage": "Fatura taslağı muhasebeleştirildi; yevmiye fişi ve cari hareket oluşturuldu.",
+          "refreshQueries": [
+            "taslaklar"
+          ],
+          "visibleWhen": "liste.seciliSatir.status == 'Draft'",
+          "slot": "rowActions"
+        }
+      },
+      {
+        "id": "suzgec",
+        "type": "filterBar",
+        "name": "suzgec",
+        "props": {
+          "table": "liste",
+          "search": true,
+          "searchPlaceholder": "Fatura no veya tedarikçi ara",
+          "searchParam": "q",
+          "filters": [
+            "status|select|row||Durum"
+          ],
+          "slot": "filters"
+        }
+      },
+      {
+        "id": "liste",
+        "type": "dataTable",
+        "name": "liste",
+        "props": {
+          "title": "Fatura taslakları",
+          "query": "taslaklar",
+          "paging": "server",
+          "pageSize": 25,
+          "columns": [
+            "invoiceNumber",
+            "supplierName",
+            "invoiceDate",
+            "dueDate",
+            "status",
+            "grandTotal",
+            "currencyCode"
+          ],
+          "columnLabels": [
+            "invoiceNumber=Fatura no",
+            "supplierName=Tedarikçi",
+            "invoiceDate=Tarih",
+            "dueDate=Vade",
+            "status=Durum",
+            "grandTotal=Toplam"
+          ],
+          "columnUnits": [
+            "grandTotal=currencyCode"
+          ],
+          "columnFormats": [
+            "invoiceNumber=code",
+            "invoiceDate=date",
+            "dueDate=date",
+            "grandTotal=money",
+            "status=status"
+          ],
+          "valueLabels": [
+            "status:Draft=Taslak",
+            "status:Posted=Muhasebeleşti"
+          ],
+          "rowActions": [
+            "duzenleDugmesi",
+            "muhasebelestirSatir"
+          ],
+          "rowOpenAction": "duzenleDugmesi",
+          "emptyText": "Fatura taslağı yok.",
+          "slot": "list"
+        }
+      }
     ],
     "queries": [
-      { "id": "taslaklar", "name": "taslaklar", "kind": "read", "operation": "satinalma.faturaTaslagi.listele", "runOn": "load",
+      {
+        "id": "taslaklar",
+        "name": "taslaklar",
+        "kind": "read",
+        "operation": "satinalma.faturaTaslagi.listele",
+        "runOn": "load",
         "parameters": [
-          { "name": "q", "binding": "{{suzgec.q}}", "type": "text" },
-          { "name": "page", "binding": "{{liste.sayfa}}", "type": "int" },
-          { "name": "pageSize", "binding": "{{liste.sayfaBoyutu}}", "type": "int" } ] },
-      { "id": "taslak", "name": "taslak", "kind": "read", "operation": "satinalma.faturaTaslagi.getir", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" } ] },
-      { "id": "taslakSatirlari", "name": "taslakSatirlari", "kind": "read", "operation": "satinalma.faturaTaslagi.satirlari", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" } ] },
-      { "id": "giderHesaplari", "name": "giderHesaplari", "kind": "read", "operation": "satinalma.faturaTaslagi.giderHesaplari", "runOn": "load", "parameters": [] },
-      { "id": "yeniTedarikciler", "name": "yeniTedarikciler", "kind": "read", "operation": "satinalma.faturaTaslagi.tedarikciler", "runOn": "load",
+          {
+            "name": "q",
+            "binding": "{{suzgec.q}}",
+            "type": "text"
+          },
+          {
+            "name": "page",
+            "binding": "{{liste.sayfa}}",
+            "type": "int"
+          },
+          {
+            "name": "pageSize",
+            "binding": "{{liste.sayfaBoyutu}}",
+            "type": "int"
+          }
+        ]
+      },
+      {
+        "id": "muhasebelestir",
+        "name": "muhasebelestir",
+        "kind": "update",
+        "operation": "satinalma.faturaTaslagi.muhasebelestir",
+        "runOn": "manual",
         "parameters": [
-          { "name": "q", "binding": "{{yeniTedarikci.search}}", "type": "text" },
-          { "name": "page", "binding": "{{secenekSayfasi.value}}", "type": "int" },
-          { "name": "pageSize", "binding": "{{secenekBoyutu.value}}", "type": "int" } ] },
-      { "id": "duzenleTedarikciler", "name": "duzenleTedarikciler", "kind": "read", "operation": "satinalma.faturaTaslagi.tedarikciler", "runOn": "load",
-        "parameters": [
-          { "name": "q", "binding": "{{duzenleTedarikci.search}}", "type": "text" },
-          { "name": "page", "binding": "{{secenekSayfasi.value}}", "type": "int" },
-          { "name": "pageSize", "binding": "{{secenekBoyutu.value}}", "type": "int" } ] },
-      { "id": "yeniKabulSatirlari", "name": "yeniKabulSatirlari", "kind": "read", "operation": "satinalma.faturaTaslagi.malKabulSatirlari", "runOn": "load",
-        "parameters": [
-          { "name": "supplierId", "binding": "{{yeniTedarikci.value}}", "type": "guid" },
-          { "name": "invoiceDate", "binding": "{{yeniFaturaTarihi.value}}", "type": "date" } ] },
-      { "id": "duzenleKabulSatirlari", "name": "duzenleKabulSatirlari", "kind": "read", "operation": "satinalma.faturaTaslagi.malKabulSatirlari", "runOn": "load",
-        "parameters": [
-          { "name": "supplierId", "binding": "{{duzenleTedarikci.value}}", "type": "guid" },
-          { "name": "invoiceDate", "binding": "{{duzenleFaturaTarihi.value}}", "type": "date" },
-          { "name": "draftId", "binding": "{{taslak.rows[0].id}}", "type": "guid" } ] },
-      { "id": "taslakOlustur", "name": "taslakOlustur", "kind": "insert", "operation": "satinalma.faturaTaslagi.olustur", "runOn": "manual",
-        "parameters": [
-          { "name": "requestId", "binding": "{{yeniIstekKimligi.value}}", "type": "guid" },
-          { "name": "supplierId", "binding": "{{yeniTedarikci.value}}", "type": "guid" },
-          { "name": "invoiceNumber", "binding": "{{yeniFaturaNo.value}}", "type": "text" },
-          { "name": "invoiceDate", "binding": "{{yeniFaturaTarihi.value}}", "type": "date" },
-          { "name": "dueDate", "binding": "{{yeniVade.value}}", "type": "date" },
-          { "name": "currencyCode", "binding": "{{yeniDoviz.value}}", "type": "text" },
-          { "name": "notes", "binding": "{{yeniNotlar.value}}", "type": "text" },
-          { "name": "subtotal", "binding": "{{yeniSatirlar.toplam.subtotal}}", "type": "decimal" },
-          { "name": "discountTotal", "binding": "{{yeniSatirlar.toplam.discountAmount}}", "type": "decimal" },
-          { "name": "taxTotal", "binding": "{{yeniSatirlar.toplam.taxAmount}}", "type": "decimal" },
-          { "name": "grandTotal", "binding": "{{yeniSatirlar.toplam.total}}", "type": "decimal" },
-          { "name": "lines", "binding": "{{yeniSatirlar.satirlar}}", "type": "list" } ] },
-      { "id": "taslakGuncelle", "name": "taslakGuncelle", "kind": "update", "operation": "satinalma.faturaTaslagi.guncelle", "runOn": "manual",
-        "parameters": [
-          { "name": "id", "binding": "{{taslak.rows[0].id}}", "type": "guid" },
-          { "name": "expectedRowVersion", "binding": "{{taslak.rows[0].rowVersion}}", "type": "text" },
-          { "name": "supplierId", "binding": "{{duzenleTedarikci.value}}", "type": "guid" },
-          { "name": "invoiceNumber", "binding": "{{duzenleFaturaNo.value}}", "type": "text" },
-          { "name": "invoiceDate", "binding": "{{duzenleFaturaTarihi.value}}", "type": "date" },
-          { "name": "dueDate", "binding": "{{duzenleVade.value}}", "type": "date" },
-          { "name": "currencyCode", "binding": "{{duzenleDoviz.value}}", "type": "text" },
-          { "name": "notes", "binding": "{{duzenleNotlar.value}}", "type": "text" },
-          { "name": "subtotal", "binding": "{{duzenleSatirlar.toplam.subtotal}}", "type": "decimal" },
-          { "name": "discountTotal", "binding": "{{duzenleSatirlar.toplam.discountAmount}}", "type": "decimal" },
-          { "name": "taxTotal", "binding": "{{duzenleSatirlar.toplam.taxAmount}}", "type": "decimal" },
-          { "name": "grandTotal", "binding": "{{duzenleSatirlar.toplam.total}}", "type": "decimal" },
-          { "name": "lines", "binding": "{{duzenleSatirlar.satirlar}}", "type": "list" } ] },
-      { "id": "muhasebelestir", "name": "muhasebelestir", "kind": "update", "operation": "satinalma.faturaTaslagi.muhasebelestir", "runOn": "manual",
-        "parameters": [ { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" } ] }
-    ]
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      }
+    ],
+    "template": {
+      "name": "list"
+    }
   }
 }

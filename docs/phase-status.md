@@ -1848,3 +1848,6 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
 - `sales-invoice-create` ve `finance-journal-vouchers` standartları kaldırıldı; yeni fatura ve yevmiye fişi akışları Belge ekranlarına yönlendirildi.
 - `finance-journal-ledger` yevmiye listesi korundu.
 - Kalan eski anahtar referansları yalnızca eski rota yönlendirmesi ve arşiv/test kanıtı içindir.
+## Satınalma belge kalıpları
+
+- `sales-purchase-order-create` ve `sales-purchase-invoice-entry` standartları kaldırıldı; eski bağlantılar ilgili satınalma Belge sayfalarına yönleniyor. Taslak faturalar standardı Liste kalıbına geçti, düzenleme `purchase-invoice-document` üzerinden açılıyor.

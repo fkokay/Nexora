@@ -71,11 +71,10 @@ public sealed class TenantCustomPageDetailToggleSchemaTests
             "'detayPaneli' birden fazla sekmede veya yerleşimde kullanılamaz");
     }
 
-    // Satın Alma 2. dalga uses list templates with detail windows; these standards have no detail-panel toggle.
+    // Satın Alma 2. dalga uses list templates with detail windows; sales-purchase-invoice-drafts is now a Liste standard without a detail-panel toggle.
 
     private static readonly string[] ToggleStandards =
     [
-        "sales-purchase-invoice-drafts",
     ];
 
     private static JsonElement Definition(string screenKey) =>

@@ -93,9 +93,6 @@ const PurchaseReceiptsPage = lazy(() => import("./PurchaseReceiptsPage"));
 const SalesReturnsPage = lazy(() => import("./SalesReturnsPage"));
 const SalesCustomerRequestsPage = lazy(() => import("./sales-customer-requests/SalesCustomerRequestsPage"));
 const PurchaseReturnsPage = lazy(() => import("./PurchaseReturnsPage"));
-const PurchaseInvoiceEntryScreenPage = lazy(
-  () => import("./PurchaseInvoiceEntryScreenPage"),
-);
 const SupplierInvoiceDraftsPage = lazy(
   () => import("./SupplierInvoiceDraftsPage"),
 );
@@ -459,7 +456,9 @@ function LegacyPageRouter({
   if (page === "sales-purchasing")
     return <SupplierOrdersPage {...salesPageProps} />;
   if (page === "sales-purchase-order-create")
-    return <SupplierOrdersPage {...salesPageProps} createPurchaseOrderPage />;
+    return <LegacyCreateRedirect sourceKey={page} targetKey="purchase-order-document" noun="Satınalma siparişi" onNavigate={onNavigate} />;
+  if (page === "sales-purchase-invoice-entry")
+    return <LegacyCreateRedirect sourceKey={page} targetKey="purchase-invoice-document" noun="Satınalma faturası" onNavigate={onNavigate} />;
   if (page === "sales-purchase-invoices")
     return <PurchaseInvoicesPage {...salesPageProps} />;
   if (page === "sales-purchase-receipts")
@@ -470,8 +469,6 @@ function LegacyPageRouter({
     return <SalesReturnsPage token={token} role={tenant.role} onNavigate={onNavigate} />;
   if (page === "sales-purchase-returns")
     return <PurchaseReturnsPage token={token} role={tenant.role} onNavigate={onNavigate} />;
-  if (page === "sales-purchase-invoice-entry")
-    return <PurchaseInvoiceEntryScreenPage {...salesPageProps} />;
   if (page === "sales-purchase-invoice-drafts")
     return <SupplierInvoiceDraftsPage {...salesPageProps} />;
   if (page === "finance-instruments")
@@ -695,10 +692,10 @@ function LegacyCreateRedirect({ sourceKey, targetKey, noun, onNavigate }: {
   const params = usePageParams(sourceKey);
   const id = params.id ?? params.invoiceId ?? "";
   useEffect(() => {
-    setPageParams(targetKey, id ? { id } : {});
+    setPageParams(targetKey, id ? { ...params, id } : params);
     onNavigate(targetKey);
     requestClosePage(sourceKey);
-  }, [id, onNavigate, sourceKey, targetKey]);
+  }, [id, onNavigate, sourceKey, targetKey, JSON.stringify(params)]);
   return <div className="panel page-loading" role="status">{noun} belgesi açılıyor…</div>;
 }
 
