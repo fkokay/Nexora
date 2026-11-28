@@ -90,6 +90,8 @@ export function WindowGridPanel({ def, id, onChange, disabled, visibility, readO
     [next[index], next[index + delta]] = [next[index + delta], next[index]];
     writeColumns(next);
   };
+  const readQueries = def.queries.filter((query) => query.kind === "read");
+  const fillQuery = text(grid.props.fillQuery);
   const maxRows = typeof grid.props.maxRows === "number" ? grid.props.maxRows : MAX_WINDOW_GRID_ROWS;
   const minRows = typeof grid.props.minRows === "number" ? grid.props.minRows : undefined;
   return <ComponentPanel name={nameOf(grid)} onRename={() => {}} nameReadOnly nameLabel="Satır tablosu" whatTitle="Satırlar" basicsTitle="Ayarlar" actionsTitle="Kayıt"
@@ -100,10 +102,23 @@ export function WindowGridPanel({ def, id, onChange, disabled, visibility, readO
       <ol className="cpanel-steps" data-part="grid-columns">{columns.map((column, index) => <li key={column.code} className="cpanel-sub">
         <div className="cpanel-row"><input className="cpanel-txt" aria-label={`${column.code} etiketi`} defaultValue={column.label} maxLength={60} disabled={disabled}
           onBlur={(event) => { const label = event.target.value.trim(); if (label && label !== column.label) edit(index, { label }); }}/>
-          <select aria-label={`${column.label} türü`} value={column.type} disabled={disabled} onChange={(event) => edit(index, { type: event.target.value as GridColumnType })}>
-            {GRID_COLUMN_TYPES.map(([type, label]) => <option key={type} value={type}>{label}</option>)}</select></div>
+          <select aria-label={`${column.label} türü`} value={column.type} disabled={disabled} onChange={(event) => {
+            const type = event.target.value as GridColumnType;
+            // Seçim sütunu kaynak ister: sayfanın ilk okuma sorgusu başlangıç olur (yoksa değişmez).
+            if (type === "lookup") { const first = readQueries[0]; if (first) edit(index, { type, lookup: { query: first.id, value: "id", label: "name" }, maxLength: undefined, min: undefined, max: undefined, upperCase: false }); }
+            else edit(index, { type, lookup: undefined });
+          }}>
+            {GRID_COLUMN_TYPES.map(([type, label]) => <option key={type} value={type} disabled={type === "lookup" && readQueries.length === 0}>{label}</option>)}</select></div>
+        {column.type === "lookup" && column.lookup && <div className="cpanel-row" data-part="grid-lookup">
+          <select aria-label={`${column.label} seçenek sorgusu`} value={column.lookup.query} disabled={disabled}
+            onChange={(event) => edit(index, { lookup: { ...column.lookup!, query: event.target.value } })}>
+            {readQueries.map((query) => <option key={query.id} value={query.id}>{query.name}</option>)}</select>
+          <DraftInput label="Değer sütunu" value={column.lookup.value} disabled={disabled} onCommit={(value) => { if (value.trim()) edit(index, { lookup: { ...column.lookup!, value: value.trim() } }); }}/>
+          <DraftInput label="Etiket sütunu" value={column.lookup.label} disabled={disabled} onCommit={(value) => { if (value.trim()) edit(index, { lookup: { ...column.lookup!, label: value.trim() } }); }}/>
+        </div>}
         <div className="cpanel-row">
           <label><input type="checkbox" aria-label={`${column.label} zorunlu`} checked={column.required} disabled={disabled} onChange={(event) => edit(index, { required: event.target.checked })}/> Zorunlu</label>
+          <label><input type="checkbox" aria-label={`${column.label} salt okunur`} checked={column.readOnly === true} disabled={disabled} onChange={(event) => edit(index, { readOnly: event.target.checked || undefined })}/> Salt okunur</label>
           <label><input type="checkbox" aria-label={`${column.label} benzersiz`} checked={column.unique} disabled={disabled} onChange={(event) => edit(index, { unique: event.target.checked })}/> Benzersiz</label>
         </div>
         {column.type === "text" && <DraftInput label="En çok uzunluk" type="number" commitOnBlur value={numberText(column.maxLength)} disabled={disabled} onCommit={(value) => edit(index, { maxLength: parseNumber(value) })}/>}
@@ -123,6 +138,10 @@ export function WindowGridPanel({ def, id, onChange, disabled, visibility, readO
       <DraftInput label="Ekle düğmesinin adı" value={text(grid.props.addLabel)} placeholder="Satır ekle" maxLength={40} disabled={disabled} onCommit={(value) => change({ addLabel: value })}/>
       <DraftInput label="En az satır" type="number" commitOnBlur value={numberText(minRows)} disabled={disabled} onCommit={(value) => change({ minRows: parseNumber(value) ?? null })}/>
       <DraftInput label={`En çok satır (1–${MAX_WINDOW_GRID_ROWS})`} type="number" commitOnBlur value={String(maxRows)} disabled={disabled} onCommit={(value) => { const next = parseNumber(value); if (next !== undefined) change({ maxRows: next }); }}/>
+      <div className="cpanel-q">Satırları sorgudan doldur</div>
+      <select aria-label="Doldurma sorgusu" data-part="grid-fill" value={fillQuery} disabled={disabled} onChange={(event) => change({ fillQuery: event.target.value || null })}>
+        <option value="">Doldurma yok</option>{readQueries.map((query) => <option key={query.id} value={query.id}>{query.name}</option>)}</select>
+      <p className="cpanel-note">Sorgunun sonucundaki satırlar, aynı kodlu sütunlara dolar.</p>
       <div className="cpanel-q">Ne zaman salt okunur</div>{readOnlyWhen ?? <div className="cpanel-seg"><button type="button" className="on" disabled>Hiçbir zaman</button></div>}
       <div className="cpanel-q">Ne zaman görünsün</div>{visibility ?? <div className="cpanel-seg"><button type="button" className="on" disabled>Her zaman</button></div>}
     </>}

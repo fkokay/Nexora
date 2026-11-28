@@ -7,7 +7,8 @@ namespace AIERP.Api.DocumentModels;
 public sealed record DocumentModelView(string Code, string Label, IReadOnlyList<DocumentFieldView> Fields,
     IReadOnlyList<DocumentLineColumnView> LineColumns, IReadOnlyList<DocumentStateView> States, IReadOnlyList<DocumentTransitionView> Transitions,
     string LoadOperation, string CalculateOperation, string FillOperation,
-    IReadOnlyDictionary<string, IReadOnlyList<string>> Fills, string CreateOperation, string UpdateOperation);
+    IReadOnlyDictionary<string, IReadOnlyList<string>> Fills, string CreateOperation, string UpdateOperation,
+    IReadOnlyList<DocumentCreationView>? Creations = null);
 
 /// <summary>A header field. <see cref="ReadOnly"/> fields (the document number) are shown but never entered.</summary>
 public sealed record DocumentFieldView(string Code, string Label, string Type, bool Required, string? OptionsOperation, bool ReadOnly = false,
@@ -23,6 +24,13 @@ public sealed record DocumentLineColumnView(string Code, string Label, string Ty
 public sealed record DocumentStateView(string Code, string Label, bool Terminal);
 
 public sealed record DocumentTransitionView(string Code, string Label, IReadOnlyList<string> From, string To, string Operation, bool RequiresReason);
+
+/// <summary>
+/// "Belgeden belge": an action that creates the next document from this one (teklif → sipariş) by calling an existing ERP operation, then opens it.
+/// Not a state transition: the source keeps its state. <see cref="From"/> lists the states it is offered in, <see cref="Target"/> is the
+/// document model of the created document (the operation answers a record with its <c>id</c>).
+/// </summary>
+public sealed record DocumentCreationView(string Code, string Label, IReadOnlyList<string> From, string Operation, string Target);
 
 /// <summary>"Alan değişince" request: the changed field and its value; the answer is the cells the model fills.</summary>
 public sealed record DocumentFillRequest(string? Field, string? Value, Guid? CustomerId = null, DateOnly? OrderDate = null);
@@ -45,7 +53,8 @@ public sealed record SalesOrderDocumentView(AIERP.Platform.Application.SalesOrde
 
 /// <summary>A sales quote as its Belge page needs it: the quote, amounts, what this user may do now and the işlem günlüğü.</summary>
 public sealed record SalesQuoteDocumentView(AIERP.Platform.Application.SalesQuoteView Quote, DocumentAmounts Amounts,
-    IReadOnlyList<string> AllowedTransitions, IReadOnlyList<AIERP.Platform.Application.DocumentActivityView> Activity, bool ActivityStartedLate);
+    IReadOnlyList<string> AllowedTransitions, IReadOnlyList<AIERP.Platform.Application.DocumentActivityView> Activity, bool ActivityStartedLate,
+    IReadOnlyList<string>? AllowedCreations = null);
 
 /// <summary>The sales invoice states of its Belge: Draft is only an unsaved document (saving cuts the invoice), then the entity's Posted / Voided.</summary>
 public enum SalesInvoiceDocumentState { Draft, Posted, Voided }

@@ -14,6 +14,8 @@ internal static class SalesQuoteDocumentModel
     internal const string Send = "ilet";
     internal const string Accept = "kabulEt";
     internal const string Reject = "reddet";
+    /// <summary>The "Belgeden belge" creation of the order (<c>satis.teklif.siparisOlustur</c>).</summary>
+    internal const string CreateOrder = "siparisOlustur";
 
     private static DocumentStateView State(SalesQuoteStatus status, string label, bool terminal = false) => new(status.ToString(), label, terminal);
 
@@ -50,7 +52,12 @@ internal static class SalesQuoteDocumentModel
         ],
         "satis.teklif.belge", "satis.teklif.hesapla", "satis.teklif.doldur",
         SalesDocumentModelParts.StockFills(),
-        "satis.teklif.olustur", "satis.teklif.guncelle");
+        "satis.teklif.olustur", "satis.teklif.guncelle",
+        [new(CreateOrder, "Siparişe dönüştür", ["Accepted"], "satis.teklif.siparisOlustur", SalesOrderDocumentModel.Code)]);
+
+    /// <summary>The creations the quote allows now: an accepted quote without an order (<see cref="SalesQuoteWorkflow.CanConvertToOrder"/>).</summary>
+    internal static List<string> CreationCandidates(SalesQuoteStatus status, bool hasOrder) =>
+        SalesQuoteWorkflow.CanConvertToOrder(status, hasOrder) ? [CreateOrder] : [];
 
     /// <summary>The transitions the state chain allows (<see cref="SalesQuoteWorkflow"/>); a converted quote is closed.</summary>
     internal static List<string> Candidates(SalesQuoteStatus status, bool hasOrder)
@@ -86,6 +93,6 @@ internal static class SalesQuoteDocumentModel
         var transitions = Candidates(state, hasOrder: false);
         var at = new DateTimeOffset(2026, 11, 26, 9, 40, 0, TimeSpan.Zero);
         List<DocumentActivityView> activity = state == SalesQuoteStatus.Draft ? [] : [new("ilet", "Müşteriye iletildi", "core", "done", null, null, at)];
-        return new SalesQuoteDocumentView(quote, new DocumentAmounts("TRY", subtotal, discount, tax, subtotal - discount + tax, vat), transitions, activity, false);
+        return new SalesQuoteDocumentView(quote, new DocumentAmounts("TRY", subtotal, discount, tax, subtotal - discount + tax, vat), transitions, activity, false, CreationCandidates(state, hasOrder: false));
     }
 }
