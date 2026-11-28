@@ -8,6 +8,8 @@ internal static class DocumentModelRegistry
         SalesOrderDocumentModel.Code => SalesOrderDocumentModel.Model,
         SalesQuoteDocumentModel.Code => SalesQuoteDocumentModel.Model,
         InventoryTransferDocumentModel.Code => InventoryTransferDocumentModel.Model,
+        SalesInvoiceDocumentModel.Code => SalesInvoiceDocumentModel.Model,
+        SalesDeliveryDocumentModel.Code => SalesDeliveryDocumentModel.Model,
         _ => null
     };
 }

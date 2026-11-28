@@ -326,6 +326,8 @@ public static class PlatformPermissionCatalog
             var modelPath = path["/api/document-models/".Length..];
             resource = Resources.First(x => x.ResourceType == (modelPath.StartsWith("satis.teklif", StringComparison.OrdinalIgnoreCase)
                 ? "erp.sales-quotes"
+                : modelPath.StartsWith("satis.fatura", StringComparison.OrdinalIgnoreCase) ? "erp.sales-invoices"
+                : modelPath.StartsWith("satis.irsaliye", StringComparison.OrdinalIgnoreCase) ? "erp.sales-deliveries"
                 : modelPath.StartsWith("stok.transfer", StringComparison.OrdinalIgnoreCase) ? "erp.inventory-transfers" : "erp.sales-orders"));
             explicitReadAction = true;
         }
