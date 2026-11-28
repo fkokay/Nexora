@@ -34,7 +34,7 @@ public sealed class PurchasingSystemPagesTests
     /// <summary>Current version per standard: Faz 2 (line-document writes) moved requests, orders and delivery notes to v2.</summary>
     private static readonly Dictionary<string, int> Versions = new(StringComparer.Ordinal)
     {
-        ["sales-requests"] = 2, ["sales-purchase-quotes"] = 2, ["sales-purchasing"] = 2, ["sales-purchase-delivery-notes"] = 2,
+        ["sales-requests"] = 2, ["sales-purchase-quotes"] = 2, ["sales-purchasing"] = 3, ["sales-purchase-delivery-notes"] = 2,
     };
 
     /// <summary>Non-purchasing reads a purchasing standard may bind (pickers of the Faz 2 line forms).</summary>

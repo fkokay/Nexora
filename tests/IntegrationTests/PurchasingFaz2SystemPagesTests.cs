@@ -20,7 +20,7 @@ public sealed class PurchasingFaz2SystemPagesTests
     private static readonly string[] Keys = ["sales-purchase-order-create", "sales-requests", "sales-purchasing"];
     private static readonly Dictionary<string, int> Versions = new(StringComparer.Ordinal)
     {
-        ["sales-purchase-order-create"] = 1, ["sales-requests"] = 2, ["sales-purchasing"] = 2,
+        ["sales-purchase-order-create"] = 1, ["sales-requests"] = 2, ["sales-purchasing"] = 3,
     };
 
     /// <summary>Every line grid of these pages: grid → (page, write query, fill query or null).</summary>
@@ -251,7 +251,7 @@ public sealed class PurchasingFaz2SystemPagesTests
             ((string)legacy["pageKey"]!, legacy["legacyScreen"]!.GetValue<bool>(), Strings(legacy["params"]).Single()));
         Assert.Contains("izlemeliKabulDugmesi", Strings(dialog["contains"]));
         var create = Props(key, "yeniSiparisDugmesi");
-        Assert.Equal(("erpPage", "sales-purchase-order-create"), ((string)create["actionType"]!, (string)create["pageKey"]!));
+        Assert.Equal(("erpPage", "purchase-order-document"), ((string)create["actionType"]!, (string)create["pageKey"]!));
         Assert.Null(create["legacyScreen"]);
     }
 

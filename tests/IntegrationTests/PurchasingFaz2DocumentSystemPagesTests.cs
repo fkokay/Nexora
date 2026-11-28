@@ -33,7 +33,7 @@ public sealed class PurchasingFaz2DocumentSystemPagesTests
     public static TheoryData<string, string, int> Keys => new()
     {
         { "sales-purchase-delivery-notes", "Satınalma İrsaliyeleri", 2 },
-        { "sales-purchase-invoices", "Satınalma Faturaları", 3 },
+        { "sales-purchase-invoices", "Satınalma Faturaları", 4 },
         { "sales-purchase-returns", "Satınalma İadeleri", 2 },
         { "sales-purchase-invoice-drafts", "Satınalma faturası taslakları", 1 },
     };
