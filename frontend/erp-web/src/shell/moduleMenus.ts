@@ -29,7 +29,6 @@ export const SUBROUTE_PARENTS: Record<string, string> = {
   "sales-delivery-document": "sales-deliveries",
   "sales-invoice-create": "sales-invoices",
   "sales-delivery-create": "sales-deliveries",
-  "sales-purchase-order-create": "sales-purchasing",
   "finance-account-create": "finance-accounts",
   "finance-credit-facility-create": "finance-credit-facilities",
   "finance-credit-schedule-create": "finance-credit-facilities",
@@ -63,6 +62,8 @@ export const STANDALONE_PAGES: string[] = [
   "custom-menus",
   "business-rules",
   "screen-views",
+  "sales-purchase-order-create",
+  "sales-purchase-invoice-entry",
 ];
 
 const warehousePages = ["inventory-warehouses", "inventory-transfers", "inventory-transfer-document", "inventory-locations"];
@@ -91,7 +92,7 @@ export const moduleMenus: ModuleMenu[] = [
   {
     railId: "purchasing",
     title: ["Satın Alma", "Purchasing"],
-    pages: [...purchasingNavigationPages, "sales-purchase-order-create"],
+    pages: purchasingNavigationPages,
   },
   {
     railId: "finance",

@@ -32,7 +32,6 @@ public sealed class PurchasingDocumentSystemPagesTests
     public static TheoryData<string, string> Keys => new()
     {
         { "sales-purchase-receipts", "Mal kabulleri" },
-        { "sales-purchase-invoice-entry", "Mal kabul faturası girişi" },
         { "sales-purchase-invoices", "Satınalma Faturaları" },
         { "sales-purchase-returns", "Satınalma İadeleri" },
     };
@@ -40,14 +39,13 @@ public sealed class PurchasingDocumentSystemPagesTests
     /// <summary>Versions: receipts and returns are v3 Liste-template standards (Satın Alma 2. dalga).</summary>
     private static readonly Dictionary<string, int> Versions = new(StringComparer.Ordinal)
     {
-        ["sales-purchase-receipts"] = 3, ["sales-purchase-invoice-entry"] = 1, ["sales-purchase-invoices"] = 4, ["sales-purchase-returns"] = 3,
+        ["sales-purchase-receipts"] = 3, ["sales-purchase-invoices"] = 4, ["sales-purchase-returns"] = 3,
     };
 
     /// <summary>The page params each legacy purchasing screen reads (K7 readers); a legacy command sends only these.</summary>
     private static readonly Dictionary<string, string[]> LegacyReaders = new(StringComparer.Ordinal)
     {
         ["sales-purchase-receipts"] = ["receiptId"],
-        ["sales-purchase-invoice-entry"] = ["receiptId"],
         ["sales-purchase-invoices"] = ["supplierId", "purchaseInvoiceId"],
         ["sales-purchase-returns"] = [],
     };
@@ -55,11 +53,11 @@ public sealed class PurchasingDocumentSystemPagesTests
     // ---- Standards ----
 
     [Fact]
-    public void The_four_standards_validate_on_their_own()
+    public void The_three_standards_validate_on_their_own()
     {
         var names = KeyList().Select(x => x.Key + ".json").ToHashSet(StringComparer.Ordinal);
         var files = SystemPageStandards.EmbeddedFiles().Where(x => names.Contains(x.FileName)).ToArray();
-        Assert.Equal(4, files.Length);
+        Assert.Equal(3, files.Length);
         var errors = SystemPageStandards.Validate(files);
         Assert.True(errors.Count == 0, string.Join(Environment.NewLine, errors));
     }
@@ -164,51 +162,6 @@ public sealed class PurchasingDocumentSystemPagesTests
         Assert.Equal("{{iadeKimligi.value}}", Binding("sales-purchase-returns", "iadeOlustur", "requestId"));
     }
 
-    // ---- Mal kabul faturası girişi ----
-
-    [Fact]
-    public void Invoice_entry_preselects_the_receipt_previews_on_the_server_and_saves_through_the_receipt()
-    {
-        const string key = "sales-purchase-invoice-entry";
-        Assert.Equal("{{sayfa.parametre.receiptId}}", (string)Props(key, "kabulSecimi")["defaultValue"]!);
-        Assert.True((bool)Props(key, "kabulSecimi")["hidden"]!);
-        Assert.Equal(new[] { "kabulSecimi.value == null", "kabulSecimi.value != null" }, Strings(Props(key, "adimlar")["activeWhen"]));
-        Assert.Equal(new[] { "kabulSecimi={{liste.seciliSatir.id}}" }, Strings(Props(key, "secDugmesi")["assignments"]));
-
-        // The eligible receipts list (page/pageSize are required by the endpoint).
-        Assert.Equal("satinalma.faturaGirisi.malKabulleri", Operation(key, "kabuller"));
-        Assert.Equal(("{{suzgec.q}}", "{{liste.sayfa}}", "{{liste.sayfaBoyutu}}"),
-            (Binding(key, "kabuller", "q"), Binding(key, "kabuller", "page"), Binding(key, "kabuller", "pageSize")));
-
-        // Totals, due date and lines come from the server preview of the chosen receipt, date and profile.
-        foreach (var (query, operation) in new[] { ("onizleme", "satinalma.faturaGirisi.onizleme"), ("onizlemeSatirlari", "satinalma.faturaGirisi.onizlemeSatirlari") })
-        {
-            Assert.Equal(operation, Operation(key, query));
-            Assert.Equal(("{{kabulSecimi.value}}", "{{faturaTarihi.value}}", "{{profil.value}}"),
-                (Binding(key, query, "id"), Binding(key, query, "invoiceDate"), Binding(key, query, "accountingProfileCode")));
-        }
-        Assert.Equal("onizlemeSatirlari", (string)Props(key, "satirlar")["query"]!);
-        var header = Strings(Props(key, "kabulBasligi")["fields"]);
-        Assert.Contains("Genel toplam={{onizleme.rows[0].grandTotal}}", header);
-        Assert.Contains("Vade={{onizleme.rows[0].dueDate}}", header);
-        Assert.Contains("Vergi={{onizleme.rows[0].taxTotal}}", header);
-        Assert.Equal("{{onizleme.error}}", (string)Props(key, "onizlemeHatasi")["text"]!);
-        Assert.Equal("satinalma.faturaGirisi.mevzuatProfilleri", Operation(key, "profiller"));
-        Assert.Equal("satir.isActive == true && satir.hasTaxRules == true", (string)Props(key, "profil")["optionsWhen"]!);
-
-        // Save: satinalma.malKabul.faturala on the selected receipt, then the invoice list.
-        Assert.Equal("satinalma.malKabul.faturala", Operation(key, "faturala"));
-        Assert.Equal(("{{kabulSecimi.value}}", "{{faturaNo.value}}", "{{faturaTarihi.value}}", "{{profil.value}}"),
-            (Binding(key, "faturala", "id"), Binding(key, "faturala", "code"), Binding(key, "faturala", "invoiceDate"), Binding(key, "faturala", "accountingProfileCode")));
-        Assert.Equal("{{belgeUuid.value}}", Binding(key, "faturala", "providerInvoiceUuid"));
-        var bar = Props(key, "komutlar");
-        Assert.Equal(("faturala", "page", "@sales-purchase-invoices", "sameTab"),
-            ((string)bar["saveQuery"]!, (string)bar["afterSaveAction"]!, (string)bar["afterSavePageCode"]!, (string)bar["afterSaveTarget"]!));
-        Assert.Contains("save=kabulSecimi.value != null", Strings(bar["commandWhen"]));
-        Assert.Equal((true, 64), ((bool)Props(key, "faturaNo")["required"]!, (int)Props(key, "faturaNo")["maxLength"]!));
-        Assert.Equal(("{{bugun}}", true), ((string)Props(key, "faturaTarihi")["defaultValue"]!, (bool)Props(key, "faturaTarihi")["required"]!));
-    }
-
     // ---- Mal kabulleri ----
 
     [Fact]
@@ -218,7 +171,7 @@ public sealed class PurchasingDocumentSystemPagesTests
         foreach (var button in new[] { "faturalaDugmesi", "faturalaSatir" })
         {
             var props = Props(key, button);
-            Assert.Equal(("page", "@sales-purchase-invoice-entry"), ((string)props["actionType"]!, (string)props["pageCode"]!));
+            Assert.Equal(("page", "@purchase-invoice-document"), ((string)props["actionType"]!, (string)props["pageCode"]!));
             Assert.Equal(new[] { "receiptId={{liste.seciliSatir.id}}" }, Strings(props["params"]));
         }
         Assert.Contains("kabul.rows[0].invoice.id != null", (string)Props(key, "faturalaDugmesi")["disabledWhen"]!);
@@ -343,7 +296,6 @@ public sealed class PurchasingDocumentSystemPagesTests
     public static TheoryData<string, string, string, string[]> LegacyCommands => new()
     {
         { "sales-purchase-receipts", "faturaAcDugmesi", "sales-purchase-invoices", ["purchaseInvoiceId={{kabul.rows[0].invoice.id}}"] },
-        { "sales-purchase-invoice-entry", "eskiEkranDugmesi", "sales-purchase-invoice-entry", ["receiptId={{kabulSecimi.value}}"] },
         { "sales-purchase-returns", "faturaAcDugmesi", "sales-purchase-invoices", ["purchaseInvoiceId={{liste.seciliSatir.purchaseInvoiceId}}"] },
     };
 

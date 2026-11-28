@@ -93,9 +93,6 @@ const PurchaseReceiptsPage = lazy(() => import("./PurchaseReceiptsPage"));
 const SalesReturnsPage = lazy(() => import("./SalesReturnsPage"));
 const SalesCustomerRequestsPage = lazy(() => import("./sales-customer-requests/SalesCustomerRequestsPage"));
 const PurchaseReturnsPage = lazy(() => import("./PurchaseReturnsPage"));
-const PurchaseInvoiceEntryScreenPage = lazy(
-  () => import("./PurchaseInvoiceEntryScreenPage"),
-);
 const SupplierInvoiceDraftsPage = lazy(
   () => import("./SupplierInvoiceDraftsPage"),
 );
@@ -457,7 +454,9 @@ function LegacyPageRouter({
   if (page === "sales-purchasing")
     return <SupplierOrdersPage {...salesPageProps} />;
   if (page === "sales-purchase-order-create")
-    return <SupplierOrdersPage {...salesPageProps} createPurchaseOrderPage />;
+    return <LegacyCreateRedirect sourceKey={page} targetKey="purchase-order-document" noun="Satınalma siparişi" onNavigate={onNavigate} />;
+  if (page === "sales-purchase-invoice-entry")
+    return <LegacyCreateRedirect sourceKey={page} targetKey="purchase-invoice-document" noun="Satınalma faturası" onNavigate={onNavigate} />;
   if (page === "sales-purchase-invoices")
     return <PurchaseInvoicesPage {...salesPageProps} />;
   if (page === "sales-purchase-receipts")
@@ -468,8 +467,6 @@ function LegacyPageRouter({
     return <SalesReturnsPage token={token} role={tenant.role} onNavigate={onNavigate} />;
   if (page === "sales-purchase-returns")
     return <PurchaseReturnsPage token={token} role={tenant.role} onNavigate={onNavigate} />;
-  if (page === "sales-purchase-invoice-entry")
-    return <PurchaseInvoiceEntryScreenPage {...salesPageProps} />;
   if (page === "sales-purchase-invoice-drafts")
     return <SupplierInvoiceDraftsPage {...salesPageProps} />;
   if (page === "finance-instruments")
@@ -695,6 +692,19 @@ function SalesOrderCreateRedirect({ onNavigate }: { onNavigate: (page: string, l
     requestClosePage("sales-order-create");
   }, [orderId, onNavigate]);
   return <div className="panel page-loading" role="status">Sipariş belgesi açılıyor…</div>;
+}
+
+/** Old purchasing entry links now open the replacement document page and carry any preselected source parameters. */
+function LegacyCreateRedirect({ sourceKey, targetKey, noun, onNavigate }: {
+  sourceKey: string; targetKey: string; noun: string; onNavigate: (page: string, label?: string) => void;
+}) {
+  const params = usePageParams(sourceKey);
+  useEffect(() => {
+    setPageParams(targetKey, params);
+    onNavigate(targetKey);
+    requestClosePage(sourceKey);
+  }, [sourceKey, targetKey, onNavigate, JSON.stringify(params)]);
+  return <div className="panel page-loading" role="status">{noun} belgesi açılıyor…</div>;
 }
 
 /**

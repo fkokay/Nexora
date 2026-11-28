@@ -1832,3 +1832,6 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
 - Bilinen kayıp: cariden açılan yeni siparişte müşteri ön dolumu yok (Belge kalıbında ön dolum yok).
 - Studio: girdi alanlarında `readOnly` seçeneği.
 - Doğrulama: ilgili erp-web (44) ve Studio (95) vitest dosyaları yerelde geçti; .NET testleri CI'da.
+## Satınalma belge kalıpları
+
+- `sales-purchase-order-create` ve `sales-purchase-invoice-entry` standartları kaldırıldı; eski bağlantılar ilgili satınalma Belge sayfalarına yönleniyor. Taslak faturalar standardı Liste kalıbına geçti, düzenleme `purchase-invoice-document` üzerinden açılıyor.

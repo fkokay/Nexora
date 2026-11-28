@@ -49,12 +49,11 @@ public sealed class PurchasingSystemPagesTests
         ["sales-requests"] = ["requestId"],
         ["sales-purchasing"] = ["purchaseOrderId"],
         ["sales-purchase-receipts"] = ["receiptId"],
-        ["sales-purchase-invoice-entry"] = ["receiptId"],
         ["sales-purchase-invoices"] = ["supplierId", "purchaseInvoiceId"],
         ["sales-purchase-quotes"] = [],
         ["sales-purchase-delivery-notes"] = ["purchaseOrderId"],
         // Faz 2: the new order form reads no page param (it opens the created order in sales-purchasing).
-        ["sales-purchase-order-create"] = [],
+        ["purchase-order-document"] = [],
     };
 
     /// <summary>Every "→ eski ekran" command per standard: button id → (pageKey, params).</summary>
@@ -68,7 +67,7 @@ public sealed class PurchasingSystemPagesTests
             ["talebiAcDugmesi"] = ("sales-requests", ["requestId={{liste.seciliSatir.purchaseRequestId}}"]),
             ["detayAc"] = ("sales-requests", ["requestId={{liste.seciliSatir.purchaseRequestId}}"]),
         },
-        // Faz 2: Yeni sipariş opens sales-purchase-order-create and Mal kabul oluştur is the receipt dialog; lot/serial
+        // Faz 2: Yeni sipariş opens purchase-order-document and Mal kabul oluştur is the receipt dialog; lot/serial
         // tracked receipts stay on the legacy screen (K2).
         ["sales-purchasing"] = new()
         {
@@ -308,7 +307,7 @@ public sealed class PurchasingSystemPagesTests
         // The order document chain: lines, receipts (with their invoice) and "Faturala" into invoice entry.
         Assert.Equal("satinalma.siparis.malKabulleri", (string)Query("sales-purchasing", "malKabuller")["operation"]!);
         var invoice = Props("sales-purchasing", "faturalaDugmesi");
-        Assert.Equal(("sales-purchase-invoice-entry", "receiptId={{kabulTablosu.seciliSatir.id}}"), ((string)invoice["pageKey"]!, Strings(invoice["params"]).Single()));
+        Assert.Equal(("purchase-invoice-document", "receiptId={{kabulTablosu.seciliSatir.id}}"), ((string)invoice["pageKey"]!, Strings(invoice["params"]).Single()));
     }
 
     // ---- Runtime ----

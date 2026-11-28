@@ -53,7 +53,7 @@ function respond(path: string, method: string): unknown {
 const h = createHarness(KEY, catalog);
 const rowAction = async (code: string, name: RegExp) => within(await h.row(code)).findByRole('button', { name }, T);
 beforeEach(() => { h.before(); receiptFailure = null; });
-afterEach(() => h.after(['sales-purchase-receipts', 'sales-purchase-invoice-entry', 'sales-purchase-order-create']));
+afterEach(() => h.after(['sales-purchase-receipts', 'purchase-invoice-document']));
 
 const openReceiptDialog = async () => {
   h.setup(respond);

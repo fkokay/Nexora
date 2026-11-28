@@ -46,7 +46,7 @@ const standardListPages = new Set([
   "sales-quotes", "sales-requests", "sales-purchase-quotes", "sales-orders", "sales-invoices",
   "sales-deliveries", "sales-purchasing", "sales-purchase-invoices", "sales-purchase-receipts",
   "sales-returns", "sales-purchase-returns", "sales-customer-requests",
-  "sales-purchase-invoice-entry", "sales-purchase-invoice-drafts", "finance-instruments", "finance-budget", "finance-cash-budget",
+  "sales-purchase-invoice-drafts", "finance-instruments", "finance-budget", "finance-cash-budget",
   "finance-accounts", "finance-banks", "finance-statements", "finance-cash-flow", "finance-fx",
   "finance-ledger", "finance-ledger-chart", "finance-ledger-mappings", "finance-journal-vouchers",
   "finance-trial-balance", "finance-balance-sheet", "finance-journal-ledger", "finance-transfer-sources", "finance-exposure",

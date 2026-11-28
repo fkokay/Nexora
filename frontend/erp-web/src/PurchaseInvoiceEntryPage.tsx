@@ -469,7 +469,7 @@ export default function PurchaseInvoiceEntryPage({
   const [pendingReceipt, setPendingReceipt] = useState<{ id: string; code?: string } | null>(null);
   const pendingReceiptRef = useRef(pendingReceipt);
   pendingReceiptRef.current = pendingReceipt;
-  usePurchasingPageParams("sales-purchase-invoice-entry", ["receiptId"], ({ receiptId }) => setPendingReceipt(receiptId ? { id: receiptId } : null));
+  usePurchasingPageParams("purchase-invoice-document", ["receiptId"], ({ receiptId }) => setPendingReceipt(receiptId ? { id: receiptId } : null));
   useEffect(() => {
     if (!pendingReceipt || loading) return;
     const item = items.find((x) => x.id === pendingReceipt.id);
