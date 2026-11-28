@@ -468,7 +468,7 @@ public sealed class FinanceSystemPagesTests
     public void Standard_is_preview_version_1_and_uses_finance_operations(string key, string title, string module)
     {
         var standard = SystemPageStandards.All[key];
-        var expectedVersion = key is "finance-accounts" or "finance-banks" or "finance-trial-balance" or "finance-journal-vouchers" ? 2 : key == "finance-journal-ledger" ? 3 : 1;
+        var expectedVersion = key is "finance-accounts" or "finance-banks" or "finance-trial-balance" or "finance-journal-vouchers" or "finance-account-create" ? 2 : key == "finance-journal-ledger" ? 3 : 1;
         Assert.Equal((expectedVersion, "preview", title, module), (standard.Version, standard.Stage, standard.Title, standard.Module));
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
         Assert.All(standard.Items, x => Assert.True(x.Since <= standard.Version && x.Label.Length is > 0 and <= 80, x.Key));

@@ -254,7 +254,7 @@ const managedKeys = new Set(["size", "backdropClose", "text", "title", "label", 
   "assignments", "rowOpenAction", "steps", "activeWhen", "subtitle", "fieldFormats", "fieldUnits", "buttons",
   // Seçim hücreli kalem tablosu: otomatik istek kimliği, seçenek koşulu, bağımlı temizleme, seçim sütunu ayarları, en az satır
   // ve gerekçe isteminin açıklaması / sınırı.
-  "autoId", "optionsWhen", "clearsOnChange", "columnOptionsWhen", "columnStaticOptions", "minRows", "promptText", "promptMaxLength",
+  "autoId", "readOnly", "optionsWhen", "clearsOnChange", "columnOptionsWhen", "columnStaticOptions", "minRows", "promptText", "promptMaxLength",
   // Gezinme düğmeleri (bağlantı, ERP ekranı, sayfa): "Eylem" bölümündeki gezinme alanlarında düzenlenir.
   ...Object.values(NAVIGATION_PROPS).flat(), "target",
   // İşlem Çubuğu İşlemler › "Kaydet ve yeni".
@@ -4264,6 +4264,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             {selected.type === "input" && section("input", "Giriş", <>
               <label className="pd-check"><input type="checkbox" checked={selected.props.hidden === true} onChange={(event) => patchComponent(selected.id, { hidden: event.target.checked ? true : undefined })}/>Gizli (değer tutar)</label>
               {selected.props.hidden === true && <small>ERP'de çizilmez ve doğrulanmaz; değeri (varsayılan değer ve sayfa parametresi dahil) {"{{ad.value}}"} ile kullanılır. “Alana değer ata” düğmesiyle değiştirilir.</small>}
+              <label className="pd-check"><input type="checkbox" checked={selected.props.readOnly === true} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { readOnly: event.target.checked ? true : undefined })}/>Salt okunur (Kayıt kartı)</label>
               <label className="pd-check"><input type="checkbox" checked={selected.props.autoId === true} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { autoId: event.target.checked ? true : undefined })}/>Otomatik istek kimliği</label>
               {selected.props.autoId === true && <small>Değer yeni bir GUID'dir: sayfa açılınca, girişi içeren pencere “Açılınca sıfırla” ile açılınca ve girişi bağlayan kayıt başarılı olunca yenilenir. Kayıt başarısız olursa aynı kalır; yeniden deneme çift kayıt yazmaz. Genellikle gizli girişle birlikte kullanılır.</small>}
               {selected.props.inputType === "select" && <>

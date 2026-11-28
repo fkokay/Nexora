@@ -63,8 +63,8 @@ const openOrder = async (code: string) => {
 };
 
 describe('Satış Siparişleri standart tanımı', { timeout: 30000 }, () => {
-  it('is a v6 preview standard that uses only operations from the catalog fixture', () => {
-    expect(h.standard).toMatchObject({ screenKey: KEY, version: 6, stage: 'preview' });
+  it('is a v7 preview standard that uses only operations from the catalog fixture', () => {
+    expect(h.standard).toMatchObject({ screenKey: KEY, version: 7, stage: 'preview' });
     const names = new Set(catalog.operations.map((operation) => operation.name));
     expect(h.standard.definition.queries.filter((item) => !names.has(item.operation))).toEqual([]);
   });
@@ -115,7 +115,7 @@ describe('Satış Siparişleri standart tanımı', { timeout: 30000 }, () => {
     expect((await h.menuAfter(`/api/sales/orders/${O2}`)).some((item) => /İrsaliye oluştur/.test(item))).toBe(false);
     fireEvent.click(await h.menuItem(/Düzenle/));
     await waitFor(() => expect(h.state.navigations).toHaveLength(2), T);
-    expect(h.state.navigations[1]).toMatchObject({ page: 'sales-order-create', params: { orderId: O2, customerId: 'c1', orderDate: '2026-11-01' }, replace: false });
+    expect(h.state.navigations[1]).toMatchObject({ page: 'sales-order-document', params: { id: O2 }, replace: false });
     expect(h.state.navigations[1].legacy).toBeFalsy();
   });
 
