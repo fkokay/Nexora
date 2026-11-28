@@ -25,7 +25,7 @@ public sealed class InventoryTransferDocumentModelTests
         using var sampleResponse = await client.GetAsync("/api/document-models/stok.transfer/sample");
         using var sample = JsonDocument.Parse(await sampleResponse.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.OK, sampleResponse.StatusCode);
-        Assert.Equal("TRF-ORNEK-0001", sample.RootElement.GetProperty("transfer").GetProperty("code").GetString());
+        Assert.Equal("TRF-ORNEK-0001", sample.RootElement.GetProperty("transfer").GetProperty("transfer").GetProperty("code").GetString());
         Assert.Equal(2, sample.RootElement.GetProperty("totals").GetProperty("lineCount").GetInt32());
         Assert.Equal(["iptal"], sample.RootElement.GetProperty("allowedTransitions").EnumerateArray().Select(x => x.GetString()!).ToArray());
     }

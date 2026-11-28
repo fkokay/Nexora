@@ -52,8 +52,8 @@ public sealed class InventoryTransfersStandardTests
     public void Action_bar_opens_dialogs_and_voids_from_the_menu()
     {
         var bar = Props("komutlar");
-        Assert.Equal(("kalemlerDugmesi", "{{transferler.meta.totalCount}}"),
-            ((string)bar["openButton"]!, (string)bar["titleCount"]!));
+        Assert.Equal("{{transferler.meta.totalCount}}", (string)bar["titleCount"]!);
+        Assert.False(bar.ContainsKey("openButton"));
         Assert.False(bar.ContainsKey("newButton"));
         Assert.Equal(new[] { "iptalMenuDugmesi" }, Strings(bar["moreButtons"]));
         Assert.Equal(new[] { "save", "delete", "print" }, Strings(bar["hiddenCommands"]));

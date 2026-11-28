@@ -242,7 +242,6 @@
         "type": "actionBar",
         "name": "komutlar",
         "props": {
-          "openButton": "kalemlerDugmesi",
           "moreButtons": [
             "iptalMenuDugmesi"
           ],
@@ -342,13 +341,9 @@
         "props": {
           "text": "Kalemler",
           "actionType": "page",
-          "dialogId": "kalemlerPenceresi",
           "disabledWhen": "liste.seciliSatir.id == null",
           "disabledReason": "Önce bir kayıt seçin",
           "pageCode": "@inventory-transfer-document",
-          "pageParams": [
-            "id={{liste.seciliSatir.id}}"
-          ],
           "target": "newTab",
           "params": [
             "id={{liste.seciliSatir.id}}"
