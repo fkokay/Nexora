@@ -16,7 +16,7 @@ public sealed class SalesCardStandardsTests
         Assert.True(SystemPageStandards.TryGet(key, out var standard), key);
         var definition = JsonNode.Parse(standard.DefinitionJson)!.AsObject();
         if (key == "sales-purchase-order-create")
-            definition["queries"]!.AsArray().Add(JsonNode.Parse("""{"id":"onizleme","name":"onizleme","kind":"read","operation":"satis.teklif.hesapla","runOn":["kalemler"],"parameters":[{"name":"lines","binding":"{{kalemler.satirlar}}","type":"list"}]}"""));
+            definition["queries"]!.AsArray().Add(JsonNode.Parse("""{"id":"onizleme","name":"onizleme","kind":"read","operation":"satis.teklif.hesapla","runOn":["kalemler"],"parameters":[{"name":"quoteDate","binding":"2026-11-28"},{"name":"validUntil","binding":"2026-12-28"},{"name":"currencyCode","binding":"TRY"},{"name":"lines","binding":"{{kalemler.satirlar}}","type":"list"}]}"""));
         return definition;
     }
 

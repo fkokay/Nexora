@@ -73,25 +73,8 @@ internal static class SalesDocumentModelParts
     internal static List<DocumentVatRow> VatRows(IEnumerable<(decimal Rate, decimal Subtotal, decimal Discount, decimal Tax)> lines) =>
         lines.GroupBy(x => x.Rate).OrderBy(g => g.Key).Select(g => new DocumentVatRow(g.Key, g.Sum(x => x.Subtotal - x.Discount), g.Sum(x => x.Tax))).ToList();
 
-    /// <summary>
-    /// Keeps the transitions the user may run: the document's own <paramref name="candidates"/> (decided by its state chain) pass only when the
-    /// tenant's permission rules allow <c>execute</c> on <paramref name="resourceType"/> for this record (status, customer).
-    /// </summary>
-    internal static async Task<IReadOnlyList<string>> ExecutableAsync(IPlatformPermissionAuthorizer authorizer, ClaimsPrincipal principal, Guid tenantId,
-        string resourceType, Guid recordId, string status, Guid? customerId, List<string> candidates, CancellationToken ct)
-    {
-        if (candidates.Count == 0) return candidates;
-        var role = principal.FindFirstValue("role") ?? "";
-        if (!Guid.TryParse(principal.FindFirstValue("sub") ?? principal.FindFirstValue(ClaimTypes.NameIdentifier), out var userId)) return [];
-        var execute = PlatformPermissionCatalog.Definitions.Single(x => x.ResourceType == resourceType && x.Action == "execute");
-        var attributes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["subject.userId"] = userId.ToString("D"), ["subject.role"] = role,
-            ["resource.type"] = execute.ResourceType, ["resource.tenantId"] = tenantId.ToString("D"),
-            ["resource.route.id"] = recordId.ToString("D"), ["resource.status"] = status,
-            ["request.method"] = "POST", ["request.action"] = "execute"
-        };
-        if (customerId is { } customer) attributes["resource.customerId"] = customer.ToString("D");
-        return await authorizer.IsAllowedAsync(tenantId, userId, role, new ResolvedPlatformPermission(execute, attributes), ct) ? candidates : [];
-    }
+    /// <summary>Forwards to <see cref="DocumentModelPermissions.ExecutableAsync"/> (the check is not sales specific).</summary>
+    internal static Task<IReadOnlyList<string>> ExecutableAsync(IPlatformPermissionAuthorizer authorizer, ClaimsPrincipal principal, Guid tenantId,
+        string resourceType, Guid recordId, string status, Guid? customerId, List<string> candidates, CancellationToken ct) =>
+        DocumentModelPermissions.ExecutableAsync(authorizer, principal, tenantId, resourceType, recordId, status, customerId, candidates, ct);
 }

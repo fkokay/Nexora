@@ -35,7 +35,6 @@ const S3 = '11111111-0000-0000-0000-000000000003';
 const T1 = 'cccccccc-0000-0000-0000-000000000001';
 const T2 = 'cccccccc-0000-0000-0000-000000000002';
 const TRANSFERS = '/api/warehouses/transfers';
-const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 const jwt = (role: string) => `x.${btoa(JSON.stringify({ sub: 'u1', role, tenant_id: 't1' })).replace(/=+$/, '')}.y`;
 const warehouse = (id: string, code: string, name: string, isActive = true) => ({ id, code, name, isActive, rowVersion: `rv-${code}` });
@@ -115,48 +114,16 @@ function setup(role = 'TenantAdmin') {
 }
 
 const T = { timeout: 10000 };
-const today = () => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; };
 const settle = (ms = 30) => new Promise((done) => setTimeout(done, ms));
 const writes = () => calls.filter((call) => call.method !== 'GET');
-const creates = () => writes().filter((call) => call.url === TRANSFERS);
 const gets = (path: string) => calls.filter((call) => call.method === 'GET' && call.url.split('?')[0] === path);
 const command = (id: string) => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>(`[data-command="${id}"]`)!;
-const input = (id: string) => document.getElementById(`page-input-${id}`) as HTMLInputElement;
-const cellInput = (row: number, code: string) => document.getElementById(`page-grid-kalemler-yeni-${row}-${code}`) as HTMLInputElement;
 const listRow = async (code: string) => {
   await screen.findByText(code, { selector: '.tenant-page-data-grid td, .tenant-page-data-grid td *' }, T);
   return screen.getAllByRole('row').find((row) => row.querySelector('td') && within(row).queryByText(code)) as HTMLElement;
 };
-const optionTexts = () => within(screen.getByRole('listbox')).getAllByRole('option').map((option) => option.textContent);
 /** Arama kutusunu (giriş ya da ızgara hücresi) açar, isteğe bağlı arar ve metni `option` ile başlayan seçeneği seçer. */
-const pick = async (element: HTMLInputElement, option: string, search?: string) => {
-  fireEvent.click(element);
-  if (search !== undefined) fireEvent.change(element, { target: { value: search } });
-  fireEvent.click(await screen.findByRole('option', { name: new RegExp(`^${option}`) }, T));
-};
-const newDialog = () => screen.getByRole('dialog', { name: 'Depolar arası transfer' });
-const openNew = async () => {
-  await listRow('TR-1');
-  await waitFor(() => expect(command('new').getAttribute('aria-disabled')).not.toBe('true'), T);
-  fireEvent.click(command('new'));
-  await screen.findByRole('dialog', { name: 'Depolar arası transfer' }, T);
-  // Kaynak depo ilk etkin depoyla açılır (pasif "Eski depo" seçenek dışı).
-  await waitFor(() => expect(input('kaynakDepo').value).toBe('Merkez'), T);
-};
-const save = () => fireEvent.click(within(newDialog()).getByRole('button', { name: 'Transferi kaydet' }));
 /** Hedef depo, bir stok satırı (KLM, 2 KOLI, kaynak konum A-01). */
-const fillOneLine = async () => {
-  await pick(input('hedefDepo'), 'Şube');
-  fireEvent.click(within(newDialog()).getByRole('button', { name: 'Kalem ekle' }));
-  const row = Number(/yeni-(\d+)-/.exec(newDialog().querySelector('tbody tr:last-child input')!.id)![1]);
-  await pick(cellInput(row, 'stockItemId'), 'KLM', 'kal');
-  await waitFor(() => expect(cellInput(row, 'stockItemId').value).toBe('KLM · Kalem'), T);
-  await pick(cellInput(row, 'unitCode'), 'KOLI');
-  fireEvent.change(cellInput(row, 'quantity'), { target: { value: '2' } });
-  await pick(cellInput(row, 'fromStorageLocationId'), 'A-01');
-  return row;
-};
-const requestIdOf = (call: Call) => (JSON.parse(call.body!) as { requestId: string }).requestId;
 
 beforeEach(() => {
   calls = []; createFailures = []; api.mockReset();
@@ -172,7 +139,7 @@ describe('Depolar arası transferler standart tanımı', { timeout: 30000 }, () 
     const names = new Set(catalog.operations.map((operation) => operation.name));
     expect(standard.definition.queries.filter((item) => !names.has(item.operation))).toEqual([]);
     expect([...new Set(standard.definition.queries.map((item) => item.operation))].sort()).toEqual([...names].sort());
-    expect(standard.version).toBe(1);
+    expect(standard.version).toBe(2);
   });
 
   it('lists transfers 50 per page with status labels; void is offered only on posted rows', async () => {
@@ -193,162 +160,6 @@ describe('Depolar arası transferler standart tanımı', { timeout: 30000 }, () 
     await waitFor(() => expect(document.querySelector('.list-v2-count')?.textContent).toContain('2'), T);
     // Nothing is read for the new-transfer dialog's line pickers until a line asks for it.
     expect(calls.filter((call) => /\/units$/.test(call.url.split('?')[0]))).toEqual([]);
-  });
-
-  it('Kalemler opens the read-only lines dialog of the row', async () => {
-    setup();
-    fireEvent.click(within(await listRow('TR-1')).getByRole('button', { name: 'Kalemler' }));
-    const dialog = await screen.findByRole('dialog', { name: 'TR-1 · Merkez → Şube' }, T);
-    await within(dialog).findByText('KLM', { selector: 'td, td *' }, T);
-    expect(gets(`${TRANSFERS}/${T1}`)).toHaveLength(1);
-    expect(within(dialog).getByText('Kaynak ve hedef hareketler tek transfer kaydına bağlıdır.')).toBeTruthy();
-    const line = within(dialog).getAllByRole('row').find((row) => row.querySelector('td'))!;
-    expect(line.textContent).toContain('2 KOLI');
-    expect(line.textContent).toContain('24 ADET');
-    expect(line.textContent).toContain('A-01 Raf 1');
-    expect(within(dialog).queryByRole('button', { name: /Kaydet/ })).toBeNull();
-  });
-
-  it('a new transfer uses picker cells with row-scoped units and posts the legacy body', async () => {
-    setup();
-    await openNew();
-    const dialog = newDialog();
-    expect(input('transferTarihi').value).toBe(today());
-    expect(input('istekKimligi')).toBeNull();
-    // The target depot hides passive depots and the source depot.
-    fireEvent.click(input('hedefDepo'));
-    expect(optionTexts()).toEqual(['ŞubeSUB']);
-    fireEvent.blur(input('hedefDepo'));
-    await pick(input('hedefDepo'), 'Şube');
-    expect(within(dialog).getByText(/Kalem: 0 \/ 100/)).toBeTruthy();
-
-    // Row 1: server search for the stock card (passive cards hidden), units of that card only.
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Kalem ekle' }));
-    fireEvent.click(cellInput(1, 'stockItemId'));
-    fireEvent.change(cellInput(1, 'stockItemId'), { target: { value: 'k' } });
-    await waitFor(() => expect(gets('/api/stock/items').some((call) => query(call.url).get('q') === 'k')).toBe(true), T);
-    await waitFor(() => expect(optionTexts()).toEqual(['KLMKalem']), T);
-    fireEvent.click(screen.getByRole('option', { name: /^KLM/ }));
-    await waitFor(() => expect(cellInput(1, 'stockItemId').value).toBe('KLM · Kalem'), T);
-    await waitFor(() => expect(gets(`/api/stock/items/${S1}/units`)).toHaveLength(1), T);
-    // The unit cell starts on the static base-unit option and lists only the card's active conversions.
-    expect(cellInput(1, 'unitCode').value).toBe('Ana birim');
-    fireEvent.click(cellInput(1, 'unitCode'));
-    await waitFor(() => expect(optionTexts()).toEqual(['Ana birim', 'KOLI']), T);
-    fireEvent.click(screen.getByRole('option', { name: 'KOLI' }));
-    fireEvent.change(cellInput(1, 'quantity'), { target: { value: '2' } });
-    fireEvent.click(cellInput(1, 'fromStorageLocationId'));
-    await waitFor(() => expect(optionTexts()).toEqual(['A-01Raf 1']), T);
-    fireEvent.click(screen.getByRole('option', { name: /^A-01/ }));
-    fireEvent.click(cellInput(1, 'toStorageLocationId'));
-    await waitFor(() => expect(optionTexts()).toEqual(['B-01Raf B']), T);
-    fireEvent.blur(cellInput(1, 'toStorageLocationId'));
-    // Typing in a location cell filters its options on the client: the stock search is not re-run. (Closing the stock cell
-    // cleared its search; that debounced re-read settles first.)
-    await settle(400);
-    const stockSearches = gets('/api/stock/items').length;
-    fireEvent.click(cellInput(1, 'toStorageLocationId'));
-    fireEvent.change(cellInput(1, 'toStorageLocationId'), { target: { value: 'zz' } });
-    await screen.findByText('Sonuç bulunamadı.', {}, T);
-    await settle(400);
-    expect(gets('/api/stock/items')).toHaveLength(stockSearches);
-    fireEvent.blur(cellInput(1, 'toStorageLocationId'));
-    expect(cellInput(1, 'toStorageLocationId').value).toBe('');
-
-    // Row 2: another card; its unit options come from its own units read, the first row keeps its labels.
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Kalem ekle' }));
-    await pick(cellInput(2, 'stockItemId'), 'DFT', 'def');
-    await waitFor(() => expect(gets(`/api/stock/items/${S2}/units`)).toHaveLength(1), T);
-    fireEvent.click(cellInput(2, 'unitCode'));
-    await waitFor(() => expect(optionTexts()).toEqual(['Ana birim', 'PAKET']), T);
-    fireEvent.blur(cellInput(2, 'unitCode'));
-    fireEvent.change(cellInput(2, 'quantity'), { target: { value: '1' } });
-    expect(cellInput(1, 'stockItemId').value).toBe('KLM · Kalem');
-    expect(cellInput(1, 'unitCode').value).toBe('KOLI');
-    expect(cellInput(1, 'fromStorageLocationId').value).toBe('A-01 · Raf 1');
-    expect(within(dialog).getByText(/Kalem: 2 \/ 100/)).toBeTruthy();
-    // Each card's units are read once.
-    expect(gets(`/api/stock/items/${S1}/units`)).toHaveLength(1);
-
-    save();
-    await waitFor(() => expect(creates()).toHaveLength(1), T);
-    const body = JSON.parse(creates()[0].body!);
-    expect(body).toEqual({
-      requestId: expect.stringMatching(GUID), fromWarehouseId: W1, toWarehouseId: W2, transferDate: today(),
-      lines: [{ stockItemId: S1, unitCode: 'KOLI', quantity: 2, fromStorageLocationId: L1 }, { stockItemId: S2, quantity: 1 }],
-    });
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Depolar arası transfer' })).toBeNull(), T);
-    await waitFor(() => expect(gets(TRANSFERS).length).toBeGreaterThan(1), T);
-  });
-
-  it('changing a depot clears that side\'s location in every line', async () => {
-    setup();
-    await openNew();
-    await fillOneLine();
-    await pick(cellInput(1, 'toStorageLocationId'), 'B-01');
-    expect(cellInput(1, 'toStorageLocationId').value).toBe('B-01 · Raf B');
-    // Source → Şube: source locations are cleared; target locations stay (target depot unchanged).
-    await pick(input('kaynakDepo'), 'Şube');
-    await waitFor(() => expect(cellInput(1, 'fromStorageLocationId').value).toBe(''), T);
-    expect(cellInput(1, 'toStorageLocationId').value).toBe('B-01 · Raf B');
-    expect(cellInput(1, 'stockItemId').value).toBe('KLM · Kalem');
-    // The target still renders the hidden (now equal to source) depot; picking Merkez clears target locations.
-    expect(input('hedefDepo').value).toBe('Şube');
-    await pick(input('hedefDepo'), 'Merkez');
-    await waitFor(() => expect(cellInput(1, 'toStorageLocationId').value).toBe(''), T);
-  });
-
-  it('an empty grid is blocked by minRows; nothing is posted', async () => {
-    setup();
-    await openNew();
-    await pick(input('hedefDepo'), 'Şube');
-    save();
-    await within(newDialog()).findByText('En az 1 kalem girin.', {}, T);
-    await settle(100);
-    expect(creates()).toEqual([]);
-  });
-
-  it('a retry after a failed save sends the same requestId; a successful save starts a new one', async () => {
-    setup();
-    await openNew();
-    await fillOneLine();
-    createFailures = ['Geçici hata'];
-    save();
-    await within(newDialog()).findByText(/Geçici hata/, {}, T);
-    expect(creates()).toHaveLength(1);
-    // The dialog stays open; the retry is the same request.
-    save();
-    await waitFor(() => expect(creates()).toHaveLength(2), T);
-    expect(requestIdOf(creates()[1])).toBe(requestIdOf(creates()[0]));
-    expect(JSON.parse(creates()[1].body!)).toEqual(JSON.parse(creates()[0].body!));
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Depolar arası transfer' })).toBeNull(), T);
-
-    // The next transfer gets a new id.
-    await openNew();
-    await fillOneLine();
-    save();
-    await waitFor(() => expect(creates()).toHaveLength(3), T);
-    expect(requestIdOf(creates()[2])).toMatch(GUID);
-    expect(requestIdOf(creates()[2])).not.toBe(requestIdOf(creates()[0]));
-  });
-
-  it('reopening the dialog after a failed save starts a new request', async () => {
-    setup();
-    await openNew();
-    await fillOneLine();
-    createFailures = ['Geçici hata'];
-    save();
-    await within(newDialog()).findByText(/Geçici hata/, {}, T);
-    fireEvent.click(within(newDialog()).getByRole('button', { name: 'Vazgeç' }));
-    fireEvent.click(within(await screen.findByRole('alertdialog', {}, T)).getByRole('button', { name: 'Kapat' }));
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Depolar arası transfer' })).toBeNull(), T);
-    await openNew();
-    // The grid starts empty again.
-    expect(newDialog().querySelector('tbody input')).toBeNull();
-    await fillOneLine();
-    save();
-    await waitFor(() => expect(creates()).toHaveLength(2), T);
-    expect(requestIdOf(creates()[1])).not.toBe(requestIdOf(creates()[0]));
   });
 
   it('voids from the row and from the Diğer menu with a described, length-capped reason', async () => {

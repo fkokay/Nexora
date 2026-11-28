@@ -152,7 +152,7 @@ public sealed class ErpOperationCatalogTests
     public void Depo_operations_use_depo_module()
     {
         var depo = ErpOperationCatalog.All.Where(x => x.Name.StartsWith("depo.", StringComparison.Ordinal)).ToArray();
-        Assert.Equal(18, depo.Length);
+        Assert.Equal(20, depo.Length);
         Assert.All(depo, x => Assert.Equal("Depo", x.Module));
         Assert.All(Proje2FazAOperations, name => Assert.True(ErpOperationCatalog.TryGet(name, out _), name));
     }
@@ -700,7 +700,9 @@ public sealed class ErpOperationCatalogTests
             ["stok.kart.ozelAlanKaydet"] = ["values"],
             ["depo.olustur"] = ["customFields"],
             ["depo.ozelAlanKaydet"] = ["values"],
-            ["depo.transfer.olustur"] = ["lines"]
+            ["depo.transfer.olustur"] = ["lines"],
+            ["depo.transfer.belge"] = ["transferId"],
+            ["depo.transfer.doldur"] = ["field", "value", "customerId", "orderDate"]
         };
         // The cari.*, crm.*, satis.*, finans.*, ik.*, new uretim.* and Satınalma system page operations are new names with their own contract tests
         // (CustomerSystemPagesTests, CrmSystemPagesTests, SalesSystemPagesTests, FinanceSystemPagesTests, ManufacturingSystemPagesTests, PurchasingErpOperationCatalogTests).

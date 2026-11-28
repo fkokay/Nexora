@@ -22,6 +22,7 @@ export const SUBROUTE_PARENTS: Record<string, string> = {
   "sales-order-document": "sales-orders",
   "finance-journal-voucher-document": "finance-journal-ledger",
   "sales-quote-document": "sales-quotes",
+  "inventory-transfer-document": "inventory-transfers",
   "sales-invoice-document": "sales-invoices",
   "sales-delivery-document": "sales-deliveries",
   "sales-delivery-create": "sales-deliveries",
@@ -41,6 +42,9 @@ export const SUBROUTE_PARENTS: Record<string, string> = {
 
 /** Screens outside every module: home, assistant, settings and platform/customization tools. */
 export const STANDALONE_PAGES: string[] = [
+  // Eski oluşturma sayfaları: Belge ekranına yönlendirir, menüde yer almaz.
+  "sales-invoice-create",
+  "finance-journal-vouchers",
   "launcher",
   "dashboard",
   "erp-assistant",
@@ -61,7 +65,7 @@ export const STANDALONE_PAGES: string[] = [
   "screen-views",
 ];
 
-const warehousePages = ["inventory-warehouses", "inventory-transfers", "inventory-locations"];
+const warehousePages = ["inventory-warehouses", "inventory-transfers", "inventory-transfer-document", "inventory-locations"];
 
 export const moduleMenus: ModuleMenu[] = [
   {
