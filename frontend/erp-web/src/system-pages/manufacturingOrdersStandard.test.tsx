@@ -123,17 +123,12 @@ const text = () => document.body.textContent ?? '';
 const cell = (value: string) => screen.findAllByText(value, { selector: GRID }, T).then((found) => found[0]);
 const rowOf = (value: string) => screen.getAllByText(value, { selector: GRID })[0].closest('tr')!;
 const menuItem = async (name: RegExp) => {
+  const inline = screen.queryByRole('button', { name });
+  if (inline?.closest('[role=toolbar]')) return inline;
   fireEvent.click(command('more'));
   return screen.findByRole('menuitem', { name }, T);
 };
-const closeMenu = () => fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
-const menuNames = async () => {
-  fireEvent.click(command('more'));
-  await screen.findAllByRole('menuitem', {}, T);
-  const names = screen.queryAllByRole('menuitem').map((item) => item.textContent?.trim() ?? '');
-  closeMenu();
-  return names;
-};
+
 const select = async (code: string) => {
   fireEvent.click(await cell(code));
   await waitFor(() => expect(rowOf(code).getAttribute('aria-selected') === 'true' || rowOf(code).classList.contains('is-selected')
@@ -201,27 +196,28 @@ describe('Üretim emirleri standart tanımı', { timeout: 30000 }, () => {
     expect(lists().length).toBeGreaterThan(before);
   });
 
-  it('İşlemler offers only the steps the selected row allows', async () => {
+  it('selected-row steps appear on the action bar only when allowed', async () => {
     setup();
+    const bar = () => screen.getByRole('toolbar', { name: '\u0130\u015flemler' });
+    const actionLabels = () => Array.from(bar().querySelectorAll('button')).map((item) => item.textContent ?? '');
     await select('URE-001');
-    let names = await menuNames();
-    expect(names.some((name) => name.includes('Kapasiteye çizelgele'))).toBe(true);
-    expect(names.some((name) => name.includes('Serbest bırak'))).toBe(false);
-    expect(names.some((name) => name.includes('Üretimi tamamla'))).toBe(false);
-    expect(names.filter((name) => name.includes('İptal et'))).toHaveLength(1);
+    let labels = actionLabels();
+    expect(labels.some((name) => name.includes('Kapasiteye \u00e7izelgele'))).toBe(true);
+    expect(labels.some((name) => name.includes('Serbest b\u0131rak'))).toBe(false);
+    expect(labels.some((name) => name.includes('\u00dcretimi tamamla'))).toBe(false);
+    expect(labels.filter((name) => name.includes('\u0130ptal et'))).toHaveLength(1);
     await select('URE-005');
-    names = await menuNames();
-    expect(names.some((name) => name.includes('Serbest bırak'))).toBe(true);
-    expect(names.some((name) => name.includes('Kapasiteye çizelgele'))).toBe(false);
+    labels = actionLabels();
+    expect(labels.some((name) => name.includes('Serbest b\u0131rak'))).toBe(true);
+    expect(labels.some((name) => name.includes('Kapasiteye \u00e7izelgele'))).toBe(false);
     await select('URE-003');
-    names = await menuNames();
-    expect(names.some((name) => name.includes('Üretimi tamamla'))).toBe(true);
+    labels = actionLabels();
+    expect(labels.some((name) => name.includes('\u00dcretimi tamamla'))).toBe(true);
     await select('URE-004');
-    fireEvent.click(command('more'));
-    await new Promise((done) => setTimeout(done, 50));
-    const left = screen.queryAllByRole('menuitem').map((item) => item.textContent ?? '');
-    for (const step of ['Kapasiteye çizelgele', 'Serbest bırak', 'Üretimi tamamla', 'İptal et']) expect(left.some((name) => name.includes(step))).toBe(false);
-    closeMenu();
+    labels = actionLabels();
+    for (const step of ['Kapasiteye \u00e7izelgele', 'Serbest b\u0131rak', '\u00dcretimi tamamla', '\u0130ptal et']) {
+      expect(labels.some((name) => name.includes(step))).toBe(false);
+    }
   });
 
   it('Kapasiteye çizelgele posts the schedule step and refreshes the list', async () => {
@@ -246,7 +242,9 @@ describe('Üretim emirleri standart tanımı', { timeout: 30000 }, () => {
   it('İptal et asks first; the text warns when operations already started', async () => {
     setup();
     await select('URE-001');
-    fireEvent.click(await menuItem(/İptal et/));
+    const cancelButton = await menuItem(/\u0130ptal et/);
+    expect(cancelButton.classList.contains('page-shell-action--destructive')).toBe(true);
+    fireEvent.click(cancelButton);
     await confirm('URE-001 üretim emri iptal edilsin mi? Başlamış operasyon varsa fiili kayıtları da etkiler; kapasite ayırmaları silinir ve işlem geri alınamaz.');
     await waitFor(() => expect(writes()).toHaveLength(1), T);
     expect(writes()[0]).toMatchObject({ method: 'POST', url: `/api/manufacturing/orders/${O1}/cancel` });

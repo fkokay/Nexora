@@ -1829,6 +1829,20 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
       return state ? { loading: state.loading || neverRan(state), error: state.error || undefined, rowCount: state.rowCount } : undefined;
     },
     buttonLabel,
+    inlineButtonIds: new Set(flat.filter((component) => component.type === "button"
+      && Array.isArray(barProps.moreButtons) && (barProps.moreButtons as unknown[]).includes(component.id)
+      && typeof component.props?.visibleWhen === "string" && /\b[A-Za-z_]\w*\.seciliSatir(?:\.|\b)/.test(component.props.visibleWhen))
+      .map((component) => component.id)),
+    buttonDanger: (id) => {
+      const component = flat.find((item) => item.id === id && item.type === "button");
+      if (!component) return false;
+      const props = component.props ?? {};
+      const action = runtime.buttonAction(component);
+      const operation = `${component.id} ${textValue(props.actionType)} ${textValue(props.queryId)} ${action?.type === "query" ? action.query?.kind ?? "" : ""}`;
+      if (/iptal|sil|void|delete|cancel/i.test(operation)) return true;
+      const confirmation = `${textValue(props.confirmText)} ${textValue(props.confirmTitle)}`;
+      return props.confirmEnabled === true && /iptal|sil|void|delete|cancel|geri al[ıi]namaz/i.test(confirmation);
+    },
     // Aktarım tablosu ya da bir sahibi `visibleWhen` ile gizliyse Excel/CSV gizlenir.
     tableVisible: (tableId) => runtime.ancestorsOf(tableId).every((id) => {
       const component = flat.find((item) => item.id === id);

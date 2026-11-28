@@ -137,6 +137,7 @@ export function createCommandRegistry(): CommandRegistry {
     const pageCommands = effective('page');
     const more = [...(formCommands?.more ?? []), ...(pageCommands?.more ?? [])];
     if (formCommands?.more || pageCommands?.more) merged.more = more;
+    if (pageCommands?.inlineMore?.length) merged.inlineMore = pageCommands.inlineMore;
     const barItems = [...(formCommands?.barItems ?? []), ...(pageCommands?.barItems ?? [])];
     if (barItems.length > 0) merged.barItems = barItems;
     // The page's İşlemler visibility and bar look come only from the effective page source, so another view (or a page

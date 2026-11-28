@@ -42,6 +42,10 @@
 .nx-action-bar__button[data-primary="true"]:hover:not([aria-disabled="true"]) { background: var(--nx-primary-hover); }
 
 .nx-action-bar__button[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; }
+.nx-action-bar__button[data-danger="true"],
+.nx-action-bar__menu-item[data-danger="true"] { color: var(--nx-bad); }
+.nx-action-bar__button[data-danger="true"]:hover:not([aria-disabled="true"]),
+.nx-action-bar__menu-item[data-danger="true"]:hover:not([aria-disabled="true"]) { background: var(--nx-bad-bg); }
 
 .nx-action-bar kbd,
 .nx-shortcut-help kbd {
@@ -167,6 +171,7 @@
 
 .nx-action-bar__menu-item:hover:not([aria-disabled="true"]) { background: var(--nx-primary-soft); }
 .nx-action-bar__menu-item[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; }
+.nx-action-bar__menu-sep { display: block; height: 1px; margin: 4px 2px; background: var(--nx-line); }
 
 .nx-shortcut-help-backdrop {
   position: fixed;
