@@ -325,7 +325,7 @@ public static class PlatformPermissionCatalog
             // A new model adds its code here.
             var modelPath = path["/api/document-models/".Length..];
             resource = Resources.First(x => x.ResourceType == (modelPath.StartsWith("satis.teklif", StringComparison.OrdinalIgnoreCase)
-                ? "erp.sales-quotes" : "erp.sales-orders"));
+                ? "erp.sales-quotes" : modelPath.StartsWith("muhasebe.", StringComparison.OrdinalIgnoreCase) ? "erp.general-ledger" : "erp.sales-orders"));
             explicitReadAction = true;
         }
         resource ??= Resources.Where(x => path.Equals(x.RoutePrefix, StringComparison.OrdinalIgnoreCase)

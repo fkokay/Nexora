@@ -79,6 +79,7 @@ duranVarlik.vergiAmortismani.plani
 duranVarlik.vukOmurKatalogu
 duranVarlik.zimmet.iadeAl
 duranVarlik.zimmet.listele
+finans.fis.belge
 finans.fis.getir
 finans.fis.listele
 finans.fis.olustur
