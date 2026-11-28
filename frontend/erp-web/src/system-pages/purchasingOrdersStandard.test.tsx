@@ -89,7 +89,7 @@ describe('Satınalma siparişleri standart tanımı', { timeout: 60000 }, () => 
     expect(h.writes()).toEqual([]);
   });
 
-  it('a row double-click (Aç) opens the document of the order in place', async () => {
+  it('a row double-click (Aç) opens the order document page', async () => {
     h.setup(respond);
     fireEvent.doubleClick(await h.cell('SA-0001'));
     expect(await screen.findByRole('dialog', {}, T)).toBeTruthy();
@@ -106,7 +106,7 @@ describe('Satınalma siparişleri standart tanımı', { timeout: 60000 }, () => 
     await h.ready('new');
     fireEvent.click(h.command('new'));
     await waitFor(() => expect(h.state.navigations).toHaveLength(1), T);
-    expect(h.state.navigations[0]).toMatchObject({ page: 'sales-purchase-order-create' });
+    expect(h.state.navigations[0]).toMatchObject({ page: 'purchase-order-document' });
     expect(h.state.navigations[0].legacy).toBeFalsy();
   });
 

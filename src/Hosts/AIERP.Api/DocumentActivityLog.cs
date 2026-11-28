@@ -13,6 +13,8 @@ internal static class DocumentActivityLog
 {
     internal const string SalesOrder = "satis.siparis";
     internal const string SalesQuote = "satis.teklif";
+    internal const string PurchaseOrder = "satinalma.siparis";
+    internal const string PurchaseInvoice = "satinalma.fatura";
     internal const string InventoryTransfer = "stok.transfer";
     internal const string JournalVoucher = "muhasebe.fis";
     internal const string SalesInvoice = "satis.fatura";

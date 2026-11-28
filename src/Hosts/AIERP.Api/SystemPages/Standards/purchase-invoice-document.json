@@ -1,0 +1,76 @@
+{
+  "screenKey": "purchase-invoice-document",
+  "title": "Sat\u0131nalma faturas\u0131 (belge)",
+  "description": "Belge kal\u0131b\u0131yla sat\u0131nalma faturas\u0131 (belge): taslak, sat\u0131rlar, sunucu hesab\u0131 ve durum.",
+  "module": "Sat?n Alma",
+  "version": 1,
+  "stage": "preview",
+  "items": {
+    "component:baslik": {
+      "since": 1,
+      "label": "Ba\u015fl\u0131k alanlar\u0131"
+    },
+    "component:satirlar": {
+      "since": 1,
+      "label": "Sat\u0131r kalemleri ve toplamlar"
+    },
+    "component:toplamlar": {
+      "since": 1,
+      "label": "Toplamlar, KDV d\u00f6k\u00fcm\u00fc ve i\u015flem g\u00fcnl\u00fc\u011f\u00fc"
+    }
+  },
+  "definition": {
+    "schemaVersion": 2,
+    "template": {
+      "name": "belge",
+      "document": "satinalma.fatura"
+    },
+    "queries": [],
+    "components": [
+      {
+        "id": "baslik",
+        "type": "documentFields",
+        "props": {
+          "slot": "fields",
+          "fields": [
+            "invoiceNumber",
+            "supplierId",
+            "invoiceDate",
+            "dueDate",
+            "currencyCode",
+            "receiptCode",
+            "notes"
+          ],
+          "labels": {}
+        }
+      },
+      {
+        "id": "satirlar",
+        "type": "documentLines",
+        "props": {
+          "slot": "lines",
+          "columns": [
+            "description",
+            "quantity",
+            "unitCode",
+            "unitPrice",
+            "expenseAccountId",
+            "vatRate",
+            "total"
+          ],
+          "labels": {},
+          "density": "normal"
+        }
+      },
+      {
+        "id": "toplamlar",
+        "type": "documentSummary",
+        "props": {
+          "slot": "summary",
+          "vatBreakdown": true,
+          "activity": true
+        }
+      }
+    ]
+  }
+}

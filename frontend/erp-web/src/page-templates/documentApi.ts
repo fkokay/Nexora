@@ -53,14 +53,15 @@ export type DocLine = {
   discountPercent: number | null; vatPercent: number | null; lineSubtotal: number; discountAmount: number; taxAmount: number; lineTotal: number;
   deliveredQuantity?: number; enteredCurrencyCode?: string | null; enteredUnitPrice?: number | null; enteredUnitCode?: string | null;
   isVatIncluded?: boolean; exchangeRate?: number; salesRequestLineNumber?: number | null;
-  /** İrsaliye satırı: fiyat isteğe bağlıdır (bedelsiz ya da fiyatsız satır); izleme ve raf bilgisi Belge'de görünmez, kayıtta geri gönderilir. */
+  description?: string; expenseAccountId?: string | null; vatRate?: number | null;
+  /** Delivery line metadata is retained on read and sent back on save. */
   isFreeOfCharge?: boolean; trackingCode?: string | null; expiryDate?: string | null; storageLocationId?: string | null;
 };
 /** Belgenin modelden bağımsız kaydı. `values`: tarih ve metin başlık alanları (modelin alan koduyla). */
 export type DocView = {
   id: string; code: string; customerId: string | null; customerName: string; currencyCode: string; status: string;
   salespersonEmployeeId: string | null; values: Record<string, string>; prospectCustomerName: string | null;
-  customFields: CustomFieldValue[]; lines: DocLine[];
+  customFields: CustomFieldValue[]; lines: DocLine[]; rowVersion?: string;
 };
 export type BelgeDocument = {
   doc: DocView; amounts: DocumentAmounts; allowedTransitions: string[]; activity: ActivityRow[]; activityStartedLate: boolean; approval: DocumentApproval | null;
@@ -74,7 +75,7 @@ export type OrderPreview = {
   currencyCode: string; subtotal: number; discountTotal: number; taxTotal: number; grandTotal: number; lines: PreviewLine[]; taxes: PreviewTax[];
 };
 export type PreviewLineRequest = {
-  rowKey: string; stockItemId: string; quantity: number; unitPrice: number; discountPercent: number; vatPercent: number;
+  rowKey: string; stockItemId?: string; description?: string; expenseAccountId?: string; quantity: number; unitPrice: number; discountPercent: number; vatPercent: number;
   unitCode?: string; currencyCode?: string; isVatIncluded?: boolean;
   /** İrsaliye satırı: bedelsiz işareti ve geri gönderilen izleme / raf bilgisi. */
   isFreeOfCharge?: boolean; trackingCode?: string; expiryDate?: string; storageLocationId?: string;
@@ -108,9 +109,13 @@ export type DocumentBinding = {
   customFields?: boolean;
   unpricedLines?: boolean;
   /** Sunucu yanıtındaki kayıt anahtarı. */
-  entity: "order" | "quote" | "invoice" | "delivery" | "transfer";
+  entity: "order" | "quote" | "purchaseOrder" | "invoice" | "delivery" | "transfer";
   /** Belgenin uç kökü: `{base}/{id}/document`, `{base}/preview`, `{base}/custom-fields`, kayıt `POST/PUT {base}`. */
   base: string;
+  documentRoute?: (id: string) => string;
+  calculateRoute?: string;
+  customFieldRoute?: string | null;
+  invoiceDraft?: boolean;
   transitionRoutes: Record<string, string>;
   /** "Belgeden belge" eylemlerinin uçları: `{base}/{id}/{route}` (POST); yanıt yaratılan belgenin kaydıdır (`id`). */
   creationRoutes: Record<string, string>;
@@ -123,7 +128,38 @@ export type DocumentBinding = {
   valuesOf: (entity: Record<string, unknown>) => Record<string, string>;
   /** Hesap ucunun gövdesi; müşteri (ya da teklif alıcısı) yoksa null. */
   previewBody: (h: HeaderValues, lines: PreviewLineRequest[]) => Record<string, unknown> | null;
-  writeBody: (h: HeaderValues, lines: WriteLine[], customFields: Record<string, string | null>) => Record<string, unknown>;
+  writeBody: (h: HeaderValues, lines: WriteLine[], customFields: Record<string, string | null>, existing?: Record<string, unknown>) => Record<string, unknown>;
+};
+
+const PURCHASE_ORDER_BINDING: DocumentBinding = {
+  code: "satinalma.siparis", noun: "sipariş", newTitle: "Yeni satınalma siparişi", entity: "purchaseOrder", creationRoutes: {}, pageKey: "purchase-order-document",
+  base: "/api/purchasing/orders", documentRoute: (id) => `/api/purchasing/orders/${encodeURIComponent(id)}/document`,
+  calculateRoute: "/api/document-models/satinalma.siparis/calculate", customFieldRoute: "/api/purchasing/orders/custom-fields", maxLines: 200,
+  transitionRoutes: {}, dateFields: ["orderDate", "expectedReceiptDate"], textFields: ["notes"],
+  newValues: () => ({ orderDate: today(), expectedReceiptDate: "", targetWarehouseId: "", targetWarehouseIdLabel: "", notes: "" }),
+  valuesOf: (e) => ({ orderDate: str(e.orderDate) || today(), expectedReceiptDate: str(e.expectedReceiptDate),
+    targetWarehouseId: str(e.targetWarehouseId), targetWarehouseIdLabel: str(e.targetWarehouseName), notes: str(e.notes) }),
+  previewBody: (h, lines) => ({ currencyCode: h.currencyCode || "TRY", lines }),
+  writeBody: (h, lines) => ({ code: h.code, supplierId: h.customerId, orderDate: h.values.orderDate, expectedReceiptDate: h.values.expectedReceiptDate || null,
+    currencyCode: h.currencyCode || "TRY", targetWarehouseId: h.values.targetWarehouseId || null, notes: h.values.notes || null, lines }),
+};
+
+const PURCHASE_INVOICE_BINDING: DocumentBinding = {
+  code: "satinalma.fatura", noun: "fatura taslağı", newTitle: "Yeni satınalma faturası", entity: "invoice", invoiceDraft: true, creationRoutes: {}, pageKey: "purchase-invoice-document",
+  base: "/api/purchasing/standalone-invoices", documentRoute: (id) => `/api/purchasing/standalone-invoices/${encodeURIComponent(id)}/document`,
+  calculateRoute: "/api/document-models/satinalma.fatura/calculate", customFieldRoute: null, maxLines: 200,
+  transitionRoutes: { muhasebelestir: "post" }, dateFields: ["invoiceDate", "dueDate"], textFields: ["invoiceNumber", "notes"],
+  newValues: () => ({ invoiceNumber: "", invoiceDate: today(), dueDate: "", notes: "" }),
+  valuesOf: (e) => ({ invoiceNumber: str(e.invoiceNumber) || str(e.code), invoiceDate: str(e.invoiceDate) || today(), dueDate: str(e.dueDate),
+    notes: str(e.notes), receiptCode: str(e.receiptCode) }),
+  previewBody: (h, lines) => ({ currencyCode: h.currencyCode || "TRY", lines }),
+  writeBody: (h, lines, _custom, existing) => ({ ...(existing ? { expectedRowVersion: existing.rowVersion } : { requestId: crypto.randomUUID() }),
+    supplierId: h.customerId, invoiceNumber: h.values.invoiceNumber || h.code, invoiceDate: h.values.invoiceDate, dueDate: h.values.dueDate || null,
+    currencyCode: h.currencyCode || "TRY", notes: h.values.notes || null,
+    lines: lines.map((line, i) => ({ lineNumber: i + 1, description: line.description, quantity: line.quantity, unitCode: line.unitCode || null,
+      unitPrice: line.unitPrice, subtotal: line.quantity * line.unitPrice, discountAmount: 0, taxAmount: line.quantity * line.unitPrice * line.vatPercent / 100,
+      total: line.quantity * line.unitPrice * (1 + line.vatPercent / 100), expenseAccountId: line.expenseAccountId || null,
+      vatRate: line.vatPercent, standalonePurchaseReceiptLineId: null })) }),
 };
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -213,6 +249,7 @@ const TRANSFER_BINDING: DocumentBinding = {
 };
 
 export const DOCUMENT_BINDINGS: Record<string, DocumentBinding> = { [ORDER_BINDING.code]: ORDER_BINDING, [QUOTE_BINDING.code]: QUOTE_BINDING,
+  [PURCHASE_ORDER_BINDING.code]: PURCHASE_ORDER_BINDING, [PURCHASE_INVOICE_BINDING.code]: PURCHASE_INVOICE_BINDING,
   [INVOICE_BINDING.code]: INVOICE_BINDING, [DELIVERY_BINDING.code]: DELIVERY_BINDING, [TRANSFER_BINDING.code]: TRANSFER_BINDING };
 export const bindingOf = (code: string): DocumentBinding | null => DOCUMENT_BINDINGS[code] ?? null;
 
@@ -245,10 +282,11 @@ export function normalizeDocument(binding: DocumentBinding, raw: RawDocument): B
   }));
   return {
     doc: {
-      id: str(entity.id), code: str(entity.code), customerId: (entity.customerId as string | null | undefined) || null, customerName: str(entity.customerName),
+      id: str(entity.id), code: str(entity.code), customerId: (entity.customerId as string | null | undefined) || (entity.supplierId as string | null | undefined) || null, customerName: str(entity.customerName) || str(entity.supplierName),
       currencyCode: str(entity.currencyCode), status: str(entity.status), salespersonEmployeeId: (entity.salespersonEmployeeId as string | null | undefined) ?? null,
       values: binding.valuesOf(entity), prospectCustomerName: (entity.prospectCustomerName as string | null | undefined) ?? null,
       customFields: (entity.customFields as CustomFieldValue[] | null | undefined) ?? [], lines,
+      rowVersion: str(entity.rowVersion) || undefined,
     },
     amounts: raw.amounts, allowedTransitions: raw.allowedTransitions, activity: raw.activity, activityStartedLate: raw.activityStartedLate,
     approval: raw.approval ?? null, allowedCreations: raw.allowedCreations ?? [],
@@ -262,33 +300,48 @@ export const OPTION_ROUTES: Record<string, string> = {
   "cari.listele": "/api/customers",
   "stok.kart.listele": "/api/stock/items",
   "ik.personel.listele": "/api/hr/employees",
+  "satinalma.faturaTaslagi.tedarikciler": "/api/purchasing/standalone-invoices/suppliers",
+  "satinalma.faturaTaslagi.giderHesaplari": "/api/finance/general-ledger/accounts?statementSection=Expense&activeOnly=true",
   "depo.listele": "/api/warehouses",
   "satinalma.faturaGirisi.mevzuatProfilleri": "/api/finance/general-ledger/rule-profiles",
 };
 
 export const loadDocumentModel = (code: string, token?: string) => api<DocumentModel>(`/api/document-models/${encodeURIComponent(code)}`, token);
-export const loadDocument = async (binding: DocumentBinding, id: string, token?: string) =>
-  normalizeDocument(binding, await api<RawDocument>(`${binding.base}/${encodeURIComponent(id)}/document`, token));
+export const loadDocument = async (binding: DocumentBinding, id: string, token?: string) => {
+  if (binding.invoiceDraft) {
+    try { return normalizeDocument(binding, await api<RawDocument>(`/api/purchasing/standalone-invoices/${encodeURIComponent(id)}/document`, token)); }
+    catch (failure) {
+      if ((failure as { status?: number }).status !== 404) throw failure;
+      return normalizeDocument(binding, await api<RawDocument>(`/api/purchasing/invoices/${encodeURIComponent(id)}/document`, token));
+    }
+  }
+  return normalizeDocument(binding, await api<RawDocument>(binding.documentRoute?.(id) ?? `${binding.base}/${encodeURIComponent(id)}/document`, token));
+};
 export const loadSampleDocument = async (binding: DocumentBinding, state: string, token?: string) =>
   normalizeDocument(binding, await api<RawDocument>(`/api/document-models/${encodeURIComponent(binding.code)}/sample?state=${encodeURIComponent(state)}`, token));
-export const loadCustomFieldDefinitions = (binding: DocumentBinding, token?: string) =>
-  binding.customFields === false ? Promise.resolve([] as CustomFieldDefinition[]) : api<CustomFieldDefinition[]>(`${binding.base}/custom-fields`, token);
+export const loadCustomFieldDefinitions = (binding: DocumentBinding, token?: string) => binding.customFieldRoute === null || binding.customFields === false ? Promise.resolve([] as CustomFieldDefinition[])
+  : api<CustomFieldDefinition[]>(binding.customFieldRoute ?? `${binding.base}/custom-fields`, token);
 
 export const fillLine = (code: string, field: string, value: string, token?: string) =>
   api<{ values: Record<string, unknown> }>(`/api/document-models/${encodeURIComponent(code)}/fill`, token,
     { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ field, value }) });
 
-export const previewDocument = (binding: DocumentBinding, body: Record<string, unknown>, token: string | undefined, signal: AbortSignal) =>
-  api<OrderPreview>(`${binding.base}/preview`, token, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal });
+export const previewDocument = async (binding: DocumentBinding, body: Record<string, unknown>, token: string | undefined, signal: AbortSignal): Promise<OrderPreview> => {
+  if (!binding.calculateRoute) return api<OrderPreview>(`${binding.base}/preview`, token, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal });
+  const result = await api<DocumentAmounts>(binding.calculateRoute, token, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal });
+  return { ...result, lines: [], taxes: result.vat.map((row) => ({ code: "VAT", name: `KDV %${row.rate}`, rate: row.rate, treatment: "Taxable", taxableAmount: row.taxableAmount, amount: row.amount })) };
+};
 
 export const saveDocument = (binding: DocumentBinding, id: string | null, body: Record<string, unknown>, token?: string) =>
   id && binding.kind === "inventory-transfer" ? Promise.reject(new Error("Kaydedilmiş transfer salt okunurdur."))
     : api<{ id: string }>(id ? `${binding.writeBase ?? binding.base}/${encodeURIComponent(id)}` : binding.writeBase ?? binding.base, token,
       { method: id ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
-export const runTransition = (binding: DocumentBinding, id: string, code: string, reason: string | null, token?: string) =>
-  api<unknown>(`${binding.transitionBases?.[code] ?? binding.base}/${encodeURIComponent(id)}/${binding.transitionRoutes[code] ?? code}`, token,
+export const runTransition = (binding: DocumentBinding, id: string, code: string, reason: string | null, token?: string) => {
+  const base = binding.invoiceDraft && code === "iptal" ? "/api/purchasing/invoices" : (binding.transitionBases?.[code] ?? binding.base);
+  return api<unknown>(`${base}/${encodeURIComponent(id)}/${binding.transitionRoutes[code] ?? code}`, token,
     { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId: crypto.randomUUID(), reason, ...(binding.kind === "inventory-transfer" ? { confirmation: true } : {}) }) });
+};
 /** Belgeden belge: modelin eylemini çağırır (var olan ERP işlemi); yaratılan belgenin kimliğini döner. */
 export const runCreation = (binding: DocumentBinding, id: string, code: string, token?: string) =>
   api<{ id: string }>(`${binding.base}/${encodeURIComponent(id)}/${binding.creationRoutes[code] ?? code}`, token,
@@ -297,9 +350,9 @@ export const runCreation = (binding: DocumentBinding, id: string, code: string, 
 export async function searchOptions(operation: string, text: string, token?: string): Promise<LookupRow[]> {
   const route = OPTION_ROUTES[operation];
   if (!route) return [];
-  const result = await api<{ items?: LookupRow[] } | LookupRow[]>(`${route}?q=${encodeURIComponent(text)}&pageSize=20`, token);
+  const result = await api<{ items?: LookupRow[] } | LookupRow[]>(`${route}${route.includes("?") ? "&" : "?"}q=${encodeURIComponent(text)}&page=1&pageSize=20`, token);
   const rows = Array.isArray(result) ? result : result.items ?? [];
-  // Vergi profili kodla seçilir (sunucu profili `accountingProfileCode` ile arar) ve liste süzülmeden gelir.
+  // Tax profiles are selected by code; filter the unsearched server list locally.
   if (operation === PROFILE_OPERATION) {
     const needle = text.trim().toLocaleLowerCase("tr-TR");
     return (rows as unknown as { profileCode: string; name: string }[]).filter((r) => !needle || `${r.profileCode} ${r.name}`.toLocaleLowerCase("tr-TR").includes(needle))
