@@ -12,7 +12,7 @@ import foreignTradeCaseJson from "../../../../../src/Hosts/AIERP.Api/SystemPages
 // olmadan açılmalı, uzlaştırmadan özellik kaybetmeden geçmeli ve koşulları tasarımcının denetimine takılmamalıdır.
 type Component = { id: string; type: string; name?: string; props: Record<string, unknown>; children?: Component[] };
 type Query = { id: string; name: string; parameters?: { name: string; type: string }[] };
-type Standard = { definition: { queries: Query[]; components: Component[] } };
+type Standard = { definition: { queries: Query[]; components: Component[]; template?: unknown } };
 const { reconcileDefinition, managedKeys, contentFields, palette, inputTypeOptions } = designerInternals;
 const standards: [string, Standard][] = [["foreign-trade", JSON.parse(foreignTradeJson)], ["foreign-trade-case", JSON.parse(foreignTradeCaseJson)]];
 const flatten = (list: Component[]): Component[] => list.flatMap((component) => [component, ...flatten(component.children ?? [])]);
@@ -32,7 +32,8 @@ for (const [key, standard] of standards) describe(`${key} standardı tasarımcı
     for (const component of all) {
       expect(contentFields, component.type).toHaveProperty(component.type);
       expect(palette.some((item) => item.type === component.type), component.type).toBe(true);
-      for (const prop of Object.keys(component.props)) expect(managedKeys.has(prop), `${component.id}.${prop}`).toBe(true);
+      // Kalıplı standartta 'slot' kalıp yerleşimidir (kalıp panelleri yönetir), ham alan değildir.
+      for (const prop of Object.keys(component.props)) expect(managedKeys.has(prop) || (!!standard.definition.template && prop === "slot"), `${component.id}.${prop}`).toBe(true);
     }
   });
   it("giriş türleri, biçimler ve parametre türleri tasarımcının seçeneklerindedir", () => {
@@ -69,13 +70,14 @@ for (const [key, standard] of standards) describe(`${key} standardı tasarımcı
   });
 });
 
-// Testin boşuna geçmemesi için: aşama diyalogları, tarih girişi/parametresi ve listenin openParam'ı standartlarda gerçekten kullanılır.
+// Testin boşuna geçmemesi için: aşama diyalogları, göstergeler, tarih girişi/parametresi ve listenin openParam'ı standartlarda gerçekten kullanılır.
 describe("Dış Ticaret standartlarının kullandığı özellikler", () => {
   const all = standards.flatMap(([key, standard]) => flatten(standard.definition.components).map((component) => [key, component] as const));
   const parameters = standards.flatMap(([, standard]) => standard.definition.queries.flatMap((query) => query.parameters ?? []));
-  it("listede diyalog, aşama adımları ve id openParam'ı; kartta tarih girişi vardır", () => {
+  it("listede diyalog, göstergeler ve id openParam'ı; kartta tarih girişi vardır", () => {
     expect(all.some(([key, component]) => key === "foreign-trade" && component.type === "dialog")).toBe(true);
-    expect(all.some(([key, component]) => key === "foreign-trade" && component.type === "steps")).toBe(true);
+    expect(all.filter(([key, component]) => key === "foreign-trade" && component.type === "metric")).toHaveLength(4);
+    expect(standards.every(([, standard]) => !!standard.definition.template)).toBe(true);
     expect(all.some(([key, component]) => key === "foreign-trade-case" && component.type === "input" && component.props.inputType === "date")).toBe(true);
     expect(parameters.some((parameter) => parameter.type === "date")).toBe(true);
     const tables = all.filter(([, component]) => "openParam" in component.props);

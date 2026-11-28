@@ -3,7 +3,7 @@
   "title": "Yevmiye Defterleri",
   "description": "Yevmiye fişleri: tarih ve standart süzgeci, fiş belgesi ve zinciri, sunucunun izin verdiği fişlerde ters kayıt.",
   "module": "Genel Muhasebe",
-  "version": 1,
+  "version": 2,
   "stage": "preview",
   "items": {
     "component:komutlar": {
@@ -36,34 +36,6 @@
       "requires": [
         "query:fisler"
       ]
-    },
-    "component:tersKayitGostergesi": {
-      "since": 1,
-      "label": "Ters kayıt göstergesi (bu sayfa)",
-      "requires": [
-        "query:fisler"
-      ]
-    },
-    "component:tarihKarti": {
-      "since": 1,
-      "label": "Tarih aralığı ve standart",
-      "requires": [
-        "component:baslangic",
-        "component:bitis",
-        "component:standart"
-      ]
-    },
-    "component:baslangic": {
-      "since": 1,
-      "label": "Süzgeç: Başlangıç tarihi"
-    },
-    "component:bitis": {
-      "since": 1,
-      "label": "Süzgeç: Bitiş tarihi"
-    },
-    "component:standart": {
-      "since": 1,
-      "label": "Süzgeç: Muhasebe standardı"
     },
     "component:suzgec": {
       "since": 1,
@@ -120,35 +92,40 @@
       "since": 1,
       "label": "Fiş başlığı",
       "requires": [
-        "query:fis"
+        "query:fis",
+        "component:fisPenceresi"
       ]
     },
     "component:fisSatirTablosu": {
       "since": 1,
       "label": "Fiş satırları",
       "requires": [
-        "query:satirlar"
+        "query:satirlar",
+        "component:fisPenceresi"
       ]
     },
     "component:zincirNotu": {
       "since": 1,
       "label": "Fiş zinciri: ters çevrildi",
       "requires": [
-        "query:fis"
+        "query:fis",
+        "component:fisPenceresi"
       ]
     },
     "component:tersNotu": {
       "since": 1,
       "label": "Fiş zinciri: ters kayıt fişi",
       "requires": [
-        "query:fis"
+        "query:fis",
+        "component:fisPenceresi"
       ]
     },
     "component:kaynakNotu": {
       "since": 1,
       "label": "Kaynak belge notu",
       "requires": [
-        "query:fis"
+        "query:fis",
+        "component:fisPenceresi"
       ]
     },
     "query:fisler": {
@@ -195,6 +172,18 @@
         "query:fis",
         "query:tersKayit"
       ]
+    },
+    "component:baslangic": {
+      "since": 2,
+      "label": "baslangic"
+    },
+    "component:bitis": {
+      "since": 2,
+      "label": "bitis"
+    },
+    "component:standart": {
+      "since": 2,
+      "label": "standart"
     }
   },
   "definition": {
@@ -207,13 +196,14 @@
         "props": {
           "newButton": "yeniFisDugmesi",
           "openButton": "acDugmesi",
-          "moreButtons": [
-            "tersKayitDugmesi",
-            "tersKayitSourced"
-          ],
           "exportTable": "liste",
-          "titleCount": "{{fisler.meta.totalCount}}",
-          "hiddenCommands": ["save", "delete", "filter", "print"]
+          "hiddenCommands": [
+            "save",
+            "delete",
+            "filter",
+            "print"
+          ],
+          "slot": "commands"
         }
       },
       {
@@ -224,7 +214,8 @@
           "text": "Yeni",
           "actionType": "page",
           "pageCode": "@finance-journal-vouchers",
-          "target": "newTab"
+          "target": "newTab",
+          "slot": "actions"
         }
       },
       {
@@ -237,7 +228,8 @@
           "actionType": "openDialog",
           "dialogId": "fisPenceresi",
           "disabledWhen": "liste.seciliSatir.id == null",
-          "disabledReason": "Önce bir fiş seçin"
+          "disabledReason": "Önce bir fiş seçin",
+          "slot": "rowActions"
         }
       },
       {
@@ -248,71 +240,9 @@
           "title": "Fiş sayısı",
           "value": "{{fisler.meta.totalCount}}",
           "format": "number",
-          "width": 4,
           "icon": "files",
-          "description": "süzgece göre"
-        }
-      },
-      {
-        "id": "tersKayitGostergesi",
-        "type": "metric",
-        "name": "tersKayitGostergesi",
-        "props": {
-          "title": "Ters kayıt",
-          "query": "fisler",
-          "width": 4,
-          "icon": "refresh-cw",
-          "description": "bu sayfa",
-          "countWhen": "fisler.satir.isReversal == true"
-        }
-      },
-      {
-        "id": "tarihKarti",
-        "type": "formCard",
-        "name": "tarihKarti",
-        "props": {
-          "title": "Süzgeç",
-          "layout": "inline",
-          "width": 12,
-          "inputs": [
-            "baslangic",
-            "bitis",
-            "standart"
-          ]
-        }
-      },
-      {
-        "id": "baslangic",
-        "type": "input",
-        "name": "baslangic",
-        "props": {
-          "inputType": "date",
-          "label": "Başlangıç",
-          "defaultValue": "{{tarih.ayBasi}}"
-        }
-      },
-      {
-        "id": "bitis",
-        "type": "input",
-        "name": "bitis",
-        "props": {
-          "inputType": "date",
-          "label": "Bitiş",
-          "defaultValue": "{{bugun}}"
-        }
-      },
-      {
-        "id": "standart",
-        "type": "input",
-        "name": "standart",
-        "props": {
-          "inputType": "select",
-          "label": "Standart",
-          "staticOptions": [
-            "=Tümü",
-            "TDHP=TDHP",
-            "IFRS=IFRS"
-          ]
+          "description": "süzgece göre",
+          "slot": "indicators"
         }
       },
       {
@@ -321,16 +251,16 @@
         "name": "suzgec",
         "props": {
           "table": "liste",
-          "width": 12,
           "search": true,
-          "searchPlaceholder": "Fiş no veya açıklama ara (bu sayfa)",
+          "searchPlaceholder": "Fiş no veya açıklama ara",
           "searchColumns": [
             "code",
             "description"
           ],
           "filters": [
-            "sourceLabel|select|row||Kaynak (bu sayfa)"
-          ]
+            "sourceLabel|select|row||Kaynak"
+          ],
+          "slot": "filters"
         }
       },
       {
@@ -342,7 +272,6 @@
           "query": "fisler",
           "paging": "server",
           "pageSize": 50,
-          "width": 12,
           "columns": [
             "code",
             "entryDate",
@@ -350,8 +279,7 @@
             "description",
             "accountingBasis",
             "totalDebit",
-            "totalCredit",
-            "isReversed"
+            "totalCredit"
           ],
           "columnLabels": [
             "code=Fiş",
@@ -361,7 +289,6 @@
             "accountingBasis=Standart",
             "totalDebit=Borç",
             "totalCredit=Alacak",
-            "isReversed=Ters kayıt",
             "createdAt=Kayıt zamanı"
           ],
           "columnFormats": [
@@ -370,23 +297,19 @@
             "sourceLabel=status",
             "totalDebit=money",
             "totalCredit=money",
-            "isReversed=status",
             "createdAt=date"
-          ],
-          "valueLabels": [
-            "isReversed:true=Ters kaydı var",
-            "isReversed:false=—"
-          ],
-          "toneMap": [
-            "Ters kaydı var=warning",
-            "Ters kayıt=info"
           ],
           "totals": [
             "totalDebit",
             "totalCredit"
           ],
-          "rowOpenAction": "acDugmesi",
-          "emptyText": "Seçilen dönemde yevmiye fişi yok."
+          "emptyText": "Seçilen dönemde yevmiye fişi yok.",
+          "slot": "list",
+          "rowActions": [
+            "acDugmesi",
+            "tersKayitDugmesi",
+            "tersKayitSourced"
+          ]
         }
       },
       {
@@ -394,7 +317,8 @@
         "type": "text",
         "name": "altBilgi",
         "props": {
-          "text": "Kaydedilmiş fiş silinemez ve değiştirilemez; düzeltme İşlemler › Ters kayıt oluştur ile yapılır. Kaynak süzgeci ve toplamlar yalnız görünen sayfayı kapsar."
+          "text": "Kaydedilmiş fiş silinemez ve değiştirilemez; düzeltme İşlemler › Ters kayıt oluştur ile yapılır. Kaynak süzgeci ve toplamlar yalnız görünen sayfayı kapsar.",
+          "slot": "below"
         }
       },
       {
@@ -414,9 +338,8 @@
             "fisler",
             "fis"
           ],
-          "visibleWhen": "liste.seciliSatir.isSourced != true",
-          "disabledWhen": "liste.seciliSatir.canReverse != true || kullanici.rol != 'TenantAdmin'",
-          "disabledReason": "Bu fiş ters çevrilemez (ters kayıt fişi, zaten ters çevrilmiş ya da yetki yok)."
+          "visibleWhen": "liste.seciliSatir.isSourced != true && liste.seciliSatir.canReverse == true && kullanici.rol == 'TenantAdmin'",
+          "slot": "rowActions"
         }
       },
       {
@@ -436,9 +359,8 @@
             "fisler",
             "fis"
           ],
-          "visibleWhen": "liste.seciliSatir.isSourced == true",
-          "disabledWhen": "liste.seciliSatir.canReverse != true || kullanici.rol != 'TenantAdmin'",
-          "disabledReason": "Bu kaynak türü ters kayıtla kapatılamaz ya da fiş zaten ters çevrilmiş (dönem kapanışı, bordro, sabit kıymet, kredi ve çek/senet fişleri kendi ekranından)."
+          "visibleWhen": "liste.seciliSatir.isSourced == true && liste.seciliSatir.canReverse == true && kullanici.rol == 'TenantAdmin'",
+          "slot": "rowActions"
         }
       },
       {
@@ -455,7 +377,8 @@
             "zincirNotu",
             "tersNotu",
             "kaynakNotu"
-          ]
+          ],
+          "slot": "dialogs"
         }
       },
       {
@@ -478,7 +401,8 @@
             "Borç=money",
             "Alacak=money",
             "Kayıt zamanı=date"
-          ]
+          ],
+          "slot": "dialog"
         }
       },
       {
@@ -488,7 +412,6 @@
         "props": {
           "title": "Satırlar",
           "query": "satirlar",
-          "width": 12,
           "columns": [
             "lineNumber",
             "accountCode",
@@ -522,7 +445,8 @@
           "showExport": false,
           "showPivot": false,
           "showCsv": false,
-          "showSelectedExport": false
+          "showSelectedExport": false,
+          "slot": "dialog"
         }
       },
       {
@@ -531,7 +455,8 @@
         "name": "zincirNotu",
         "props": {
           "text": "Fiş zinciri: bu fiş {{fis.rows[0].reversedByEntryCode}} ile ters çevrildi.",
-          "visibleWhen": "fis.rows[0].reversedByEntryCode != null"
+          "visibleWhen": "fis.rows[0].reversedByEntryCode != null",
+          "slot": "dialog"
         }
       },
       {
@@ -540,7 +465,8 @@
         "name": "tersNotu",
         "props": {
           "text": "Fiş zinciri: bu fiş {{fis.rows[0].reversalOfEntryCode}} fişinin ters kaydıdır; yeniden çevrilemez.",
-          "visibleWhen": "fis.rows[0].isReversal == true"
+          "visibleWhen": "fis.rows[0].isReversal == true",
+          "slot": "dialog"
         }
       },
       {
@@ -549,7 +475,45 @@
         "name": "kaynakNotu",
         "props": {
           "text": "Kaynak belge: {{fis.rows[0].sourceLabel}} (bağlantı yok). Kaynaklı fişin ters kaydından sonra belgeyi kendi ekranından iptal edin.",
-          "visibleWhen": "fis.rows[0].isSourced == true && fis.rows[0].isReversal == false"
+          "visibleWhen": "fis.rows[0].isSourced == true && fis.rows[0].isReversal == false",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "baslangic",
+        "type": "input",
+        "name": "baslangic",
+        "props": {
+          "inputType": "date",
+          "label": "Başlangıç",
+          "defaultValue": "{{tarih.ayBasi}}",
+          "slot": "above"
+        }
+      },
+      {
+        "id": "bitis",
+        "type": "input",
+        "name": "bitis",
+        "props": {
+          "inputType": "date",
+          "label": "Bitiş",
+          "defaultValue": "{{bugun}}",
+          "slot": "above"
+        }
+      },
+      {
+        "id": "standart",
+        "type": "input",
+        "name": "standart",
+        "props": {
+          "inputType": "select",
+          "label": "Standart",
+          "staticOptions": [
+            "=Tümü",
+            "TDHP=TDHP",
+            "IFRS=IFRS"
+          ],
+          "slot": "above"
         }
       }
     ],
@@ -664,6 +628,9 @@
           }
         ]
       }
-    ]
+    ],
+    "template": {
+      "name": "list"
+    }
   }
 }

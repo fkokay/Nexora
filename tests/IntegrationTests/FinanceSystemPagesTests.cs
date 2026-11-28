@@ -286,9 +286,9 @@ public sealed class FinanceSystemPagesTests
         using var client = AdminClient(factory);
 
         var cash = await client.GetFromJsonAsync<JsonElement>("/api/finance/accounts?type=Cash");
-        Assert.Equal(new[] { "K-01", "K-02" }, cash.EnumerateArray().Select(x => x.GetProperty("code").GetString()));
+        Assert.Equal<IEnumerable<string?>>(new[] { "K-01", "K-02" }, cash.EnumerateArray().Select(x => x.GetProperty("code").GetString()));
         var bank = await client.GetFromJsonAsync<JsonElement>("/api/finance/accounts?type=bank");
-        Assert.Equal(new[] { "B-EUR", "B-NEG" }, bank.EnumerateArray().Select(x => x.GetProperty("code").GetString()));
+        Assert.Equal<IEnumerable<string?>>(new[] { "B-EUR", "B-NEG" }, bank.EnumerateArray().Select(x => x.GetProperty("code").GetString()));
         Assert.Equal(4, (await client.GetFromJsonAsync<JsonElement>("/api/finance/accounts")).GetArrayLength());
         using var invalid = await client.GetAsync("/api/finance/accounts?type=1");
         Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
@@ -467,9 +467,10 @@ public sealed class FinanceSystemPagesTests
     public void Standard_is_preview_version_1_and_uses_finance_operations(string key, string title, string module)
     {
         var standard = SystemPageStandards.All[key];
-        Assert.Equal((1, "preview", title, module), (standard.Version, standard.Stage, standard.Title, standard.Module));
+        var expectedVersion = key is "finance-accounts" or "finance-banks" or "finance-journal-ledger" or "finance-trial-balance" ? 2 : 1;
+        Assert.Equal((expectedVersion, "preview", title, module), (standard.Version, standard.Stage, standard.Title, standard.Module));
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
-        Assert.All(standard.Items, x => Assert.True(x.Since == 1 && x.Label.Length is > 0 and <= 80, x.Key));
+        Assert.All(standard.Items, x => Assert.True(x.Since <= standard.Version && x.Label.Length is > 0 and <= 80, x.Key));
         var operations = Definition(key)["queries"]!.AsArray().OfType<JsonObject>().Select(x => (string)x["operation"]!).ToArray();
         Assert.All(operations, name => Assert.True(name.StartsWith("finans.", StringComparison.Ordinal) && ErpOperationCatalog.TryGet(name, out var op) && !op.Deprecated, name));
     }
@@ -502,17 +503,17 @@ public sealed class FinanceSystemPagesTests
     }
 
     [Fact]
-    public void Cash_and_bank_standards_differ_only_in_type_text_and_the_negative_balance_card()
+    public void Cash_and_bank_standards_share_the_list_template_and_keep_their_type_specific_summary()
     {
-        static string Normalize(string key) => SystemPageStandards.All[key].DefinitionJson
-            .Replace("Banka", "Kasa").Replace("banka", "kasa").Replace("Bank", "Cash").Replace("landmark", "wallet");
-        var banks = JsonNode.Parse(Normalize("finance-banks"))!.AsObject();
-        var cards = banks["components"]!.AsArray();
-        cards.Remove(cards.Single(x => (string)x!["id"]! == "eksiBakiyeGostergesi"));
-        Assert.Equal(JsonNode.Parse(Normalize("finance-accounts"))!.ToJsonString(), banks.ToJsonString());
+        Assert.Equal("list", (string)Definition("finance-accounts")["template"]!["name"]!);
+        Assert.Equal("list", (string)Definition("finance-banks")["template"]!["name"]!);
+        Assert.Equal("card", Component("finance-accounts", "hesapKarti")["type"]!.GetValue<string>());
+        Assert.Equal("Ekstre", (string)Props("finance-accounts", "acDugmesi")["text"]!);
+        Assert.Equal("Ekstre", (string)Props("finance-banks", "acDugmesi")["text"]!);
         Assert.Equal("Cash", (string)Props("finance-accounts", "hesapTuru")["defaultValue"]!);
         Assert.Equal("Bank", (string)Props("finance-banks", "hesapTuru")["defaultValue"]!);
         Assert.Contains("accountType=Bank", Strings(Props("finance-banks", "yeniDugmesi")["params"]));
+        Assert.Contains(Definition("finance-banks")["components"]!.AsArray(), x => (string?)x?["id"] == "eksiBakiyeGostergesi");
     }
 
     [Fact]
@@ -520,10 +521,10 @@ public sealed class FinanceSystemPagesTests
     {
         foreach (var key in new[] { "finance-accounts", "finance-banks" })
         {
-            Assert.Equal("{{hesapSecimi.value}}", Binding(key, "hareketIptal", "id"));
+            Assert.Equal("{{liste.seciliSatir.id}}", Binding(key, "hareketIptal", "id"));
             Assert.Equal("{{hareketler.seciliSatir.id}}", Binding(key, "hareketIptal", "transactionId"));
             Assert.Equal("{{hareketler.seciliSatir.transferId}}", Binding(key, "transferIptal", "transferId"));
-            Assert.Equal("{{hesapSecimi.value}}", Binding(key, "nakitAkisiDegistir", "id"));
+            Assert.Equal("{{liste.seciliSatir.id}}", Binding(key, "nakitAkisiDegistir", "id"));
             Assert.Equal("hareketler.seciliSatir.canVoid == true", (string)Props(key, "hareketIptalDugmesi")["visibleWhen"]!);
             Assert.Equal("hareketler.seciliSatir.canVoidTransfer == true", (string)Props(key, "transferIptalDugmesi")["visibleWhen"]!);
             // The transfer target list is every account (cash and bank), not the page's type.
@@ -540,13 +541,46 @@ public sealed class FinanceSystemPagesTests
     {
         Assert.Equal("{{bugun}}", Binding("finance-journal-ledger", "tersKayit", "entryDate"));
         Assert.Equal("{{tersKayitSourced.yanit}}", Binding("finance-journal-ledger", "tersKayitKaynakli", "reason"));
-        Assert.Contains("canReverse", (string)Props("finance-journal-ledger", "tersKayitSourced")["disabledWhen"]!);
+        Assert.Contains("canReverse", (string)Props("finance-journal-ledger", "tersKayitSourced")["visibleWhen"]!);
         Assert.Contains("kendi ekranından iptal edin", (string)Props("finance-journal-ledger", "tersKayitSourced")["promptText"]!);
         Assert.Equal("{{fisSatirlari.satirlar}}", Binding("finance-journal-vouchers", "fisKaydet", "lines"));
         Assert.Equal(new[] { "debit", "credit" }, Strings(Props("finance-journal-vouchers", "fisSatirlari")["totals"]));
         Assert.Contains("fisSatirlari.toplam.debit == fisSatirlari.toplam.credit", (string)Props("finance-journal-vouchers", "dengeliEtiketi")["visibleWhen"]!);
         Assert.Equal("{{liste.seciliSatir.accountId}}", Binding("finance-trial-balance", "muavin", "accountId"));
         Assert.Equal("{{duzey.value}}", Binding("finance-trial-balance", "mizan", "level"));
+    }
+
+    [Fact]
+    public void Finance_list_standards_keep_their_read_and_write_workflows()
+    {
+        Assert.Equal("list", (string)Definition("finance-accounts")["template"]!["name"]!);
+        Assert.Equal("list", (string)Definition("finance-banks")["template"]!["name"]!);
+        Assert.Contains("finans.hareket.ekle", Definition("finance-accounts")["queries"]!.ToJsonString());
+        Assert.Contains("finans.transfer.olustur", Definition("finance-banks")["queries"]!.ToJsonString());
+        Assert.Contains("finans.hareket.iptal", Definition("finance-accounts")["queries"]!.ToJsonString());
+        Assert.Contains("finans.hesap.pasifeAl", Definition("finance-accounts")["queries"]!.ToJsonString());
+    }
+
+    [Fact]
+    public void Journal_ledger_list_keeps_read_and_reversal_workflows()
+    {
+        var definition = Definition("finance-journal-ledger");
+        Assert.Equal("list", (string)definition["template"]!["name"]!);
+        Assert.Equal("rowActions", (string)Props("finance-journal-ledger", "tersKayitDugmesi")["slot"]!);
+        Assert.Contains("finans.fis.listele", definition["queries"]!.ToJsonString());
+        Assert.Contains("finans.fis.tersKayit", definition["queries"]!.ToJsonString());
+        Assert.Contains("{{liste.seciliSatir.id}}", Binding("finance-journal-ledger", "tersKayit", "id"));
+    }
+
+    [Fact]
+    public void Trial_balance_list_keeps_read_only_trial_balance_and_ledger_flows()
+    {
+        var definition = Definition("finance-trial-balance");
+        Assert.Equal("list", (string)definition["template"]!["name"]!);
+        Assert.Equal("dialogs", (string)Props("finance-trial-balance", "muavinPenceresi")["slot"]!);
+        Assert.Contains("finans.mizan", definition["queries"]!.ToJsonString());
+        Assert.Contains("finans.muhasebe.muavin", definition["queries"]!.ToJsonString());
+        Assert.Equal("{{liste.seciliSatir.accountId}}", Binding("finance-trial-balance", "muavin", "accountId"));
     }
 
     // ---- Helpers ----
@@ -559,7 +593,23 @@ public sealed class FinanceSystemPagesTests
     private static JsonObject Definition(string key) => JsonNode.Parse(SystemPageStandards.All[key].DefinitionJson)!.AsObject();
 
     private static JsonObject Props(string key, string id) =>
-        Definition(key)["components"]!.AsArray().OfType<JsonObject>().Single(x => (string)x["id"]! == id)["props"]!.AsObject();
+        Components(Definition(key)["components"]).Single(x => (string)x["id"]! == id)["props"]!.AsObject();
+
+    private static JsonObject Component(string key, string id) =>
+        Components(Definition(key)["components"]).Single(x => (string)x["id"]! == id);
+
+    private static IEnumerable<JsonObject> Components(JsonNode? node)
+    {
+        if (node is JsonArray array)
+            foreach (var item in array)
+                foreach (var component in Components(item)) yield return component;
+        else if (node is JsonObject obj)
+        {
+            if (obj.ContainsKey("id") && obj.ContainsKey("type")) yield return obj;
+            if (obj.TryGetPropertyValue("children", out var children))
+                foreach (var component in Components(children)) yield return component;
+        }
+    }
 
     private static JsonObject Query(string key, string id) =>
         Definition(key)["queries"]!.AsArray().OfType<JsonObject>().Single(x => (string)x["id"]! == id);

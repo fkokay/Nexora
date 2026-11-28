@@ -132,7 +132,7 @@ public sealed class SystemPageStorageIntegrationTests
 
         // Batch rights (menu filtering).
         var menu = await client.GetFromJsonAsync<JsonElement[]>("/api/custom-menus/") ?? [];
-        Assert.Equal([$"custom-page:{SystemCode}"], menu.Select(x => x.GetProperty("targetPage").GetString()));
+        Assert.Equal<IEnumerable<string?>>([$"custom-page:{SystemCode}"], menu.Select(x => x.GetProperty("targetPage").GetString()));
 
         await using var scope = app.Services.CreateAsyncScope();
         var rights = await CustomPageAccess.GetRightsAsync(scope.ServiceProvider.GetRequiredService<PlatformDbContext>(),

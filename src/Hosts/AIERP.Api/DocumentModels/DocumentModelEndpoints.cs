@@ -7,8 +7,8 @@ using Microsoft.EntityFrameworkCore;
 namespace AIERP.Api.DocumentModels;
 
 /// <summary>
-/// Read-only document model routes (belge kuralları): the model, a sales order as a document, and "alan değişince" fills.
-/// All resolve as <c>erp.sales-orders.read</c>; nothing is written.
+/// Read-only document model routes (belge kuralları): the model, a sales order or quote as a document, and "alan değişince" fills.
+/// The model routes resolve as the model's own document permission (<c>erp.sales-orders.read</c> / <c>erp.sales-quotes.read</c>); nothing is written.
 /// </summary>
 internal static class DocumentModelEndpoints
 {
@@ -17,30 +17,31 @@ internal static class DocumentModelEndpoints
         var models = app.MapGroup("/api/document-models").WithTags("Belge modelleri").RequireAuthorization();
         models.MapGet("/{code}", (string code) =>
             DocumentModelRegistry.Find(code) is { } model ? Results.Ok(model) : Results.NotFound());
-        models.MapGet("/" + SalesOrderDocumentModel.Code + "/sample", (string? state) =>
-            string.IsNullOrEmpty(state) ? Results.Ok(SalesOrderDocumentModel.Sample(SalesOrderStatus.Draft))
-            : Enum.TryParse<SalesOrderStatus>(state, ignoreCase: false, out var parsed) && Enum.IsDefined(parsed) && !int.TryParse(state, out _)
-                ? Results.Ok(SalesOrderDocumentModel.Sample(parsed))
-                : Results.ValidationProblem(new Dictionary<string, string[]> { ["state"] = ["Bilinmeyen belge durumu."] }));
-        // One literal route per model (the ERP operation catalog matches routes literally); satis.siparis is the only model so far.
-        models.MapPost("/" + SalesOrderDocumentModel.Code + "/fill", async (DocumentFillRequest request, ClaimsPrincipal principal, TenantDbContext db, CancellationToken ct) =>
-        {
-            if (!Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tenantId)) return Results.Forbid();
-            if (request.Field != "stockItemId") return Results.Ok(new DocumentFillResult(new Dictionary<string, object?>()));
-            if (!Guid.TryParse(request.Value, out var stockItemId)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["value"] = ["Stok kartı seçin."] });
-            var item = await db.StockItems.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == stockItemId && x.IsActive, ct);
-            if (item is null) return Results.NotFound();
-            var available = await StockAvailability.AvailableAsync(db, tenantId, [item.Id], ct);
-            return Results.Ok(new DocumentFillResult(new Dictionary<string, object?>
+        // One literal route per model (the ERP operation catalog matches routes literally).
+        models.MapGet("/" + SalesOrderDocumentModel.Code + "/sample", (string? state) => Sample(state, SalesOrderStatus.Draft, SalesOrderDocumentModel.Sample));
+        models.MapGet("/" + SalesQuoteDocumentModel.Code + "/sample", (string? state) => Sample(state, SalesQuoteStatus.Draft, SalesQuoteDocumentModel.Sample));
+        models.MapPost("/" + SalesOrderDocumentModel.Code + "/fill", SalesDocumentModelParts.FillAsync);
+        models.MapPost("/" + SalesQuoteDocumentModel.Code + "/fill", SalesDocumentModelParts.FillAsync);
+
+        app.MapGroup("/api/sales/quotes").WithTags("Satış Teklifleri").RequireAuthorization()
+            .MapGet("/{id:guid}/document", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, IPlatformPermissionAuthorizer authorizer,
+                CancellationToken ct) =>
             {
-                ["unitCode"] = item.UnitCode,
-                ["unitPrice"] = item.SalesListPrice,
-                ["vatPercent"] = item.SalesVatPercent,
-                ["discountPercent"] = item.SalesDiscountPercent,
-                ["currencyCode"] = item.PriceCurrencyCode,
-                ["availableQuantity"] = available.GetValueOrDefault(item.Id)
-            }));
-        });
+                if (!Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tenantId)) return Results.Forbid();
+                if (await SalesQuoteReads.ViewAsync(db, tenantId, id, ct) is not { } quote) return Results.NotFound();
+                var vat = await db.SalesQuoteLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.QuoteId == id)
+                    .GroupBy(x => x.VatPercent)
+                    .Select(g => new DocumentVatRow(g.Key, g.Sum(x => x.LineSubtotal - x.DiscountAmount), g.Sum(x => x.TaxAmount)))
+                    .ToListAsync(ct);
+                var activity = await DocumentActivityLog.ReadAsync(db, tenantId, SalesQuoteDocumentModel.Code, id, ct);
+                var allowed = await SalesDocumentModelParts.ExecutableAsync(authorizer, principal, tenantId, "erp.sales-quotes", id, quote.Status.ToString(),
+                    quote.CustomerId, SalesQuoteDocumentModel.Candidates(quote.Status, quote.HasSalesOrder), ct);
+                var creations = await SalesDocumentModelParts.ExecutableAsync(authorizer, principal, tenantId, "erp.sales-quotes", id, quote.Status.ToString(),
+                    quote.CustomerId, SalesQuoteDocumentModel.CreationCandidates(quote.Status, quote.HasSalesOrder), ct);
+                return Results.Ok(new SalesQuoteDocumentView(quote,
+                    new DocumentAmounts(quote.CurrencyCode, quote.Subtotal, quote.DiscountTotal, quote.TaxTotal, quote.GrandTotal, vat.OrderBy(x => x.Rate).ToList()),
+                    allowed, activity, activity.Count == 0 && quote.Status != SalesQuoteStatus.Draft, creations));
+            });
 
         app.MapGroup("/api/sales/orders").WithTags("Satış Siparişleri").RequireAuthorization()
             .MapGet("/{id:guid}/document", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, PlatformDbContext platform,
@@ -60,6 +61,13 @@ internal static class DocumentModelEndpoints
                     order.Status == SalesOrderStatus.PendingApproval ? await ApprovalAsync(db, platform, principal, tenantId, id, ct) : null));
             });
     }
+
+    /// <summary>The sample document of a model in <paramref name="state"/> (a status name of that model); no state means the first one.</summary>
+    private static IResult Sample<TStatus>(string? state, TStatus first, Func<TStatus, object> sample) where TStatus : struct, Enum =>
+        string.IsNullOrEmpty(state) ? Results.Ok(sample(first))
+        : Enum.TryParse<TStatus>(state, ignoreCase: false, out var parsed) && Enum.IsDefined(parsed) && !int.TryParse(state, out _)
+            ? Results.Ok(sample(parsed))
+            : Results.ValidationProblem(new Dictionary<string, string[]> { ["state"] = ["Bilinmeyen belge durumu."] });
 
     private static async Task<DocumentApprovalView?> ApprovalAsync(TenantDbContext db, PlatformDbContext platform, ClaimsPrincipal principal,
         Guid tenantId, Guid orderId, CancellationToken ct)
@@ -88,19 +96,7 @@ internal static class DocumentModelEndpoints
         if (SalesOrderLifecycle.CanApprove(order.Status)) candidates.Add(SalesOrderTransitionEndpoints.Approve);
         if (SalesOrderLifecycle.CanUnapprove(order.Status, hasDeliveries, hasInvoices, hasReservations)) candidates.Add(SalesOrderTransitionEndpoints.Unapprove);
         if (SalesOrderLifecycle.CanCancel(order.Status, hasDeliveries || hasInvoices)) candidates.Add(SalesOrderTransitionEndpoints.Cancel);
-        if (candidates.Count == 0) return candidates;
-
-        var role = principal.FindFirstValue("role") ?? "";
-        if (!Guid.TryParse(principal.FindFirstValue("sub") ?? principal.FindFirstValue(ClaimTypes.NameIdentifier), out var userId)) return [];
-        var execute = PlatformPermissionCatalog.Definitions.Single(x => x.ResourceType == "erp.sales-orders" && x.Action == "execute");
-        var attributes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["subject.userId"] = userId.ToString("D"), ["subject.role"] = role,
-            ["resource.type"] = execute.ResourceType, ["resource.tenantId"] = tenantId.ToString("D"),
-            ["resource.route.id"] = order.Id.ToString("D"), ["resource.status"] = order.Status.ToString(),
-            ["resource.customerId"] = order.CustomerId.ToString("D"),
-            ["request.method"] = "POST", ["request.action"] = "execute"
-        };
-        return await authorizer.IsAllowedAsync(tenantId, userId, role, new ResolvedPlatformPermission(execute, attributes), ct) ? candidates : [];
+        return await SalesDocumentModelParts.ExecutableAsync(authorizer, principal, tenantId, "erp.sales-orders", order.Id, order.Status.ToString(),
+            order.CustomerId, candidates, ct);
     }
 }

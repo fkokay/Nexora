@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { previewOrder, type OrderPreview, type PreviewLineRequest } from "./documentApi";
+import { previewDocument, type DocumentBinding, type OrderPreview } from "./documentApi";
 
 export const CALCULATION_DELAY_MS = 400;
 
-export type CalculationInput = { customerId: string; orderDate: string; currencyCode?: string; lines: PreviewLineRequest[] } | null;
+/** Hesap ucunun gövdesi (bağın `previewBody` ürünü); gövde yoksa (müşteri ya da geçerli satır yok) null. */
+export type CalculationInput = Record<string, unknown> | null;
 
 /**
- * Sunucu hesabı (`POST /api/sales/orders/preview`): girdi değiştikten {@link CALCULATION_DELAY_MS} sonra gönderilir. Yeni bir değişiklik
+ * Sunucu hesabı (`POST {belge kökü}/preview`): girdi değiştikten {@link CALCULATION_DELAY_MS} sonra gönderilir. Yeni bir değişiklik
  * bekleyen ya da süren isteği iptal eder; sıra numarası daha eski bir yanıtın yenisinin üstüne yazılmasını önler.
  * `input` null ise (müşteri ya da geçerli satır yok) istek gönderilmez ve son sonuç silinir.
  */
-export function useDocumentCalculation(input: CalculationInput, token: string | undefined, enabled: boolean) {
+export function useDocumentCalculation(binding: DocumentBinding, input: CalculationInput, token: string | undefined, enabled: boolean) {
   const [result, setResult] = useState<OrderPreview | null>(null);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -23,7 +24,7 @@ export function useDocumentCalculation(input: CalculationInput, token: string | 
     const controller = new AbortController();
     setPending(true);
     const timer = window.setTimeout(() => {
-      previewOrder(JSON.parse(key), token, controller.signal)
+      previewDocument(binding, JSON.parse(key), token, controller.signal)
         .then((preview) => { if (mine === sequence.current) { setResult(preview); setError(""); } })
         .catch((failure: unknown) => {
           if (mine !== sequence.current || controller.signal.aborted) return;
@@ -32,7 +33,7 @@ export function useDocumentCalculation(input: CalculationInput, token: string | 
         .finally(() => { if (mine === sequence.current) setPending(false); });
     }, CALCULATION_DELAY_MS);
     return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [key, token]);
+  }, [binding, key, token]);
 
   return { result, error, pending };
 }

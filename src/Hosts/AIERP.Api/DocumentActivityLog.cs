@@ -12,6 +12,7 @@ namespace AIERP.Api;
 internal static class DocumentActivityLog
 {
     internal const string SalesOrder = "satis.siparis";
+    internal const string SalesQuote = "satis.teklif";
 
     internal static void Add(TenantDbContext db, Guid tenantId, string documentType, Guid documentId, string transition, string step,
         string source, string outcome, string? message, Guid? actorUserId, Guid? requestId = null) =>
