@@ -6,6 +6,10 @@
 - Desteklenmeyen eylemler atlandı: sipariş için mevcut iptal/onay geçişi yok; mal kabulden gelen faturalar salt okunur olduğundan iptal bağlanmadı. Mal kabul satırını taslağa bağlama UI akışı eklenmedi.
 - ERP Belge vitest (1/1), Studio vitest (15/15) ve iki `npm run build` geçti. `dotnet build AIERP.slnx --no-restore`, .NET SDK workload resolver bileşenleri bulunamadığı için derleme başlamadan başarısız oldu (0 hata/uyarı raporlandı); `dotnet test` talimat gereği çalıştırılmadı.
 
+### 2026-11-28 Belge modeli `stok.transfer`
+
+- **Ne değişti:** `stok.transfer` modeli ve `inventory-transfer-document` Belge standardı eklendi. Depo transferleri Liste standardı v2 oldu; Yeni ve Aç artık Belge sayfasını hedefliyor. Yeni belge tarayıcıda taslak kalır ve mevcut transfer POST ucuyla kaydedilir; kayıtlı transfer salt okunur açılır, iptal mevcut `/void` işlemine gider. POST ve iptal işlem günlüğü yazar; POST mevcut transaction ve idempotency anahtarını kullanır.
+- **Doğrulanan:** `dotnet build AIERP.slnx --no-restore -m:1` (0 hata), değişen iki Vitest dosyası (ERP 3, Studio 15 test) ve iki frontend derlemesi geçti. İstenen paralel varsayılan .NET komutu iki kez 0 hata/0 uyarı ile başarısız döndü; tek işçili derleme geçti. `dotnet test` talimat gereği çalıştırılmadı; SQL Server kabul testi ve tarayıcıda görsel kontrol yapılmadı.
 ### 2026-11-28 Genel muhasebe yevmiye fişi Belge modeli
 
 - `muhasebe.fis` (`finance-journal-voucher-document`) uses the existing manual journal POST and reversal endpoint; stored vouchers are read-only, with debit/credit balance enforced by the existing write validation. The journal list opens a voucher in the Belge screen, and New opens its blank draft.

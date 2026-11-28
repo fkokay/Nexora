@@ -123,13 +123,17 @@ describe("sayfa kalıpları", () => {
 });
 
 describe("belge modelleri", () => {
-  it("satış siparişi ve satış teklifi seçilebilir; yeni teklif sayfası teklifin alanlarıyla başlar", () => {
-    expect(BELGE_DOCUMENTS.map((d) => d.code)).toEqual(["satis.siparis", "satis.teklif", "satis.fatura", "satis.irsaliye", "satinalma.siparis", "satinalma.fatura"]);
+  it("satış ve depo belgeleri seçilebilir; şablonlar modele uygun alanlarla başlar", () => {
+    expect(BELGE_DOCUMENTS.map((d) => d.code)).toEqual(["satis.siparis", "satis.teklif", "satis.fatura", "satis.irsaliye", "satinalma.siparis", "satinalma.fatura", "stok.transfer"]);
     const quote = newBelgeTemplateDefinition("satis.teklif");
     expect(quote.template).toEqual({ name: "belge", document: "satis.teklif" });
     const parts = quote.components as { type: string; props: { fields?: string[]; columns?: string[] } }[];
     expect(parts.find((c) => c.type === "documentFields")!.props.fields).toEqual(["code", "customerId", "quoteDate", "validUntil"]);
     expect(parts.find((c) => c.type === "documentLines")!.props.columns).not.toContain("deliveredQuantity");
+    const transfer = newBelgeTemplateDefinition("stok.transfer");
+    const transferParts = transfer.components as { type: string; props: { fields?: string[]; columns?: string[] } }[];
+    expect(transferParts.find((c) => c.type === "documentFields")!.props.fields).toEqual(["code", "transferDate", "fromWarehouseId", "toWarehouseId"]);
+    expect(transferParts.find((c) => c.type === "documentLines")!.props.columns).toEqual(["stockItemId", "quantity", "unitCode"]);
     const invoice = newBelgeTemplateDefinition("satis.fatura");
     expect(invoice.template).toEqual({ name: "belge", document: "satis.fatura" });
     expect((invoice.components as { type: string; props: { fields?: string[] } }[]).find((c) => c.type === "documentFields")!.props.fields)

@@ -528,6 +528,11 @@ internal static partial class ErpOperationCatalog
             Record(summaryColumns), null, null);
         yield return Write(WarehouseModule, "depo.transfer.iptal", "Depo transferini iptal et", "update", "POST", transfersRoute + "/{transferId}/void",
             [transferId, .. BodyParameters<InventoryTransferVoidRequest>(sourceBacked: false, exclude: "confirmation")], None, null, voidBody);
+        // Belge modeli stok.transfer: the transfer as a document (transfer, totals, allowed transitions, işlem günlüğü) and "alan değişince" fills.
+        yield return Read(WarehouseModule, "depo.transfer.belge", "Depo transferi belgesi", transfersRoute + "/{transferId}/document", [transferId],
+            Record(summaryColumns));
+        yield return new ErpOperation("depo.transfer.doldur", "Depo transferi alanı değişince dolanlar", WarehouseModule, "read", "read", "POST",
+            "/api/document-models/stok.transfer/fill", BodyParameters<AIERP.Api.DocumentModels.DocumentFillRequest>(sourceBacked: false), None, null, null, Since);
     }
 
     /// <summary>

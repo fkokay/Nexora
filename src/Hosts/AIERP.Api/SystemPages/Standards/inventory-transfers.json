@@ -1,174 +1,867 @@
 {
-  "screenKey": "inventory-transfers", "title": "Depolar arası transferler",
-  "description": "Depolar arasındaki stok aktarım kayıtlarını ve iptal geçmişini yönetin.", "module": "Stok & Depo",
-  "version": 1, "stage": "preview",
+  "screenKey": "inventory-transfers",
+  "title": "Depolar arası transferler",
+  "description": "Depolar arasındaki stok aktarım kayıtlarını ve iptal geçmişini yönetin.",
+  "module": "Stok & Depo",
+  "version": 2,
+  "stage": "preview",
   "items": {
-    "component:komutlar": { "since": 1, "label": "İşlem çubuğu",
-      "requires": ["component:suzgec", "component:liste", "component:yeniTransferDugmesi", "component:kalemlerDugmesi",
-                   "component:iptalMenuDugmesi", "query:transferler"] },
-    "component:yeniTransferDugmesi": { "since": 1, "label": "Yeni transfer komutu", "requires": ["component:yeniTransferPenceresi"] },
-    "component:suzgec": { "since": 1, "label": "Süzgeç alanı (arama, durum)", "requires": ["component:liste"] },
-    "component:liste": { "since": 1, "label": "Transfer listesi",
-      "requires": ["query:transferler", "component:kalemlerDugmesi", "component:iptalDugmesi"] },
-    "component:kalemlerDugmesi": { "since": 1, "label": "Kalemler düğmesi", "requires": ["component:kalemlerPenceresi"] },
-    "component:iptalDugmesi": { "since": 1, "label": "Transferi iptal et satır düğmesi", "requires": ["query:transferIptal", "query:transferler"] },
-    "component:iptalMenuDugmesi": { "since": 1, "label": "Transferi iptal et menü komutu", "requires": ["query:transferIptalMenu", "query:transferler", "component:liste"] },
-    "component:kalemlerPenceresi": { "since": 1, "label": "Transfer kalemleri penceresi",
-      "requires": ["component:liste", "component:kalemlerBilgisi", "component:kalemTablosu"] },
-    "component:kalemlerBilgisi": { "since": 1, "label": "Kalemler penceresi notu" },
-    "component:kalemTablosu": { "since": 1, "label": "Transfer kalemleri tablosu", "requires": ["query:kalemDetayi"] },
-    "component:yeniTransferPenceresi": { "since": 1, "label": "Yeni transfer penceresi",
-      "requires": ["component:transferBilgileri", "component:istekKimligi", "component:transferNotu", "component:kalemler",
-                   "component:durumSatiri", "query:transferOlustur", "query:transferler"] },
-    "component:transferBilgileri": { "since": 1, "label": "Transfer bilgileri (depolar, tarih)",
-      "requires": ["component:kaynakDepo", "component:hedefDepo", "component:transferTarihi"] },
-    "component:kaynakDepo": { "since": 1, "label": "Transfer alanı: Kaynak depo", "requires": ["query:depolar", "component:kalemler"] },
-    "component:hedefDepo": { "since": 1, "label": "Transfer alanı: Hedef depo", "requires": ["query:depolar", "component:kaynakDepo", "component:kalemler"] },
-    "component:transferTarihi": { "since": 1, "label": "Transfer alanı: Transfer tarihi" },
-    "component:istekKimligi": { "since": 1, "label": "Tekrar deneme kimliği (gizli)" },
-    "component:transferNotu": { "since": 1, "label": "Transfer bilgi notu" },
-    "component:kalemler": { "since": 1, "label": "Transfer kalemleri",
-      "requires": ["query:stoklar", "query:birimler", "query:kaynakKonumlar", "query:hedefKonumlar"] },
-    "component:durumSatiri": { "since": 1, "label": "Kalem sayacı ve bakiye notu", "requires": ["component:kalemler"] },
-    "query:transferler": { "since": 1, "label": "Depo transferlerini listele", "requires": ["component:liste"] },
-    "query:kalemDetayi": { "since": 1, "label": "Seçili transferin kalemleri", "requires": ["component:liste"] },
-    "query:depolar": { "since": 1, "label": "Depoları listele" },
-    "query:kaynakKonumlar": { "since": 1, "label": "Kaynak depo konumları", "requires": ["component:kaynakDepo"] },
-    "query:hedefKonumlar": { "since": 1, "label": "Hedef depo konumları", "requires": ["component:hedefDepo"] },
-    "query:stoklar": { "since": 1, "label": "Stok kartı arama", "requires": ["component:kalemler"] },
-    "query:birimler": { "since": 1, "label": "Satırdaki stok kartının birimleri", "requires": ["component:kalemler"] },
-    "query:transferOlustur": { "since": 1, "label": "Depo transferi oluştur",
-      "requires": ["component:istekKimligi", "component:kaynakDepo", "component:hedefDepo", "component:transferTarihi", "component:kalemler"] },
-    "query:transferIptal": { "since": 1, "label": "Depo transferini iptal et (satır)", "requires": ["component:liste", "component:iptalDugmesi"] },
-    "query:transferIptalMenu": { "since": 1, "label": "Depo transferini iptal et (menü)", "requires": ["component:liste", "component:iptalMenuDugmesi"] }
+    "component:komutlar": {
+      "since": 1,
+      "label": "İşlem çubuğu",
+      "requires": [
+        "component:suzgec",
+        "component:liste",
+        "component:kalemlerDugmesi",
+        "component:iptalMenuDugmesi",
+        "query:transferler"
+      ]
+    },
+    "component:suzgec": {
+      "since": 1,
+      "label": "Süzgeç alanı (arama, durum)",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:liste": {
+      "since": 1,
+      "label": "Transfer listesi",
+      "requires": [
+        "query:transferler",
+        "component:kalemlerDugmesi",
+        "component:iptalDugmesi"
+      ]
+    },
+    "component:kalemlerDugmesi": {
+      "since": 1,
+      "label": "Kalemler düğmesi",
+      "requires": [
+        "component:kalemlerPenceresi"
+      ]
+    },
+    "component:iptalDugmesi": {
+      "since": 1,
+      "label": "Transferi iptal et satır düğmesi",
+      "requires": [
+        "query:transferIptal",
+        "query:transferler"
+      ]
+    },
+    "component:iptalMenuDugmesi": {
+      "since": 1,
+      "label": "Transferi iptal et menü komutu",
+      "requires": [
+        "query:transferIptalMenu",
+        "query:transferler",
+        "component:liste"
+      ]
+    },
+    "component:kalemlerPenceresi": {
+      "since": 1,
+      "label": "Transfer kalemleri penceresi",
+      "requires": [
+        "component:liste",
+        "component:kalemlerBilgisi",
+        "component:kalemTablosu"
+      ]
+    },
+    "component:kalemlerBilgisi": {
+      "since": 1,
+      "label": "Kalemler penceresi notu"
+    },
+    "component:kalemTablosu": {
+      "since": 1,
+      "label": "Transfer kalemleri tablosu",
+      "requires": [
+        "query:kalemDetayi"
+      ]
+    },
+    "component:yeniTransferPenceresi": {
+      "since": 1,
+      "label": "Yeni transfer penceresi",
+      "requires": [
+        "component:transferBilgileri",
+        "component:istekKimligi",
+        "component:transferNotu",
+        "component:kalemler",
+        "component:durumSatiri",
+        "query:transferOlustur",
+        "query:transferler"
+      ]
+    },
+    "component:transferBilgileri": {
+      "since": 1,
+      "label": "Transfer bilgileri (depolar, tarih)",
+      "requires": [
+        "component:kaynakDepo",
+        "component:hedefDepo",
+        "component:transferTarihi"
+      ]
+    },
+    "component:kaynakDepo": {
+      "since": 1,
+      "label": "Transfer alanı: Kaynak depo",
+      "requires": [
+        "query:depolar",
+        "component:kalemler"
+      ]
+    },
+    "component:hedefDepo": {
+      "since": 1,
+      "label": "Transfer alanı: Hedef depo",
+      "requires": [
+        "query:depolar",
+        "component:kaynakDepo",
+        "component:kalemler"
+      ]
+    },
+    "component:transferTarihi": {
+      "since": 1,
+      "label": "Transfer alanı: Transfer tarihi"
+    },
+    "component:istekKimligi": {
+      "since": 1,
+      "label": "Tekrar deneme kimliği (gizli)"
+    },
+    "component:transferNotu": {
+      "since": 1,
+      "label": "Transfer bilgi notu"
+    },
+    "component:kalemler": {
+      "since": 1,
+      "label": "Transfer kalemleri",
+      "requires": [
+        "query:stoklar",
+        "query:birimler",
+        "query:kaynakKonumlar",
+        "query:hedefKonumlar"
+      ]
+    },
+    "component:durumSatiri": {
+      "since": 1,
+      "label": "Kalem sayacı ve bakiye notu",
+      "requires": [
+        "component:kalemler"
+      ]
+    },
+    "query:transferler": {
+      "since": 1,
+      "label": "Depo transferlerini listele",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:kalemDetayi": {
+      "since": 1,
+      "label": "Seçili transferin kalemleri",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:depolar": {
+      "since": 1,
+      "label": "Depoları listele"
+    },
+    "query:kaynakKonumlar": {
+      "since": 1,
+      "label": "Kaynak depo konumları",
+      "requires": [
+        "component:kaynakDepo"
+      ]
+    },
+    "query:hedefKonumlar": {
+      "since": 1,
+      "label": "Hedef depo konumları",
+      "requires": [
+        "component:hedefDepo"
+      ]
+    },
+    "query:stoklar": {
+      "since": 1,
+      "label": "Stok kartı arama",
+      "requires": [
+        "component:kalemler"
+      ]
+    },
+    "query:birimler": {
+      "since": 1,
+      "label": "Satırdaki stok kartının birimleri",
+      "requires": [
+        "component:kalemler"
+      ]
+    },
+    "query:transferOlustur": {
+      "since": 1,
+      "label": "Depo transferi oluştur",
+      "requires": [
+        "component:istekKimligi",
+        "component:kaynakDepo",
+        "component:hedefDepo",
+        "component:transferTarihi",
+        "component:kalemler"
+      ]
+    },
+    "query:transferIptal": {
+      "since": 1,
+      "label": "Depo transferini iptal et (satır)",
+      "requires": [
+        "component:liste",
+        "component:iptalDugmesi"
+      ]
+    },
+    "query:transferIptalMenu": {
+      "since": 1,
+      "label": "Depo transferini iptal et (menü)",
+      "requires": [
+        "component:liste",
+        "component:iptalMenuDugmesi"
+      ]
+    }
   },
-  "screenViews": [ { "key": "inventory-transfers", "component": "liste",
-                     "fields": { "code": "code", "transferDate": "transferDate", "fromWarehouseName": "fromWarehouseName",
-                                 "toWarehouseName": "toWarehouseName", "lineCount": "lineCount", "status": "status",
-                                 "createdAt": "createdAt" } } ],
+  "screenViews": [
+    {
+      "key": "inventory-transfers",
+      "component": "liste",
+      "fields": {
+        "code": "code",
+        "transferDate": "transferDate",
+        "fromWarehouseName": "fromWarehouseName",
+        "toWarehouseName": "toWarehouseName",
+        "lineCount": "lineCount",
+        "status": "status",
+        "createdAt": "createdAt"
+      }
+    }
+  ],
   "definition": {
     "schemaVersion": 2,
     "components": [
-      { "id": "komutlar", "type": "actionBar", "name": "komutlar",
-        "props": { "newButton": "yeniTransferDugmesi", "openButton": "kalemlerDugmesi", "moreButtons": ["iptalMenuDugmesi"],
-                   "focusInput": "suzgec", "exportTable": "liste", "titleCount": "{{transferler.meta.totalCount}}",
-                   "hiddenCommands": ["save", "delete", "print"] } },
-      { "id": "yeniTransferDugmesi", "type": "button", "name": "yeniTransferDugmesi",
-        "props": { "text": "Yeni transfer", "actionType": "openDialog", "dialogId": "yeniTransferPenceresi" } },
-
-      { "id": "suzgec", "type": "filterBar", "name": "suzgec",
-        "props": { "table": "liste", "width": 12, "search": true, "searchPlaceholder": "Kod veya depo adıyla ara",
-                   "searchColumns": ["code", "fromWarehouseName", "toWarehouseName"], "filters": ["status|select|row||Durum"] } },
-
-      { "id": "liste", "type": "dataTable", "name": "liste",
-        "props": { "title": "Transferler", "query": "transferler", "paging": "server", "pageSize": 50, "width": 12,
-                   "columns": ["code", "transferDate", "fromWarehouseName", "toWarehouseName", "lineCount", "status"],
-                   "columnLabels": ["code=Transfer kodu", "transferDate=Tarih", "fromWarehouseName=Kaynak depo", "toWarehouseName=Hedef depo",
-                                    "lineCount=Stok kalemi", "status=Durum", "createdAt=Oluşturulma"],
-                   "columnFormats": ["code=code", "transferDate=date", "lineCount=number", "status=status", "createdAt=date"],
-                   "valueLabels": ["status:Posted=Kaydedildi", "status:Voided=İptal edildi"],
-                   "toneMap": ["Kaydedildi=success", "İptal edildi=info"],
-                   "rowActions": ["kalemlerDugmesi", "iptalDugmesi"], "rowOpenAction": "kalemlerDugmesi",
-                   "emptyText": "Henüz transfer kaydı yok. Bir depodan diğerine stok aktardığınızda geçmiş burada görünür." } },
-      { "id": "kalemlerDugmesi", "type": "button", "name": "kalemlerDugmesi",
-        "props": { "text": "Kalemler", "actionType": "openDialog", "dialogId": "kalemlerPenceresi",
-                   "disabledWhen": "liste.seciliSatir.id == null", "disabledReason": "Önce bir kayıt seçin" } },
-      { "id": "iptalDugmesi", "type": "button", "name": "iptalDugmesi",
-        "props": { "text": "Transferi iptal et", "actionType": "query", "queryId": "transferIptal",
-                   "promptLabel": "İptal nedeni", "promptRequired": true, "promptMaxLength": 160,
-                   "promptText": "{{liste.seciliSatir.code}} · Kaynak ve hedef depodaki tüm transfer hareketleri birlikte ters kayıtla iptal edilecek. Hedef stok kullanılmışsa işlem reddedilir.",
-                   "visibleWhen": "liste.seciliSatir.status == 'Posted'",
-                   "successMessage": "Depo transferi iki depoda ters hareketlerle iptal edildi.", "refreshQueries": ["transferler"] } },
-      { "id": "iptalMenuDugmesi", "type": "button", "name": "iptalMenuDugmesi",
-        "props": { "text": "Transferi iptal et", "actionType": "query", "queryId": "transferIptalMenu",
-                   "promptLabel": "İptal nedeni", "promptRequired": true, "promptMaxLength": 160,
-                   "promptText": "{{liste.seciliSatir.code}} · Kaynak ve hedef depodaki tüm transfer hareketleri birlikte ters kayıtla iptal edilecek. Hedef stok kullanılmışsa işlem reddedilir.",
-                   "visibleWhen": "liste.seciliSatir.status == 'Posted'",
-                   "successMessage": "Depo transferi iki depoda ters hareketlerle iptal edildi.", "refreshQueries": ["transferler"] } },
-
-      { "id": "kalemlerPenceresi", "type": "dialog", "name": "kalemlerPenceresi",
-        "props": { "presentation": "dialog", "size": "xl",
-                   "title": "{{liste.seciliSatir.code}} · {{liste.seciliSatir.fromWarehouseName}} → {{liste.seciliSatir.toWarehouseName}}",
-                   "contains": ["kalemlerBilgisi", "kalemTablosu"] } },
-      { "id": "kalemlerBilgisi", "type": "text", "name": "kalemlerBilgisi",
-        "props": { "text": "Kaynak ve hedef hareketler tek transfer kaydına bağlıdır." } },
-      { "id": "kalemTablosu", "type": "dataTable", "name": "kalemTablosu",
-        "props": { "title": "Transfer kalemleri", "query": "kalemDetayi", "width": 12, "showGridSearch": false, "showColumnFilters": false, "showColumnChooser": false,
-                   "showExport": false, "showPivot": false, "showCsv": false, "showSelectedExport": false,
-                   "columns": ["code", "name", "displayQuantity", "quantity", "fromStorageLocationCode", "toStorageLocationCode"],
-                   "columnLabels": ["code=Stok kodu", "name=Stok adı", "displayQuantity=Miktar", "quantity=Ana birim miktarı",
-                                    "fromStorageLocationCode=Kaynak konum", "toStorageLocationCode=Hedef konum"],
-                   "columnUnits": ["displayQuantity=displayUnitCode", "quantity=unitCode",
-                                   "fromStorageLocationCode=fromStorageLocationName", "toStorageLocationCode=toStorageLocationName"],
-                   "columnFormats": ["code=code", "displayQuantity=number", "quantity=number"],
-                   "emptyText": "Transfer kalemi yok." } },
-
-      { "id": "yeniTransferPenceresi", "type": "dialog", "name": "yeniTransferPenceresi",
-        "props": { "presentation": "dialog", "size": "lg", "title": "Depolar arası transfer",
-                   "contains": ["transferBilgileri", "istekKimligi", "transferNotu", "kalemler", "durumSatiri"],
-                   "saveQuery": "transferOlustur", "saveLabel": "Transferi kaydet", "closeOnSave": true, "resetOnOpen": true,
-                   "refreshQueries": ["transferler"] } },
-      { "id": "transferBilgileri", "type": "formCard", "name": "transferBilgileri",
-        "props": { "title": "Transfer bilgileri", "columns": 3, "inputs": ["kaynakDepo", "hedefDepo", "transferTarihi"] } },
-      { "id": "kaynakDepo", "type": "input", "name": "kaynakDepo",
-        "props": { "inputType": "lookup", "label": "Kaynak depo", "required": true, "optionsQuery": "depolar", "optionValueColumn": "id",
-                   "optionLabelColumn": "name", "optionDescriptionColumn": "code", "minChars": 0, "defaultFirst": true,
-                   "optionsWhen": "satir.isActive == true", "clearsOnChange": ["kalemler.fromStorageLocationId"] } },
-      { "id": "hedefDepo", "type": "input", "name": "hedefDepo",
-        "props": { "inputType": "lookup", "label": "Hedef depo", "required": true, "optionsQuery": "depolar", "optionValueColumn": "id",
-                   "optionLabelColumn": "name", "optionDescriptionColumn": "code", "minChars": 0,
-                   "optionsWhen": "satir.isActive == true && satir.id != kaynakDepo.value",
-                   "clearsOnChange": ["kalemler.toStorageLocationId"] } },
-      { "id": "transferTarihi", "type": "input", "name": "transferTarihi",
-        "props": { "inputType": "date", "label": "Transfer tarihi", "required": true, "defaultValue": "{{bugun}}" } },
-      { "id": "istekKimligi", "type": "input", "name": "istekKimligi",
-        "props": { "inputType": "text", "label": "Tekrar deneme kimliği", "hidden": true, "autoId": true } },
-      { "id": "transferNotu", "type": "text", "name": "transferNotu",
-        "props": { "text": "Transfer tek işlemde kaynak depodan düşer ve hedef depoya ekler. Aynı stok kalemi bir kez girilebilir." } },
-      { "id": "kalemler", "type": "editableGrid", "name": "kalemler",
-        "props": { "gridMode": "list", "title": "Transfer kalemleri", "addLabel": "Kalem ekle", "maxRows": 100, "minRows": 1,
-                   "gridColumns": ["stockItemId|Stok kartı|lookup:stoklar:id:code:name|required,unique",
-                                   "unitCode|Birim|lookup:birimler:unitCode:unitCode",
-                                   "quantity|Miktar|number|required,min:0.0001,step:0.0001",
-                                   "fromStorageLocationId|Kaynak konum|lookup:kaynakKonumlar:id:code:name",
-                                   "toStorageLocationId|Hedef konum|lookup:hedefKonumlar:id:code:name"],
-                   "columnOptionsWhen": ["stockItemId=satir.isActive == true", "unitCode=satir.isActive == true",
-                                         "fromStorageLocationId=satir.isActive == true", "toStorageLocationId=satir.isActive == true"],
-                   "columnStaticOptions": ["unitCode==Ana birim"] } },
-      { "id": "durumSatiri", "type": "text", "name": "durumSatiri",
-        "props": { "text": "Kalem: {{kalemler.satirSayisi}} / 100 · Kaynak depo bakiyesi API tarafından kilit altında doğrulanır." } }
+      {
+        "id": "komutlar",
+        "type": "actionBar",
+        "name": "komutlar",
+        "props": {
+          "moreButtons": [
+            "iptalMenuDugmesi"
+          ],
+          "focusInput": "suzgec",
+          "exportTable": "liste",
+          "titleCount": "{{transferler.meta.totalCount}}",
+          "hiddenCommands": [
+            "save",
+            "delete",
+            "print"
+          ],
+          "newAction": "page",
+          "newPageCode": "@inventory-transfer-document",
+          "newTarget": "newTab",
+          "openAction": "page",
+          "openPageCode": "@inventory-transfer-document",
+          "openTarget": "newTab",
+          "openTable": "liste",
+          "openParams": [
+            "id={{liste.seciliSatir.id}}"
+          ]
+        }
+      },
+      {
+        "id": "suzgec",
+        "type": "filterBar",
+        "name": "suzgec",
+        "props": {
+          "table": "liste",
+          "width": 12,
+          "search": true,
+          "searchPlaceholder": "Kod veya depo adıyla ara",
+          "searchColumns": [
+            "code",
+            "fromWarehouseName",
+            "toWarehouseName"
+          ],
+          "filters": [
+            "status|select|row||Durum"
+          ]
+        }
+      },
+      {
+        "id": "liste",
+        "type": "dataTable",
+        "name": "liste",
+        "props": {
+          "title": "Transferler",
+          "query": "transferler",
+          "paging": "server",
+          "pageSize": 50,
+          "width": 12,
+          "columns": [
+            "code",
+            "transferDate",
+            "fromWarehouseName",
+            "toWarehouseName",
+            "lineCount",
+            "status"
+          ],
+          "columnLabels": [
+            "code=Transfer kodu",
+            "transferDate=Tarih",
+            "fromWarehouseName=Kaynak depo",
+            "toWarehouseName=Hedef depo",
+            "lineCount=Stok kalemi",
+            "status=Durum",
+            "createdAt=Oluşturulma"
+          ],
+          "columnFormats": [
+            "code=code",
+            "transferDate=date",
+            "lineCount=number",
+            "status=status",
+            "createdAt=date"
+          ],
+          "valueLabels": [
+            "status:Posted=Kaydedildi",
+            "status:Voided=İptal edildi"
+          ],
+          "toneMap": [
+            "Kaydedildi=success",
+            "İptal edildi=info"
+          ],
+          "rowActions": [
+            "kalemlerDugmesi",
+            "iptalDugmesi"
+          ],
+          "rowOpenAction": "kalemlerDugmesi",
+          "emptyText": "Henüz transfer kaydı yok. Bir depodan diğerine stok aktardığınızda geçmiş burada görünür."
+        }
+      },
+      {
+        "id": "kalemlerDugmesi",
+        "type": "button",
+        "name": "kalemlerDugmesi",
+        "props": {
+          "text": "Kalemler",
+          "actionType": "page",
+          "disabledWhen": "liste.seciliSatir.id == null",
+          "disabledReason": "Önce bir kayıt seçin",
+          "pageCode": "@inventory-transfer-document",
+          "target": "newTab",
+          "params": [
+            "id={{liste.seciliSatir.id}}"
+          ]
+        }
+      },
+      {
+        "id": "iptalDugmesi",
+        "type": "button",
+        "name": "iptalDugmesi",
+        "props": {
+          "text": "Transferi iptal et",
+          "actionType": "query",
+          "queryId": "transferIptal",
+          "promptLabel": "İptal nedeni",
+          "promptRequired": true,
+          "promptMaxLength": 160,
+          "promptText": "{{liste.seciliSatir.code}} · Kaynak ve hedef depodaki tüm transfer hareketleri birlikte ters kayıtla iptal edilecek. Hedef stok kullanılmışsa işlem reddedilir.",
+          "visibleWhen": "liste.seciliSatir.status == 'Posted'",
+          "successMessage": "Depo transferi iki depoda ters hareketlerle iptal edildi.",
+          "refreshQueries": [
+            "transferler"
+          ]
+        }
+      },
+      {
+        "id": "iptalMenuDugmesi",
+        "type": "button",
+        "name": "iptalMenuDugmesi",
+        "props": {
+          "text": "Transferi iptal et",
+          "actionType": "query",
+          "queryId": "transferIptalMenu",
+          "promptLabel": "İptal nedeni",
+          "promptRequired": true,
+          "promptMaxLength": 160,
+          "promptText": "{{liste.seciliSatir.code}} · Kaynak ve hedef depodaki tüm transfer hareketleri birlikte ters kayıtla iptal edilecek. Hedef stok kullanılmışsa işlem reddedilir.",
+          "visibleWhen": "liste.seciliSatir.status == 'Posted'",
+          "successMessage": "Depo transferi iki depoda ters hareketlerle iptal edildi.",
+          "refreshQueries": [
+            "transferler"
+          ]
+        }
+      },
+      {
+        "id": "kalemlerPenceresi",
+        "type": "dialog",
+        "name": "kalemlerPenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "xl",
+          "title": "{{liste.seciliSatir.code}} · {{liste.seciliSatir.fromWarehouseName}} → {{liste.seciliSatir.toWarehouseName}}",
+          "contains": [
+            "kalemlerBilgisi",
+            "kalemTablosu"
+          ]
+        }
+      },
+      {
+        "id": "kalemlerBilgisi",
+        "type": "text",
+        "name": "kalemlerBilgisi",
+        "props": {
+          "text": "Kaynak ve hedef hareketler tek transfer kaydına bağlıdır."
+        }
+      },
+      {
+        "id": "kalemTablosu",
+        "type": "dataTable",
+        "name": "kalemTablosu",
+        "props": {
+          "title": "Transfer kalemleri",
+          "query": "kalemDetayi",
+          "width": 12,
+          "showGridSearch": false,
+          "showColumnFilters": false,
+          "showColumnChooser": false,
+          "showExport": false,
+          "showPivot": false,
+          "showCsv": false,
+          "showSelectedExport": false,
+          "columns": [
+            "code",
+            "name",
+            "displayQuantity",
+            "quantity",
+            "fromStorageLocationCode",
+            "toStorageLocationCode"
+          ],
+          "columnLabels": [
+            "code=Stok kodu",
+            "name=Stok adı",
+            "displayQuantity=Miktar",
+            "quantity=Ana birim miktarı",
+            "fromStorageLocationCode=Kaynak konum",
+            "toStorageLocationCode=Hedef konum"
+          ],
+          "columnUnits": [
+            "displayQuantity=displayUnitCode",
+            "quantity=unitCode",
+            "fromStorageLocationCode=fromStorageLocationName",
+            "toStorageLocationCode=toStorageLocationName"
+          ],
+          "columnFormats": [
+            "code=code",
+            "displayQuantity=number",
+            "quantity=number"
+          ],
+          "emptyText": "Transfer kalemi yok."
+        }
+      },
+      {
+        "id": "yeniTransferPenceresi",
+        "type": "dialog",
+        "name": "yeniTransferPenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "lg",
+          "title": "Depolar arası transfer",
+          "contains": [
+            "transferBilgileri",
+            "istekKimligi",
+            "transferNotu",
+            "kalemler",
+            "durumSatiri"
+          ],
+          "saveQuery": "transferOlustur",
+          "saveLabel": "Transferi kaydet",
+          "closeOnSave": true,
+          "resetOnOpen": true,
+          "refreshQueries": [
+            "transferler"
+          ]
+        }
+      },
+      {
+        "id": "transferBilgileri",
+        "type": "formCard",
+        "name": "transferBilgileri",
+        "props": {
+          "title": "Transfer bilgileri",
+          "columns": 3,
+          "inputs": [
+            "kaynakDepo",
+            "hedefDepo",
+            "transferTarihi"
+          ]
+        }
+      },
+      {
+        "id": "kaynakDepo",
+        "type": "input",
+        "name": "kaynakDepo",
+        "props": {
+          "inputType": "lookup",
+          "label": "Kaynak depo",
+          "required": true,
+          "optionsQuery": "depolar",
+          "optionValueColumn": "id",
+          "optionLabelColumn": "name",
+          "optionDescriptionColumn": "code",
+          "minChars": 0,
+          "defaultFirst": true,
+          "optionsWhen": "satir.isActive == true",
+          "clearsOnChange": [
+            "kalemler.fromStorageLocationId"
+          ]
+        }
+      },
+      {
+        "id": "hedefDepo",
+        "type": "input",
+        "name": "hedefDepo",
+        "props": {
+          "inputType": "lookup",
+          "label": "Hedef depo",
+          "required": true,
+          "optionsQuery": "depolar",
+          "optionValueColumn": "id",
+          "optionLabelColumn": "name",
+          "optionDescriptionColumn": "code",
+          "minChars": 0,
+          "optionsWhen": "satir.isActive == true && satir.id != kaynakDepo.value",
+          "clearsOnChange": [
+            "kalemler.toStorageLocationId"
+          ]
+        }
+      },
+      {
+        "id": "transferTarihi",
+        "type": "input",
+        "name": "transferTarihi",
+        "props": {
+          "inputType": "date",
+          "label": "Transfer tarihi",
+          "required": true,
+          "defaultValue": "{{bugun}}"
+        }
+      },
+      {
+        "id": "istekKimligi",
+        "type": "input",
+        "name": "istekKimligi",
+        "props": {
+          "inputType": "text",
+          "label": "Tekrar deneme kimliği",
+          "hidden": true,
+          "autoId": true
+        }
+      },
+      {
+        "id": "transferNotu",
+        "type": "text",
+        "name": "transferNotu",
+        "props": {
+          "text": "Transfer tek işlemde kaynak depodan düşer ve hedef depoya ekler. Aynı stok kalemi bir kez girilebilir."
+        }
+      },
+      {
+        "id": "kalemler",
+        "type": "editableGrid",
+        "name": "kalemler",
+        "props": {
+          "gridMode": "list",
+          "title": "Transfer kalemleri",
+          "addLabel": "Kalem ekle",
+          "maxRows": 100,
+          "minRows": 1,
+          "gridColumns": [
+            "stockItemId|Stok kartı|lookup:stoklar:id:code:name|required,unique",
+            "unitCode|Birim|lookup:birimler:unitCode:unitCode",
+            "quantity|Miktar|number|required,min:0.0001,step:0.0001",
+            "fromStorageLocationId|Kaynak konum|lookup:kaynakKonumlar:id:code:name",
+            "toStorageLocationId|Hedef konum|lookup:hedefKonumlar:id:code:name"
+          ],
+          "columnOptionsWhen": [
+            "stockItemId=satir.isActive == true",
+            "unitCode=satir.isActive == true",
+            "fromStorageLocationId=satir.isActive == true",
+            "toStorageLocationId=satir.isActive == true"
+          ],
+          "columnStaticOptions": [
+            "unitCode==Ana birim"
+          ]
+        }
+      },
+      {
+        "id": "durumSatiri",
+        "type": "text",
+        "name": "durumSatiri",
+        "props": {
+          "text": "Kalem: {{kalemler.satirSayisi}} / 100 · Kaynak depo bakiyesi API tarafından kilit altında doğrulanır."
+        }
+      }
     ],
     "queries": [
-      { "id": "transferler", "name": "transferler", "kind": "read", "operation": "depo.transfer.listele", "runOn": "load",
+      {
+        "id": "transferler",
+        "name": "transferler",
+        "kind": "read",
+        "operation": "depo.transfer.listele",
+        "runOn": "load",
         "parameters": [
-          { "name": "page", "binding": "{{liste.sayfa}}", "type": "int" },
-          { "name": "pageSize", "binding": "{{liste.sayfaBoyutu}}", "type": "int" } ] },
-      { "id": "kalemDetayi", "name": "kalemDetayi", "kind": "read", "operation": "depo.transfer.kalemleri", "runOn": "load",
-        "parameters": [ { "name": "transferId", "binding": "{{liste.seciliSatir.id}}", "type": "guid" } ] },
-      { "id": "depolar", "name": "depolar", "kind": "read", "operation": "depo.listele", "runOn": "load", "parameters": [] },
-      { "id": "kaynakKonumlar", "name": "kaynakKonumlar", "kind": "read", "operation": "depo.konumlari", "runOn": "load",
-        "parameters": [ { "name": "warehouseId", "binding": "{{kaynakDepo.value}}", "type": "guid" } ] },
-      { "id": "hedefKonumlar", "name": "hedefKonumlar", "kind": "read", "operation": "depo.konumlari", "runOn": "load",
-        "parameters": [ { "name": "warehouseId", "binding": "{{hedefDepo.value}}", "type": "guid" } ] },
-      { "id": "stoklar", "name": "stoklar", "kind": "read", "operation": "stok.kart.listele", "runOn": "load",
-        "parameters": [ { "name": "q", "binding": "{{kalemler.arama}}", "type": "text" } ] },
-      { "id": "birimler", "name": "birimler", "kind": "read", "operation": "stok.kart.birimleri", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{kalemler.satir.stockItemId}}", "type": "guid" } ] },
-      { "id": "transferOlustur", "name": "transferOlustur", "kind": "insert", "operation": "depo.transfer.olustur", "runOn": "manual",
+          {
+            "name": "page",
+            "binding": "{{liste.sayfa}}",
+            "type": "int"
+          },
+          {
+            "name": "pageSize",
+            "binding": "{{liste.sayfaBoyutu}}",
+            "type": "int"
+          }
+        ]
+      },
+      {
+        "id": "kalemDetayi",
+        "name": "kalemDetayi",
+        "kind": "read",
+        "operation": "depo.transfer.kalemleri",
+        "runOn": "load",
         "parameters": [
-          { "name": "requestId", "binding": "{{istekKimligi.value}}", "type": "guid" },
-          { "name": "fromWarehouseId", "binding": "{{kaynakDepo.value}}", "type": "guid" },
-          { "name": "toWarehouseId", "binding": "{{hedefDepo.value}}", "type": "guid" },
-          { "name": "transferDate", "binding": "{{transferTarihi.value}}", "type": "date" },
-          { "name": "lines", "binding": "{{kalemler.satirlar}}", "type": "list" } ] },
-      { "id": "transferIptal", "name": "transferIptal", "kind": "update", "operation": "depo.transfer.iptal", "runOn": "manual",
+          {
+            "name": "transferId",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "depolar",
+        "name": "depolar",
+        "kind": "read",
+        "operation": "depo.listele",
+        "runOn": "load",
+        "parameters": []
+      },
+      {
+        "id": "kaynakKonumlar",
+        "name": "kaynakKonumlar",
+        "kind": "read",
+        "operation": "depo.konumlari",
+        "runOn": "load",
         "parameters": [
-          { "name": "transferId", "binding": "{{liste.seciliSatir.id}}", "type": "guid" },
-          { "name": "reason", "binding": "{{iptalDugmesi.yanit}}", "type": "text" } ] },
-      { "id": "transferIptalMenu", "name": "transferIptalMenu", "kind": "update", "operation": "depo.transfer.iptal", "runOn": "manual",
+          {
+            "name": "warehouseId",
+            "binding": "{{kaynakDepo.value}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "hedefKonumlar",
+        "name": "hedefKonumlar",
+        "kind": "read",
+        "operation": "depo.konumlari",
+        "runOn": "load",
         "parameters": [
-          { "name": "transferId", "binding": "{{liste.seciliSatir.id}}", "type": "guid" },
-          { "name": "reason", "binding": "{{iptalMenuDugmesi.yanit}}", "type": "text" } ] }
+          {
+            "name": "warehouseId",
+            "binding": "{{hedefDepo.value}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "stoklar",
+        "name": "stoklar",
+        "kind": "read",
+        "operation": "stok.kart.listele",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "q",
+            "binding": "{{kalemler.arama}}",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "birimler",
+        "name": "birimler",
+        "kind": "read",
+        "operation": "stok.kart.birimleri",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{kalemler.satir.stockItemId}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "transferOlustur",
+        "name": "transferOlustur",
+        "kind": "insert",
+        "operation": "depo.transfer.olustur",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "requestId",
+            "binding": "{{istekKimligi.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "fromWarehouseId",
+            "binding": "{{kaynakDepo.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "toWarehouseId",
+            "binding": "{{hedefDepo.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "transferDate",
+            "binding": "{{transferTarihi.value}}",
+            "type": "date"
+          },
+          {
+            "name": "lines",
+            "binding": "{{kalemler.satirlar}}",
+            "type": "list"
+          }
+        ]
+      },
+      {
+        "id": "transferIptal",
+        "name": "transferIptal",
+        "kind": "update",
+        "operation": "depo.transfer.iptal",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "transferId",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          },
+          {
+            "name": "reason",
+            "binding": "{{iptalDugmesi.yanit}}",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "transferIptalMenu",
+        "name": "transferIptalMenu",
+        "kind": "update",
+        "operation": "depo.transfer.iptal",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "transferId",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          },
+          {
+            "name": "reason",
+            "binding": "{{iptalMenuDugmesi.yanit}}",
+            "type": "text"
+          }
+        ]
+      }
     ]
-  }
+  },
+  "updates": [
+    {
+      "id": "belge",
+      "label": "Yeni ve Aç komutları transfer Belge sayfasına gider",
+      "below": 2,
+      "set": [
+        {
+          "component": "komutlar",
+          "prop": "newAction",
+          "from": [
+            null
+          ]
+        },
+        {
+          "component": "komutlar",
+          "prop": "newPageCode",
+          "from": [
+            null
+          ]
+        },
+        {
+          "component": "komutlar",
+          "prop": "newTarget",
+          "from": [
+            null
+          ]
+        },
+        {
+          "component": "komutlar",
+          "prop": "openAction",
+          "from": [
+            null
+          ]
+        },
+        {
+          "component": "komutlar",
+          "prop": "openPageCode",
+          "from": [
+            null
+          ]
+        },
+        {
+          "component": "komutlar",
+          "prop": "openTarget",
+          "from": [
+            null
+          ]
+        },
+        {
+          "component": "komutlar",
+          "prop": "openTable",
+          "from": [
+            null
+          ]
+        },
+        {
+          "component": "komutlar",
+          "prop": "openParams",
+          "from": [
+            null
+          ]
+        },
+        {
+          "component": "kalemlerDugmesi",
+          "prop": "actionType",
+          "from": [
+            "openDialog"
+          ]
+        },
+        {
+          "component": "kalemlerDugmesi",
+          "prop": "pageCode",
+          "from": [
+            null
+          ]
+        },
+        {
+          "component": "kalemlerDugmesi",
+          "prop": "target",
+          "from": [
+            null
+          ]
+        },
+        {
+          "component": "kalemlerDugmesi",
+          "prop": "params",
+          "from": [
+            null
+          ]
+        }
+      ]
+    }
+  ]
 }

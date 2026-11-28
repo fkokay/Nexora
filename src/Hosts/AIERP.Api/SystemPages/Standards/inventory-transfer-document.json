@@ -1,0 +1,72 @@
+{
+  "screenKey": "inventory-transfer-document",
+  "title": "Depo transferi (belge)",
+  "description": "Depolar arası stok transferini oluşturun veya kaydedilmiş transferi ve iptal günlüğünü salt okunur görüntüleyin.",
+  "module": "Stok & Depo",
+  "version": 1,
+  "stage": "preview",
+  "items": {
+    "component:baslik": {
+      "since": 1,
+      "label": "Transfer no, tarih ve depolar"
+    },
+    "component:satirlar": {
+      "since": 1,
+      "label": "Stok, miktar ve birim"
+    },
+    "component:toplamlar": {
+      "since": 1,
+      "label": "Toplam miktar ve işlem günlüğü"
+    }
+  },
+  "definition": {
+    "schemaVersion": 2,
+    "template": {
+      "name": "belge",
+      "document": "stok.transfer"
+    },
+    "queries": [],
+    "components": [
+      {
+        "id": "baslik",
+        "type": "documentFields",
+        "props": {
+          "slot": "fields",
+          "fields": [
+            "code",
+            "transferDate",
+            "fromWarehouseId",
+            "toWarehouseId"
+          ],
+          "labels": {
+            "fromWarehouseId": "Kaynak depo",
+            "toWarehouseId": "Hedef depo"
+          }
+        }
+      },
+      {
+        "id": "satirlar",
+        "type": "documentLines",
+        "props": {
+          "slot": "lines",
+          "columns": [
+            "stockItemId",
+            "quantity",
+            "unitCode"
+          ],
+          "labels": {},
+          "density": "normal"
+        }
+      },
+      {
+        "id": "toplamlar",
+        "type": "documentSummary",
+        "props": {
+          "slot": "summary",
+          "vatBreakdown": false,
+          "activity": true
+        }
+      }
+    ]
+  }
+}

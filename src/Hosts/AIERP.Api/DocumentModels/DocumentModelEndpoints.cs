@@ -33,6 +33,21 @@ internal static class DocumentModelEndpoints
         models.MapPost("/" + PurchaseInvoiceDocumentModel.Code + "/fill", () => Results.Ok(new DocumentFillResult(new Dictionary<string, object?>())));
         models.MapPost("/" + PurchaseOrderDocumentModel.Code + "/calculate", (PurchaseDocumentCalculationRequest request) => Results.Ok(Calculate(request)));
         models.MapPost("/" + PurchaseInvoiceDocumentModel.Code + "/calculate", (PurchaseDocumentCalculationRequest request) => Results.Ok(Calculate(request)));
+        models.MapGet("/" + InventoryTransferDocumentModel.Code + "/sample",
+            (string? state) => Sample(state, InventoryTransferStatus.Posted, InventoryTransferDocumentModel.Sample));
+        models.MapPost("/" + InventoryTransferDocumentModel.Code + "/fill", InventoryTransferDocumentModel.FillAsync);
+
+        app.MapGroup("/api/warehouses/transfers").WithTags("Depo Transferleri").RequireAuthorization()
+            .MapGet("/{transferId:guid}/document", async (Guid transferId, ClaimsPrincipal principal, TenantDbContext db, IPlatformPermissionAuthorizer authorizer,
+                CancellationToken ct) =>
+            {
+                if (!Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tenantId)) return Results.Forbid();
+                if (await InventoryTransferReads.ViewAsync(db, tenantId, transferId, ct) is not { } detail) return Results.NotFound();
+                var activity = await DocumentActivityLog.ReadAsync(db, tenantId, InventoryTransferDocumentModel.Code, transferId, ct);
+                var allowed = await DocumentModelPermissions.ExecutableAsync(authorizer, principal, tenantId, "erp.inventory-transfers", transferId,
+                    detail.Transfer.Status.ToString(), null, InventoryTransferDocumentModel.Candidates(detail.Transfer.Status), ct);
+                return Results.Ok(InventoryTransferDocumentModel.View(detail, allowed, activity));
+            });
 
         app.MapGroup("/api/sales/quotes").WithTags("Satış Teklifleri").RequireAuthorization()
             .MapGet("/{id:guid}/document", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, IPlatformPermissionAuthorizer authorizer,
