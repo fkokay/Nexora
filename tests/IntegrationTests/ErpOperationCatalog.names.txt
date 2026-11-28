@@ -155,10 +155,14 @@ rapor.supplierPayments
 rapor.supplierReturns
 rapor.warehouseStock
 rapor.workflowInstances
+satinalma.fatura.belge
+satinalma.fatura.doldur
 satinalma.fatura.getir
+satinalma.fatura.hesapla
 satinalma.fatura.iadeEdilebilirSatirlar
 satinalma.fatura.iadeleri
 satinalma.fatura.iptal
+satinalma.fatura.kayitBelgesi
 satinalma.fatura.listele
 satinalma.fatura.odemeEkle
 satinalma.fatura.odemeHesaplari
@@ -203,7 +207,10 @@ satinalma.malKabul.ozelAlanTanimlari
 satinalma.malKabul.satirlari
 satinalma.malKabul.sayfaliListe
 satinalma.malKabul.siparisSatirlari
+satinalma.siparis.belge
+satinalma.siparis.doldur
 satinalma.siparis.getir
+satinalma.siparis.hesapla
 satinalma.siparis.listele
 satinalma.siparis.malKabulleri
 satinalma.siparis.olustur

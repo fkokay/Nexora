@@ -321,11 +321,12 @@ public static class PlatformPermissionCatalog
         else if (path.StartsWith("/api/document-models/", StringComparison.OrdinalIgnoreCase))
         {
             // Belge modelleri hold no tenant data; "alan değişince" (POST …/fill) only reads stock cards. Read with the documents' own
-            // permission: the model code in the path names it (satis.teklif → quotes; satis.siparis and anything else → orders).
+            // permission: the model code in the path names its own purchasing/sales resource.
             // A new model adds its code here.
             var modelPath = path["/api/document-models/".Length..];
-            resource = Resources.First(x => x.ResourceType == (modelPath.StartsWith("satis.teklif", StringComparison.OrdinalIgnoreCase)
-                ? "erp.sales-quotes" : "erp.sales-orders"));
+            resource = Resources.First(x => modelPath.StartsWith("satis.teklif", StringComparison.OrdinalIgnoreCase) ? "erp.sales-quotes"
+                : modelPath.StartsWith("satinalma.fatura", StringComparison.OrdinalIgnoreCase) ? "erp.purchase-invoices"
+                : modelPath.StartsWith("satinalma.siparis", StringComparison.OrdinalIgnoreCase) ? "erp.purchase-orders" : "erp.sales-orders");
             explicitReadAction = true;
         }
         resource ??= Resources.Where(x => path.Equals(x.RoutePrefix, StringComparison.OrdinalIgnoreCase)

@@ -1,4 +1,10 @@
 # Master Prompt Phase Status
+### 2026-11-28 Satınalma belge modelleri
+
+- `satinalma.siparis` ve `satinalma.fatura` eklendi. Sipariş taslağı mevcut POST ile oluşturulur ve kayıtlı sipariş salt okunur açılır; standalone fatura taslağı POST/PUT ile düzenlenir, mal kabul faturaları salt okunur açılır. Liste standartlarının Yeni/Aç komutları Belge sayfalarına yönlendirildi; veri yazmayan hesap uçları eklendi.
+- Desteklenmeyen eylemler atlandı: sipariş için mevcut iptal/onay geçişi yok; mal kabulden gelen faturalar salt okunur olduğundan iptal bağlanmadı. Mal kabul satırını taslağa bağlama UI akışı eklenmedi.
+- ERP Belge vitest (1/1), Studio vitest (15/15) ve iki `npm run build` geçti. `dotnet build AIERP.slnx --no-restore`, .NET SDK workload resolver bileşenleri bulunamadığı için derleme başlamadan başarısız oldu (0 hata/uyarı raporlandı); `dotnet test` talimat gereği çalıştırılmadı.
+
 ### 2026-11-28 Stok & Depo dalga 1: 4 standart Liste kalıbına elle çizildi
 
 Branch `claude/stok-dalga1` (design: `docs/superpowers/specs/2026-11-28-stok-depo-yeniden-tasarim-design.md`, mockup 14); not merged. No migration, no new template feature, no new belge modeli.

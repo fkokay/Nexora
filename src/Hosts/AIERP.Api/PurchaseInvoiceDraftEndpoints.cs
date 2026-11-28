@@ -534,6 +534,8 @@ public static class PurchaseInvoiceDraftEndpoints
         db.CustomerLedgerEntries.Add(ledger);
         db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId,
             Action = "standalone-supplier-invoice.posted", Resource = draft.InvoiceNumber });
+        DocumentActivityLog.Add(db, tenantId, DocumentActivityLog.PurchaseInvoice, draft.Id, "muhasebelestir",
+            "Satınalma faturası muhasebeleştirildi", "core", "done", null, userId);
         try
         {
             await db.SaveChangesAsync(ct);

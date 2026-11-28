@@ -1,7 +1,7 @@
 {
   "screenKey": "sales-purchasing", "title": "Satınalma siparişleri",
   "description": "Tedarikçi siparişlerini, teslim alınan miktarları ve mal kabul ile fatura zincirini izleyin.", "module": "Satın Alma",
-  "version": 2, "stage": "preview",
+  "version": 3, "stage": "preview",
   "items": {
     "component:komutlar": {"since": 1, "label": "İşlem çubuğu", "requires": ["component:suzgec", "component:liste", "component:yeniSiparisDugmesi", "component:acDugmesi", "component:malKabulDugmesi", "component:eskiEkranDugmesi", "query:siparisler"]},
     "component:siparisSecimi": {"since": 1, "label": "Açık sipariş belgesi (gizli)"},
@@ -75,9 +75,9 @@
     "schemaVersion": 2,
     "components": [
       { "id": "komutlar", "type": "actionBar", "name": "komutlar",
-        "props": { "newButton": "yeniSiparisDugmesi", "focusInput": "suzgec", "exportTable": "liste",
+        "props": { "focusInput": "suzgec", "exportTable": "liste",
                    "titleCount": "{{siparisler.meta.totalCount}}", "moreButtons": ["malKabulDugmesi", "eskiEkranDugmesi"],
-                   "hiddenCommands": ["open", "save", "delete", "print"] } },
+                   "hiddenCommands": ["save", "delete", "print"], "newAction": "page", "newPageCode": "@purchase-order-document", "newTarget": "newTab", "openAction": "page", "openPageCode": "@purchase-order-document", "openTarget": "newTab", "openTable": "liste", "openParams": ["id={{liste.seciliSatir.id}}"] } },
 
       { "id": "siparisSecimi", "type": "input", "name": "siparisSecimi",
         "props": { "inputType": "text", "label": "Açık sipariş", "hidden": true, "defaultValue": "{{sayfa.parametre.purchaseOrderId}}" } },
@@ -135,10 +135,10 @@
                    "valueLabels": ["status:PendingApproval=Onay bekliyor", "status:Open=Açık", "status:PartiallyReceived=Kısmen alındı",
                                    "status:Received=Tam alındı", "status:Cancelled=İptal", "status:Rejected=Reddedildi"],
                    "toneMap": ["Onay bekliyor=warning", "Açık=info", "Kısmen alındı=warning", "Tam alındı=success", "Reddedildi=danger"],
-                   "rowOpenAction": "acDugmesi",
+                   "rowOpenAction": "acDugmesi", "openParam": "id",
                    "emptyText": "Filtrelerle eşleşen satın alma siparişi yok." } },
       { "id": "acDugmesi", "type": "button", "name": "acDugmesi",
-        "props": { "text": "Aç", "icon": "open", "actionType": "setInput", "assignments": ["siparisSecimi={{liste.seciliSatir.id}}"],
+        "props": { "text": "Aç", "icon": "open", "actionType": "erpPage", "pageKey": "purchase-order-document", "target": "sameTab", "params": ["id={{liste.seciliSatir.id}}"],
                    "disabledWhen": "liste.seciliSatir.id == null", "disabledReason": "Önce bir kayıt seçin" } },
 
       { "id": "detayKarti", "type": "card", "name": "detayKarti",
@@ -253,7 +253,7 @@
                    "emptyText": "Özel alan değeri yok." } },
 
       { "id": "yeniSiparisDugmesi", "type": "button", "name": "yeniSiparisDugmesi",
-        "props": { "text": "Yeni sipariş", "actionType": "erpPage", "pageKey": "sales-purchase-order-create" } },
+        "props": { "text": "Yeni sipariş", "actionType": "erpPage", "pageKey": "purchase-order-document" } },
       { "id": "malKabulDugmesi", "type": "button", "name": "malKabulDugmesi",
         "props": { "text": "Mal kabul oluştur ›", "actionType": "setInput", "assignments": ["siparisSecimi={{liste.seciliSatir.id}}"],
                    "visibleWhen": "siparisSecimi.value == null",
@@ -357,5 +357,6 @@
           { "name": "receiptDate", "binding": "{{kabulTarihi.value}}", "type": "date" },
           { "name": "lines", "binding": "{{kabulKalemleri.satirlar}}", "type": "list" } ] }
     ]
-  }
+  } ,
+  "updates": [{"version": 3, "note": "New and open actions now route to the purchase order document page."}]
 }
