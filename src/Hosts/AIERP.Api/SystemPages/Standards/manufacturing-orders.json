@@ -298,6 +298,7 @@
       "since": 2,
       "label": "Detay: Rota operasyonları",
       "requires": [
+        "component:rotaPenceresi",
         "component:opBaslatDugmesi",
         "component:opTamamlaDugmesi",
         "query:operasyonlar"
@@ -306,12 +307,15 @@
     "component:rotaNotu": {
       "since": 2,
       "label": "Detay: rota notu",
-      "requires": []
+      "requires": [
+        "component:rotaPenceresi"
+      ]
     },
     "component:bilesenTablosu": {
       "since": 2,
       "label": "Detay: Bileşenler",
       "requires": [
+        "component:bilesenPenceresi",
         "query:bilesenler"
       ]
     },
