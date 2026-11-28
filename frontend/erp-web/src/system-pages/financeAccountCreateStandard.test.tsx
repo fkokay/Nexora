@@ -66,13 +66,13 @@ function setup(params: Record<string, string> = {}) {
 
 const T = { timeout: 10000 };
 const settle = (ms = 50) => new Promise((done) => setTimeout(done, ms));
-const command = (id: string) => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>(`[data-command="${id}"]`)!;
+const command = (id: string) => screen.getByRole('toolbar', { name: 'İşlemler' }).querySelector<HTMLElement>(`[data-command="${id}"]`)!;
 const ready = (id: string) => waitFor(() => expect(command(id).getAttribute('aria-disabled')).not.toBe('true'), T);
 const writes = () => calls.filter((call) => call.method !== 'GET');
 const posts = () => writes().filter((call) => call.method === 'POST' && call.url === '/api/finance/accounts');
 const input = (id: string) => document.getElementById(`page-input-${id}`) as HTMLInputElement;
 const type = (id: string, value: string) => fireEvent.change(input(id), { target: { value } });
-const title = () => document.querySelector('.tenant-custom-page-header h1, .list-v2-title h1')?.textContent;
+const title = () => document.querySelector('.page-shell-sr-title, .tenant-custom-page-header h1, .list-v2-title h1')?.textContent;
 const openNew = async (params: Record<string, string> = {}) => {
   setup(params);
   await waitFor(() => expect(input('kod')).toBeTruthy(), T);
@@ -138,7 +138,7 @@ describe('Kasa/Banka kartı standart tanımı', { timeout: 30000 }, () => {
     type('ad', 'Birinci');
     type('doviz', 'TRY');
     // Kaydet ve yeni is a bar button next to Kaydet.
-    fireEvent.click(await waitFor(() => { const button = screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>('[data-command="save-and-new"]'); expect(button).not.toBeNull(); return button!; }));
+    fireEvent.click(await waitFor(() => { const button = screen.getByRole('toolbar', { name: 'İşlemler' }).querySelector<HTMLElement>('[data-command="save-and-new"]'); expect(button).not.toBeNull(); return button!; }));
     await waitFor(() => expect(posts()).toHaveLength(1), T);
     await waitFor(() => expect(input('kod').value).toBe(''), T);
     expect(input('ad').value).toBe('');
@@ -149,7 +149,7 @@ describe('Kasa/Banka kartı standart tanımı', { timeout: 30000 }, () => {
     await waitFor(() => expect(title()).toBe('KASA-01 · Merkez kasa'), T);
     expect(input('acilisBakiyesi')).toBeNull();
     expect(input('tur').disabled).toBe(true);
-    expect(document.body.textContent).toContain('4 hareket');
+    expect(document.body.textContent).toContain('Hareket4');
     await settle();
     expect(command('more')).toBeNull();
     type('ad', 'Merkez kasa TL');

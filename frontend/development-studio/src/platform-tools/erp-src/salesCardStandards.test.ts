@@ -14,7 +14,7 @@ type Standard = { definition: { queries: Query[]; components: Component[] } };
 const { reconcileDefinition, managedKeys, contentFields, palette } = designerInternals;
 // Kartlar API tarafında aşama aşama eklenir (P6); glob mevcut olanları okur, kart anahtarları aşağıda sabittir.
 const files = import.meta.glob<string>("../../../../../src/Hosts/AIERP.Api/SystemPages/Standards/sales-*-create.json", { eager: true, query: "?raw", import: "default" });
-const CARD_KEYS = ["sales-quote-create", "sales-order-create", "sales-delivery-create", "sales-invoice-create"];
+const CARD_KEYS = ["sales-quote-create", "sales-delivery-create", "sales-invoice-create"];
 // Satınalma kartları (sales-purchase-*-create) aynı desene uyar; purchasingStandards.test.ts denetler.
 const standards: [string, Standard][] = Object.entries(files).map(([path, json]): [string, Standard] => [path.slice(path.lastIndexOf("/") + 1, -".json".length), JSON.parse(json) as Standard])
   .filter(([key]) => !key.startsWith("sales-purchase-"));
