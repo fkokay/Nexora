@@ -11,12 +11,12 @@ import { OPEN_PAGE_EVENT, type WorkspaceOpenRequest } from '../pageNavigation';
 import catalog from './manufacturingOrderCreateOperations.fixture.json';
 
 // "Yeni üretim emri" standart tanımı (manufacturing-order-create.json): aktif reçeteden stoka ya da satış siparişi satırına
-// üretim emri planlanır; reçete içeriği birim başına önizlenir. API sahte yanıtlar döner.
+// üretim emri planlanır; sekmeli Kayıt kartında reçete seçimi tabloyu doldurur. API sahte yanıtlar döner.
 
 const { api } = vi.hoisted(() => ({ api: vi.fn() }));
 vi.mock('../erpApi', () => ({ api }));
 
-type Definition = { schemaVersion: number; components: { id: string; type: string; props?: Record<string, unknown> }[]; queries: { id: string; operation: string }[] };
+type Definition = { schemaVersion: number; template?: { name: string }; components: { id: string; type: string; props?: Record<string, unknown> }[]; queries: { id: string; operation: string }[] };
 const KEY = 'manufacturing-order-create';
 const standard = JSON.parse(readFileSync(resolve(process.cwd(), `../../src/Hosts/AIERP.Api/SystemPages/Standards/${KEY}.json`), 'utf8')) as { title: string; definition: Definition };
 
@@ -80,7 +80,7 @@ function setup() {
 }
 
 const T = { timeout: 10000 };
-const command = (id: string) => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>(`[data-command="${id}"]`);
+const command = (id: string) => screen.getByRole('toolbar', { name: 'İşlemler' }).querySelector<HTMLElement>(`[data-command="${id}"]`);
 const ready = (id: string) => waitFor(() => expect(command(id)?.getAttribute('aria-disabled')).not.toBe('true'), T);
 const gets = (path: string) => calls.filter((call) => call.method === 'GET' && call.url.split('?')[0] === path);
 const posts = () => calls.filter((call) => call.method === 'POST' && call.url === '/api/manufacturing/orders');
@@ -114,6 +114,14 @@ afterEach(() => {
 });
 
 describe('Yeni üretim emri standart tanımı', { timeout: 30000 }, () => {
+  it('uses the record template with a dependent read-only recipe preview', () => {
+    expect(standard.definition.template).toEqual({ name: 'record' });
+    expect(standard.definition.components.find((component) => component.id === 'sekme')?.props?.tabs)
+      .toEqual(['Emir=emirKarti,siparisKarti', 'Reçete içeriği=icerikNotu']);
+    expect(standard.definition.components.find((component) => component.id === 'icerikTablosu')?.props?.slot).toBe('below');
+    expect(standard.definition.components.find((component) => component.id === 'recete')?.props?.optionsQuery).toBe('receteler');
+  });
+
   it('uses only operations from the catalog fixture', () => {
     const names = new Set(catalog.operations.map((operation) => operation.name));
     expect(standard.definition.queries.filter((item) => !names.has(item.operation))).toEqual([]);
@@ -121,14 +129,14 @@ describe('Yeni üretim emri standart tanımı', { timeout: 30000 }, () => {
 
   it('opens with today, quantity 1, stock production and only active recipes; no sales order fields', async () => {
     await openNew();
-    expect(document.body.textContent).toContain('Üretim emri planlama');
+    expect(document.body.textContent).toContain('Yeni üretim emri');
     expect(input('planTarihi').value).toBe(today());
     expect(input('miktar').value).toBe('1');
     expect((input('uretimTuru') as unknown as HTMLSelectElement).value).toBe('Stock');
     await waitFor(() => expect(gets('/api/manufacturing/boms').length).toBeGreaterThan(0), T);
     expect(query(gets('/api/manufacturing/boms')[0].url).get('isActive')).toBe('true');
     expect(input('siparis')).toBeNull();
-    expect(document.body.textContent).toContain('Reçete seçilmeden özet boş kalır.');
+    expect(document.body.textContent).toContain('Reçete seçilmeden içerik boş kalır.');
   });
 
   it('the selected recipe shows its content per output unit and the summary', async () => {

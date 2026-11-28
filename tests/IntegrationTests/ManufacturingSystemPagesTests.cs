@@ -296,11 +296,11 @@ public sealed class ManufacturingSystemPagesTests
     public void Standard_is_preview_and_uses_catalog_operations(string key, string title)
     {
         var standard = SystemPageStandards.All[key];
-        // Maliyet analizi Liste kalıbına taşındı (2. sürüm); diğer ekranlar henüz kalıpsız.
-        var version = key == "manufacturing-cost-variance" ? 2 : 1;
+        // Üretim ekranları 2. sürümde Liste ve Kayıt kartı kalıplarına taşındı.
+        var version = key == "manufacturing-cost-variance" || key is "manufacturing-orders" or "manufacturing-order-create" or "manufacturing-recipes" ? 2 : 1;
         Assert.Equal((version, "preview", title, "Üretim"), (standard.Version, standard.Stage, standard.Title, standard.Module));
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
-        Assert.All(standard.Items, x => Assert.True(x.Since == 1 && x.Label.Length is > 0 and <= 80, x.Key));
+        Assert.All(standard.Items, x => Assert.True(x.Since is 1 or 2 && x.Label.Length is > 0 and <= 80, x.Key));
         string[] pickers = ["depo.listele", "satis.siparis.listele", "satis.siparis.kalemleri"];
         Assert.All(Operations(key), name => Assert.True((IsNewOperation(name) || pickers.Contains(name))
             && ErpOperationCatalog.TryGet(name, out var op) && !op.Deprecated, name));
@@ -312,30 +312,29 @@ public sealed class ManufacturingSystemPagesTests
         const string key = "manufacturing-orders";
         var view = Assert.Single(SystemPageStandards.All[key].ScreenViews);
         Assert.Equal(("manufacturing-orders", "liste"), (view.Key, view.Component));
-        Assert.Equal("componentCodes", view.Fields["components"]);
+        Assert.Equal(new[] { "billOfMaterialName", "code", "plannedDate", "plannedQuantity", "status", "warehouseName" }, view.Fields.Keys.Order(StringComparer.Ordinal));
         var bar = Props(key, "komutlar");
-        Assert.Equal(("{{emirler.meta.totalCount}}", "@manufacturing-order-create"), ((string)bar["titleCount"]!, (string)bar["newPageCode"]!));
-        // The bar's Aç runs the same value-assigning button as the row open (double click / Enter): it opens the detail panel.
-        Assert.Equal("acDugmesi", (string)bar["openButton"]!);
-        Assert.Equal(new[] { "detayPaneli=true" }, Strings(Props(key, "acDugmesi")["assignments"]));
-        Assert.Equal(new[] { "cizelgeleDugmesi", "serbestBirakDugmesi", "tamamlaDugmesi", "iptalDugmesi", "iptalUyariliDugmesi" }, Strings(bar["moreButtons"]));
+        Assert.Equal(("{{emirler.meta.totalCount}}", "yeniDugmesi"), ((string)bar["titleCount"]!, (string)bar["newButton"]!));
+        Assert.Equal(new[] { "cizelgeleDugmesi", "serbestBirakDugmesi", "tamamlaDugmesi", "iptalDugmesi", "rotaDugmesi", "bilesenDugmesi" }, Strings(bar["moreButtons"]));
         Assert.Contains("delete", Strings(bar["hiddenCommands"]));
         foreach (var (metric, meta) in new[] { ("acikGostergesi", "openOrderCount"), ("maliyetGostergesi", "openPlannedCostBase"),
                      ("cizelgesizGostergesi", "unscheduledOrderCount"), ("tamamlananGostergesi", "completedOrderCount") })
             Assert.Equal($"{{{{emirler.meta.{meta}}}}}", (string)Props(key, metric)["value"]!);
         Assert.Equal(("{{suzgec.q}}", "{{durumSecimi.value}}"), (Binding(key, "emirler", "q"), Binding(key, "emirler", "status")));
         var list = Props(key, "liste");
-        Assert.Equal(("server", 25, "acDugmesi"), ((string)list["paging"]!, (int)list["pageSize"]!, (string)list["rowOpenAction"]!));
+        Assert.Equal(("server", 25), ((string)list["paging"]!, (int)list["pageSize"]!));
+        Assert.Equal(7, Strings(list["columns"]).Length);
+        Assert.Equal("list", (string)Definition(key)["template"]!["name"]!);
+        Assert.Equal("detail", (string)Props(key, "detayKarti")["slot"]!);
+        Assert.Equal(("openDialog", "rotaPenceresi"), ((string)Props(key, "rotaDugmesi")["actionType"]!, (string)Props(key, "rotaDugmesi")["dialogId"]!));
+        Assert.Equal(("openDialog", "bilesenPenceresi"), ((string)Props(key, "bilesenDugmesi")["actionType"]!, (string)Props(key, "bilesenDugmesi")["dialogId"]!));
         Assert.Equal("liste.seciliSatir.canSchedule == true", (string)Props(key, "cizelgeleDugmesi")["visibleWhen"]!);
         Assert.Equal("liste.seciliSatir.canRelease == true", (string)Props(key, "serbestBirakDugmesi")["visibleWhen"]!);
         Assert.Equal(("openDialog", "tamamlaPenceresi"), ((string)Props(key, "tamamlaDugmesi")["actionType"]!, (string)Props(key, "tamamlaDugmesi")["dialogId"]!));
         var cancel = Props(key, "iptalDugmesi");
-        var warned = Props(key, "iptalUyariliDugmesi");
-        Assert.True((bool)cancel["confirmEnabled"]! && (bool)warned["confirmEnabled"]!);
-        Assert.Equal("{{liste.seciliSatir.code}} üretim emri iptal edilsin mi? Kapasite ayırmaları silinir; işlem geri alınamaz.", (string)cancel["confirmText"]!);
-        Assert.Contains("{{liste.seciliSatir.startedOperationCount}} operasyonun fiili kaydı var; iptal geri alınamaz.", (string)warned["confirmText"]!);
-        Assert.EndsWith("startedOperationCount == 0", (string)cancel["visibleWhen"]!);
-        Assert.EndsWith("startedOperationCount > 0", (string)warned["visibleWhen"]!);
+        Assert.True((bool)cancel["confirmEnabled"]!);
+        Assert.Contains("Başlamış operasyon varsa", (string)cancel["confirmText"]!);
+        Assert.Equal("liste.seciliSatir.canCancel == true", (string)cancel["visibleWhen"]!);
         // Operation start / actuals bind both route ids; the completion sends the lot / serial rows.
         Assert.Equal(("{{liste.seciliSatir.id}}", "{{operasyonTablosu.seciliSatir.id}}"), (Binding(key, "opBaslat", "id"), Binding(key, "opBaslat", "operationId")));
         Assert.Equal(("{{liste.seciliSatir.id}}", "{{operasyonTablosu.seciliSatir.id}}", "{{operator.value}}"),
@@ -345,7 +344,7 @@ public sealed class ManufacturingSystemPagesTests
         Assert.Equal(("{{takip.satirlar}}", "list"), ((string)tracking["binding"]!, (string)tracking["type"]!));
         Assert.Equal("{{emir.rows[0].plannedQuantity}}", (string)Props(key, "iyiMiktar")["defaultValue"]!);
         Assert.Equal(("0", "fireMiktar.value > 0"), ((string)Props(key, "fireMiktar")["defaultValue"]!, (string)Props(key, "fireNedeni")["requiredWhen"]!));
-        Assert.Contains("'Lot'", (string)Props(key, "takip")["visibleWhen"]!);
+        Assert.Equal("dialog", (string)Props(key, "takip")["slot"]!);
         var dialog = Props(key, "tamamlaPenceresi");
         Assert.Equal(("tamamla", "Bildir ve Tamamla"), ((string)dialog["saveQuery"]!, (string)dialog["saveLabel"]!));
         Assert.Equal(new[] { "emirler", "emir", "operasyonlar", "bilesenler" }, Strings(dialog["refreshQueries"]));
@@ -370,6 +369,9 @@ public sealed class ManufacturingSystemPagesTests
         var bar = Props(key, "komutlar");
         Assert.Equal(("olustur", "@manufacturing-orders", true), ((string)bar["saveQuery"]!, (string)bar["afterSavePageCode"]!, (bool)bar["afterSaveRefresh"]!));
         Assert.Equal("@manufacturing-orders", (string)Props(key, "vazgecDugmesi")["pageCode"]!);
+        Assert.Equal("record", (string)Definition(key)["template"]!["name"]!);
+        Assert.Equal("summary", (string)Props(key, "ozet")["slot"]!);
+        Assert.Equal("below", (string)Props(key, "icerikTablosu")["slot"]!);
     }
 
     [Fact]
@@ -388,6 +390,9 @@ public sealed class ManufacturingSystemPagesTests
         Assert.Equal("uretim.recete.sil", Operation(key, "sil"));
         Assert.Equal(("liste.seciliSatir.isActive == true", "liste.seciliSatir.isActive == false"),
             ((string)Props(key, "pasifeAlDugmesi")["visibleWhen"]!, (string)Props(key, "etkinlestirDugmesi")["visibleWhen"]!));
+        Assert.Equal("list", (string)Definition(key)["template"]!["name"]!);
+        Assert.Equal(8, Strings(Props(key, "liste")["columns"]).Length);
+        Assert.Equal("detail", (string)Props(key, "detayOzeti")["slot"]!);
         // No client paging value exists in the engine: the recipe list shows every row.
         Assert.False(Props(key, "liste").ContainsKey("paging"));
         Assert.Equal("{{durumSecimi.value}}", Binding(key, "receteler", "isActive"));
