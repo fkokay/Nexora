@@ -86,7 +86,7 @@ export const moduleMenus: ModuleMenu[] = [
   {
     railId: "sales",
     title: ["Satış", "Sales"],
-    pages: [...salesNavigationPages, "sales-quote-create", "sales-order-create", "sales-order-document", "sales-quote-document", "purchase-order-document", "purchase-invoice-document", "sales-invoice-document", "sales-delivery-document", "sales-invoice-create", "sales-delivery-create"],
+    pages: [...salesNavigationPages, "sales-quote-create", "sales-order-create", "sales-order-document", "sales-quote-document", "sales-invoice-document", "sales-delivery-document", "sales-invoice-create", "sales-delivery-create"],
   },
   {
     railId: "purchasing",
