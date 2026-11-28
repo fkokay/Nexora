@@ -5,7 +5,7 @@
   "items": {
     "component:komutlar": {"since": 1, "label": "İşlem çubuğu", "requires": ["component:acDugmesi", "component:iptalMenu", "component:liste", "component:suzgec", "query:faturaSil", "query:faturalar"]},
     "component:acDugmesi": {"since": 1, "label": "Faturayı aç komutu (Belge sayfası)", "requires": ["component:liste"]},
-    "component:ayrintiDugmesi": {"since": 4, "label": "Tahsilat ve iadeler penceresi komutu", "requires": ["component:faturaPenceresi", "component:liste"]},
+    "component:ayrintiDugmesi": {"since": 1, "label": "Tahsilat ve iadeler penceresi komutu", "requires": ["component:faturaPenceresi", "component:liste"]},
     "component:iptalMenu": {"since": 1, "label": "İptal et komutu", "requires": ["component:liste", "query:fatura", "query:faturaIptal", "query:faturalar"]},
     "component:kesilenGostergesi": {"since": 1, "label": "Kesilen göstergesi (bu sayfa)", "requires": ["query:faturalar"]},
     "component:kesilenKarisik": {"since": 1, "label": "Kesilen (birden çok para birimi)", "requires": ["query:faturalar"]},

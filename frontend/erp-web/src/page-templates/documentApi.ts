@@ -168,7 +168,7 @@ const QUOTE_BINDING: DocumentBinding = {
 const INVOICE_BINDING: DocumentBinding = {
   code: "satis.fatura", noun: "fatura", newTitle: "Yeni fatura", entity: "invoice", base: "/api/sales/invoices",
   saveLabel: "Faturayı kes", savedMessage: "Fatura kesildi.",
-  transitionRoutes: { iptal: "void" }, maxLines: 200,
+  transitionRoutes: { iptal: "void" }, creationRoutes: {}, pageKey: "sales-invoice-document", maxLines: 200,
   dateFields: ["invoiceDate"], textFields: ["eDocumentScenario", "eDocumentTypeCode", "eDocumentRecipientAlias", "notes", "invoiceType", "accountingProfileCode", "warehouseId"],
   newValues: () => ({ invoiceDate: today(), warehouseId: "", warehouseIdLabel: "", invoiceType: "Wholesale", accountingProfileCode: "", accountingProfileCodeLabel: "",
     eDocumentScenario: "", eDocumentTypeCode: "", eDocumentRecipientAlias: "", notes: "" }),
@@ -190,7 +190,7 @@ const INVOICE_BINDING: DocumentBinding = {
 
 const DELIVERY_BINDING: DocumentBinding = {
   code: "satis.irsaliye", noun: "irsaliye", newTitle: "Yeni irsaliye", entity: "delivery", base: "/api/sales/deliveries", writeBase: "/api/sales/standalone-deliveries",
-  transitionRoutes: { sevket: "post", iptal: "void" }, transitionBases: { sevket: "/api/sales/standalone-deliveries" },
+  transitionRoutes: { sevket: "post", iptal: "void" }, creationRoutes: {}, pageKey: "sales-delivery-document", transitionBases: { sevket: "/api/sales/standalone-deliveries" },
   customFields: false, unpricedLines: true, maxLines: 200,
   dateFields: ["deliveryDate"], textFields: ["code"],
   newValues: () => ({ code: `IRS-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${new Date().toISOString().slice(11, 16).replace(":", "")}`, deliveryDate: today(),
