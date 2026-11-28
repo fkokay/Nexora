@@ -61,9 +61,9 @@ public sealed class SalesCardStandardsTests
         // The save body is the user's inputs: the write's line items have no rowKey, so the runtime never sends it there.
         Assert.DoesNotContain(Op("satis.fatura.olustur").Parameters.Single(x => x.Name == "lines").Items!, x => x.Code == "rowKey");
         Assert.Contains(Op("satis.fatura.onizle").Parameters.Single(x => x.Name == "lines").Items!, x => x.Code == "rowKey");
-        // P3: the list keeps opening the legacy card until the G-SI6 server fix.
-        var yeni = Props(Definition("sales-invoices"), "yeniDugmesi");
-        Assert.True((bool)yeni["legacyScreen"]!);
+        // Belge satis.fatura: the list's Yeni goes to the Belge page (the legacy card stays for the customer's "Yeni fatura").
+        var bar = Props(Definition("sales-invoices"), "komutlar");
+        Assert.Equal(("page", "@sales-invoice-document"), ((string)bar["newAction"]!, (string)bar["newPageCode"]!));
     }
 
 
