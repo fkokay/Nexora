@@ -207,7 +207,7 @@ public sealed class PurchasingFaz2SystemPagesTests
         // F2-17: the source also has quantity (ordered); the grid's quantity must come from remainingQuantity.
         Assert.Equal("remainingQuantity", MapOf(grid["fillColumns"])["quantity"]);
         // The order lines read (the retired satinalma.malKabul.siparisSatirlari was its duplicate).
-        Assert.Equal(("satinalma.siparis.satirlari", "{{siparisSecimi.value}}"),
+        Assert.Equal(("satinalma.siparis.satirlari", "{{liste.seciliSatir.id}}"),
             ((string)Query(key, "kabulKaynak")["operation"]!, Bindings(Query(key, "kabulKaynak"))["id"]));
         Assert.Contains("trackingMode", GridColumns(grid).Keys);
         Assert.InRange(Strings(grid["gridColumns"]).Length, 1, 8);
@@ -221,7 +221,7 @@ public sealed class PurchasingFaz2SystemPagesTests
         var save = Query(key, "malKabulOlustur");
         Assert.Equal(new Dictionary<string, string>
         {
-            ["id"] = "{{siparisSecimi.value}}", ["requestId"] = "{{kabulIstekKimligi.value}}", ["warehouseId"] = "{{kabulDepo.value}}",
+            ["id"] = "{{liste.seciliSatir.id}}", ["requestId"] = "{{kabulIstekKimligi.value}}", ["warehouseId"] = "{{kabulDepo.value}}",
             ["receiptDate"] = "{{kabulTarihi.value}}", ["lines"] = "{{kabulKalemleri.satirlar}}",
         }, Bindings(save));
         var requestId = Props(key, "kabulIstekKimligi");
@@ -301,7 +301,8 @@ public sealed class PurchasingFaz2SystemPagesTests
         var quoteGrid = Props(key, "teklifSiparisKalemleri");
         Assert.Equal(new Dictionary<string, string> { ["lineNumber"] = "requestLineNumber" }, MapOf(quoteGrid["fillColumns"]));
         Assert.All(GridColumns(quoteGrid), x => Assert.Contains("readOnly", x.Value));
-        Assert.Contains("tekliftenSiparisDugmesi", Strings(Props(key, "teklifTablosu")["rowActions"]));
+        // List template: the command sits in the read-only detail window instead of the quote table's row actions.
+        Assert.Contains("tekliftenSiparisDugmesi", Strings(Props(key, "talepDetayPenceresi")["contains"]));
 
         // Both writes are TenantAdmin-only in the catalog; the commands say so before the server does.
         foreach (var op in new[] { "satinalma.talep.teklifKaydet", "satinalma.talep.siparisOlustur" })

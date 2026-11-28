@@ -332,8 +332,8 @@ public sealed class PurchasingDocumentSystemPagesTests
         const string key = "sales-purchase-returns";
         Assert.Equal(("satinalma.iade.listele", "{{suzgec.q}}"), (Operation(key, "iadeler"), Binding(key, "iadeler", "q")));
         Assert.Equal(("satinalma.iade.getir", "satinalma.iade.satirlari"), (Operation(key, "iade"), Operation(key, "iadeSatirlari")));
-        Assert.Equal(("satinalma.iade.iptal", "{{iade.rows[0].id}}"), (Operation(key, "iadeIptal"), Binding(key, "iadeIptal", "id")));
-        Assert.Equal("{{liste.seciliSatir.id}}", Binding(key, "iadeIptalSatir", "id"));
+        // Void is a row action on the list (the read-only detail window has no void command).
+        Assert.Equal(("satinalma.iade.iptal", "{{liste.seciliSatir.id}}"), (Operation(key, "iadeIptalSatir"), Binding(key, "iadeIptalSatir", "id")));
         Assert.Equal("liste.seciliSatir.status == 'Posted'", (string)Props(key, "iptalSatir")["visibleWhen"]!);
         Assert.Empty(SystemPageStandards.All[key].ScreenViews);
     }
@@ -362,8 +362,8 @@ public sealed class PurchasingDocumentSystemPagesTests
     {
         var definition = Definition(key);
         var legacy = Components(definition).Where(x => (bool?)x["props"]?["legacyScreen"] == true).ToArray();
-        // Receipts and invoices are Liste-template standards (satın alma 1. dalga): no "Eski ekranda aç" command any more.
-        if (key is "sales-purchase-receipts" or "sales-purchase-invoices")
+        // Receipts, invoices and returns are Liste-template standards (satın alma 1. dalga): no "Eski ekranda aç" command any more.
+        if (key is "sales-purchase-receipts" or "sales-purchase-invoices" or "sales-purchase-returns")
             Assert.DoesNotContain(legacy, x => (string?)x["props"]!["text"] == "Eski ekranda aç");
         else
         {

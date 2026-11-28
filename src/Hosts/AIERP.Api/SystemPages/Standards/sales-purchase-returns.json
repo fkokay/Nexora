@@ -32,19 +32,10 @@
       "since": 1,
       "label": "Alış iadesi belgesi",
       "requires": [
-        "component:belgeAkisi",
         "component:belgeBasligi",
         "component:belgeSatirlari",
-        "component:belgeTutarlari",
         "component:iptalNotu",
         "component:islendiNotu",
-        "query:iade"
-      ]
-    },
-    "component:belgeTutarlari": {
-      "since": 1,
-      "label": "Belge: Toplamlar",
-      "requires": [
         "query:iade"
       ]
     },
@@ -160,13 +151,6 @@
     "component:belgeBasligi": {
       "since": 1,
       "label": "Belge: İade bilgileri",
-      "requires": [
-        "query:iade"
-      ]
-    },
-    "component:belgeAkisi": {
-      "since": 1,
-      "label": "Belge: Durum akışı",
       "requires": [
         "query:iade"
       ]
@@ -465,9 +449,7 @@
           "size": "xl",
           "title": "Alış iadesi · {{iade.rows[0].code}}",
           "contains": [
-            "belgeAkisi",
             "iptalNotu",
-            "belgeTutarlari",
             "islendiNotu",
             "belgeBasligi",
             "belgeSatirlari"
@@ -487,53 +469,20 @@
             "İade tarihi={{iade.rows[0].returnDate}}",
             "İadenin çıktığı depo={{iade.rows[0].warehouseName}}",
             "Kaynak fatura={{iade.rows[0].invoiceCode}}",
-            "Para birimi={{iade.rows[0].currencyCode}}"
-          ],
-          "fieldFormats": [
-            "İade tarihi=date"
-          ],
-          "slot": "dialog"
-        }
-      },
-      {
-        "id": "belgeTutarlari",
-        "type": "recordHeader",
-        "name": "belgeTutarlari",
-        "props": {
-          "title": "Toplamlar",
-          "fields": [
             "Ara toplam={{iade.rows[0].subtotal}}",
-            "İskonto={{iade.rows[0].discountTotal}}",
             "KDV={{iade.rows[0].taxTotal}}",
             "Genel toplam={{iade.rows[0].grandTotal}}"
           ],
           "fieldFormats": [
+            "İade tarihi=date",
             "Ara toplam=money",
-            "İskonto=money",
             "KDV=money",
             "Genel toplam=money"
           ],
           "fieldUnits": [
             "Ara toplam={{iade.rows[0].currencyCode}}",
-            "İskonto={{iade.rows[0].currencyCode}}",
             "KDV={{iade.rows[0].currencyCode}}",
             "Genel toplam={{iade.rows[0].currencyCode}}"
-          ],
-          "slot": "dialog"
-        }
-      },
-      {
-        "id": "belgeAkisi",
-        "type": "steps",
-        "name": "belgeAkisi",
-        "props": {
-          "steps": [
-            "İşlendi",
-            "İptal"
-          ],
-          "activeWhen": [
-            "iade.rows[0].status == 'Posted'",
-            "iade.rows[0].status == 'Voided'"
           ],
           "slot": "dialog"
         }

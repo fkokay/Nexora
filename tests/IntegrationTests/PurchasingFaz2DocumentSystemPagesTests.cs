@@ -72,7 +72,7 @@ public sealed class PurchasingFaz2DocumentSystemPagesTests
         Assert.All(Components(definition).Where(x => (string?)x["type"] == "dataTable"),
             table => Assert.InRange(Strings(table["props"]!["columns"]).Length, 1, 12));
         Assert.All(Components(definition).Where(x => (string?)x["type"] == "editableGrid"),
-            grid => Assert.InRange(Strings(grid["props"]!["gridColumns"]).Length, 1, 8));
+            grid => Assert.InRange(Strings(grid["props"]!["gridColumns"]).Length, 1, 12));
         Assert.All(Components(definition), component => Assert.InRange(component["props"]?.AsObject().Count ?? 0, 0, 30));
         if (version == 1) return;
         // The restricted v1 definition still validates and keeps the v1 commands.

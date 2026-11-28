@@ -45,7 +45,7 @@
       ]
     },
     "component:kabulTarihi": {
-      "since": 1,
+      "since": 2,
       "label": "kabulTarihi"
     },
     "component:komutlar": {
@@ -63,7 +63,7 @@
       "label": "durumKismen"
     },
     "component:kabulDepo": {
-      "since": 1,
+      "since": 2,
       "label": "kabulDepo",
       "requires": [
         "query:depolar",
@@ -785,13 +785,13 @@
             "code",
             "receiptDate",
             "status",
-            "invoiceCode"
+            "invoice.code"
           ],
           "columnLabels": [
             "code=Mal kabul",
             "receiptDate=Tarih",
             "status=Durum",
-            "invoiceCode=Fatura"
+            "invoice.code=Fatura"
           ],
           "columnFormats": [
             "code=code",
@@ -806,8 +806,8 @@
         "name": "faturalaDugmesi",
         "props": {
           "text": "Faturala",
-          "actionType": "page",
-          "pageCode": "@sales-purchase-invoice-entry",
+          "actionType": "erpPage",
+          "pageKey": "sales-purchase-invoice-entry",
           "target": "newTab",
           "params": [
             "receiptId={{kabulTablosu.seciliSatir.id}}"
