@@ -1804,6 +1804,13 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
 - **Doğrulanan (yerel):** Üç standart yüklenir ve şemadan geçer; ilgili .NET testleri (`FixedAssetSystemPagesTests`, `FinanceSystemPagesTests`, `SystemPageStandardsTests`) ile ERP ve Studio standart vitest dosyaları kalıba uyarlandı ve geçti.
 - **Doğrulanmayan:** Ekranların canlıda gerçek firma kopyasıyla ve tarayıcıda görsel olarak denenmesi; eski firma kopyalarının standarda sıfırlanması bu işte yok.
 
+### Satın Alma 2. dalga (2026-11-28)
+
+- **Değişen:** `sales-requests`, `sales-purchasing`, `sales-purchase-delivery-notes` ve `sales-purchase-returns` v3 Liste kalıbına taşındı; `sales-purchase-receipts` v3 oldu. Sürüm manifesti ve şema geçiş testindeki liste güncellendi; .NET, ERP ve Studio testleri yeni düzen beklentilerine uyarlandı.
+- **Sadeleşen:** Liste ekranlarında detaylar pencereye taşındı; özel filtre kartları, eski ekran geçişleri ve kalıba sığmayan satır hesapları/bağlam alanları kaldırıldı. Mevcut işlemler korundu.
+- **Atlanan:** Mal kabullerde siparişsiz mal kabul penceresi ve lot/seri dağıtım satır tablosu eklenmedi. Mevcut oluşturma API’si siparişe bağlı; takip tahsisleri iç içe yapıda olduğundan düz kalıp satır tablosuna eşlenemedi.
+- **Doğrulanan:** Değiştirilen ERP Vitest dosyaları ve Studio Vitest dosyası geçti; odaklı .NET testleri (231) yerelde geçti. İade belge penceresinde akış (steps) bileşeni ve ayrı Toplamlar özeti kalıba sığmadığından kaldırıldı; tutarlar (ara toplam, KDV, genel toplam) belge başlığına alındı, iskonto toplamı yalnız satır tablosunda kaldı.
+- **Doğrulanmayan:** Tarayıcıda canlı görsel deneme yapılmadı.
 
 ### 2026-11-28 stok ve depo yeniden tasarım, 2. dalga: üç standart kalıba çizildi
 
@@ -1811,6 +1818,7 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
 - **Sadeleşenler:** `inventory-stock-create` alanları altı sekmede toplandı; görsel önizleme ve varyant matrisi kaldırıldı; birimler tablo ve kaydedilmiş kartta açılan "Birim ekle" penceresi oldu. `inventory-warehouses` düzenleme penceresine özel alanlar eklendi, liste ve durum eylemleri korundu. `inventory-stock` negatif stok notları tek bilgiye indirildi; hareket penceresi geçmiş/ters kayıt yerine giriş ve takip satırlarını hedefliyor.
 - **Doğrulanan:** IntegrationTests projesi MSBuild ile derlendi; ERP Web ve Development Studio `npm run build` başarılı oldu. Depo standart Vitest dosyası 7/7, Studio `node --test tests/refOwners.test.mjs` 5/5 geçti.
 - **Açık doğrulamalar:** ERP stok-kartı Vitest dosyası 20 testten 8’inde beklenen akış/başlık farklarıyla başarısız; stok hareketindeki lot satırı testinde ızgara henüz pencerede bulunamadı. Studio dosyası Node yerleşik `node:test` kullandığından Vitest bu dosyayı test paketi olarak tanımıyor; doğrudan Node testi geçti. `dotnet test` ve canlı/görsel tarayıcı kontrolü bu işte koşturulmadı.
+
 ### Ekranlar 3. dalga (2026-11-28)
 - `finance-account-create`, `hr-employee-create`, `fixed-asset-card` Kayıt kartı kalıbına taşındı (v2); duran varlık kartı salt okunur, edinim penceresi var.
 - `sales-order-create` kaldırıldı; `customers` (v4) ve `sales-orders` (v7) yeni siparişi `sales-order-document` Belge ekranında açar. Eski anahtar Belge'ye yönlenir.

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import catalog from './purchasingReturnsOperations.fixture.json';
 import { T, createHarness, page } from './purchasingStandardHarness';
 
-// "Alış iadeleri" standart tanımı (sales-purchase-returns.json, v2): liste, belge penceresi, onaylı iptal, eski ekrana geçiş ve
+// "Alış iadeleri" standart tanımı (sales-purchase-returns.json, v3): Liste kalıbı ve pencereler, onaylı iptal, eski ekrana geçiş ve
 // seçilen faturanın iade edilebilir satırlarından yeni iade (fill + skipWhenZero, autoId requestId).
 
 vi.mock('../erpApi', () => ({ api: vi.fn() }));
@@ -54,6 +54,7 @@ function respond(path: string, method: string): unknown {
 }
 
 const h = createHarness(KEY, catalog);
+const rowAction = async (code: string, name: RegExp) => within(await h.row(code)).findByRole('button', { name }, T);
 beforeEach(() => { h.before(); returnFailure = null; });
 afterEach(() => h.after(['sales-purchase-invoices']));
 
@@ -64,8 +65,7 @@ describe('Alış iadeleri standart tanımı', { timeout: 60000 }, () => {
     h.setup(respond);
     await h.select('AI-0001');
     await waitFor(() => expect(h.gets(`/api/purchasing/returns/${S1}`).length).toBeGreaterThan(0), T);
-    await h.ready('open');
-    fireEvent.click(h.command('open'));
+    fireEvent.click(await rowAction('AI-0001', /^Aç/));
     const dialog = await screen.findByRole('dialog', { name: /Alış iadesi · AI-0001/ }, T);
     expect(await within(dialog).findByText('Koli 40x30', { selector: 'td, td *' }, T)).toBeTruthy();
     expect(h.writes()).toEqual([]);
@@ -75,7 +75,7 @@ describe('Alış iadeleri standart tanımı', { timeout: 60000 }, () => {
     h.setup(respond);
     await h.select('AI-0001');
     await waitFor(() => expect(h.gets(`/api/purchasing/returns/${S1}`).length).toBeGreaterThan(0), T);
-    fireEvent.click(await h.menuItem(/^İadeyi iptal et/));
+    fireEvent.click(await rowAction('AI-0001', /^İptal et/));
     expect((await screen.findByRole('alertdialog', {}, T)).textContent).toContain('AI-0001 alış iadesi iptal edilsin mi?');
     await h.answer('Onayla');
     await waitFor(() => expect(h.writes()).toHaveLength(1), T);
@@ -85,7 +85,7 @@ describe('Alış iadeleri standart tanımı', { timeout: 60000 }, () => {
   it('Faturayı aç opens the legacy invoice screen with purchaseInvoiceId', async () => {
     h.setup(respond);
     await h.select('AI-0002');
-    fireEvent.click(await h.menuItem(/^Faturayı aç/));
+    fireEvent.click(await rowAction('AI-0002', /^Faturayı aç/));
     await waitFor(() => expect(h.state.navigations).toHaveLength(1), T);
     expect(h.state.navigations[0]).toMatchObject({ page: 'sales-purchase-invoices', params: { purchaseInvoiceId: INV }, legacy: true });
   });
@@ -120,11 +120,10 @@ describe('Alış iadeleri standart tanımı', { timeout: 60000 }, () => {
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Yeni alış iadesi' })).toBeNull(), T);
   });
 
-  it('Eski ekranda aç opens the legacy returns screen', async () => {
+  it('the list has no legacy screen action', async () => {
     h.setup(respond);
     await h.cell('AI-0001');
-    fireEvent.click(await h.menuItem(/^Eski ekranda aç/));
-    await waitFor(() => expect(h.state.navigations).toHaveLength(1), T);
-    expect(h.state.navigations[0]).toMatchObject({ page: KEY, legacy: true });
+    await h.ready('new');
+    expect(screen.queryByRole('button', { name: /Eski ekranda aç/ })).toBeNull();
   });
 });

@@ -1,284 +1,948 @@
 {
-  "screenKey": "sales-purchase-delivery-notes", "title": "Satınalma İrsaliyeleri",
-  "description": "Tedarikçi belge numarası ve sipariş miktarlarını kaydedin; mal kabul öncesi veya sonrasında bağlantı kurun.", "module": "Satın Alma",
-  "version": 2, "stage": "preview",
+  "screenKey": "sales-purchase-delivery-notes",
+  "title": "Satınalma İrsaliyeleri",
+  "description": "Tedarikçi belge numarası ve sipariş miktarlarını kaydedin; mal kabul öncesi veya sonrasında bağlantı kurun.",
+  "module": "Satın Alma",
+  "version": 3,
+  "stage": "preview",
   "items": {
-    "component:komutlar": {"since": 1, "label": "İşlem çubuğu", "requires": ["component:suzgec", "component:liste", "component:yeniIrsaliyeDugmesi", "component:acDugmesi", "component:baglantiDugmesi", "component:siparisiAcDugmesi", "component:malKabuluAcDugmesi", "component:baglantiKaldirDugmesi", "query:irsaliyeler"]},
-    "component:irsaliyeSecimi": {"since": 1, "label": "Açık irsaliye belgesi (gizli)"},
-    "component:baglantisizGostergesi": {"since": 1, "label": "Bağlantısı yok göstergesi", "requires": ["component:irsaliyeSecimi", "query:irsaliyeler"]},
-    "component:suzgec": {"since": 1, "label": "Süzgeç alanı (arama)", "requires": ["component:irsaliyeSecimi", "component:liste"]},
-    "component:detayPaneli": {"since": 1, "label": "Detay paneli anahtarı"},
-    "component:liste": {"since": 1, "label": "İrsaliye listesi", "requires": ["component:irsaliyeSecimi", "component:detayPaneli", "component:acDugmesi", "query:irsaliyeler"]},
-    "component:acDugmesi": {"since": 1, "label": "İrsaliye belgesini aç", "requires": ["component:irsaliyeSecimi", "component:liste"]},
-    "component:detayKarti": {"since": 1, "label": "Detay paneli", "requires": ["component:irsaliyeSecimi", "component:detayPaneli", "component:liste", "component:ozetPaneli", "component:acDugmesi"]},
-    "component:ozetPaneli": {"since": 1, "label": "Detay: Özet", "requires": ["component:liste"]},
-    "component:belgeBasligi": {"since": 1, "label": "İrsaliye belgesi başlığı", "requires": ["component:irsaliyeSecimi", "component:listeyeDonDugmesi", "component:belgeBaglantiDugmesi", "component:belgeBaglantiKaldirDugmesi", "query:irsaliye"]},
-    "component:belgeBaglantiDugmesi": {"since": 1, "label": "Belge: Mal kabul bağla", "requires": ["component:belgeBaglaPenceresi"]},
-    "component:belgeBaglantiKaldirDugmesi": {"since": 2, "label": "Belge: Mal kabul bağlantısını kaldır", "requires": ["query:belgeBaglantiKaldir", "query:irsaliye", "query:irsaliyeler"]},
-    "component:belgeBaglaPenceresi": {"since": 2, "label": "Belge: Mal kabul bağlama penceresi", "requires": ["component:belgeBaglaKabulu", "component:belgeBaglaNotu", "query:belgeBagla", "query:irsaliye", "query:irsaliyeler"]},
-    "component:belgeBaglaKabulu": {"since": 2, "label": "Belge bağlama alanı: Mal kabul", "requires": ["query:belgeBaglaKabulleri"]},
-    "component:belgeBaglaNotu": {"since": 2, "label": "Belge bağlama notu"},
-    "component:listeyeDonDugmesi": {"since": 1, "label": "Listeye dön düğmesi", "requires": ["component:irsaliyeSecimi"]},
-    "component:baglantisizUyarisi": {"since": 1, "label": "Mal kabul bağlantısı yok uyarısı", "requires": ["component:irsaliyeSecimi", "query:irsaliye"]},
-    "component:satirTablosu": {"since": 1, "label": "Belge: Satırlar", "requires": ["component:irsaliyeSecimi", "query:satirlar"]},
-    "component:belgeNotu": {"since": 1, "label": "Belge alt notu", "requires": ["component:irsaliyeSecimi"]},
-    "component:yeniIrsaliyeDugmesi": {"since": 1, "label": "Yeni irsaliye komutu", "requires": ["component:yeniIrsaliyePenceresi"]},
-    "component:yeniIrsaliyePenceresi": {"since": 2, "label": "Siparişten irsaliye kaydetme penceresi", "requires": ["component:irsaliyeBilgileri", "component:irsaliyeSatirlari", "component:irsaliyeNotu", "component:siparisIrsaliyeTablosu", "query:irsaliyeOlustur", "query:irsaliyeler", "query:irsaliyeKaynak", "query:siparisIrsaliyeleri"]},
-    "component:irsaliyeBilgileri": {"since": 2, "label": "İrsaliye bilgileri", "requires": ["component:irsaliyeSiparisi", "component:belgeNo", "component:belgeTarihi", "component:irsaliyeKabulu"]},
-    "component:irsaliyeSiparisi": {"since": 2, "label": "İrsaliye alanı: Satın alma siparişi", "requires": ["component:irsaliyeSatirlari", "component:irsaliyeKabulu", "query:siparisler"]},
-    "component:belgeNo": {"since": 2, "label": "İrsaliye alanı: Tedarikçi irsaliye no"},
-    "component:belgeTarihi": {"since": 2, "label": "İrsaliye alanı: Belge tarihi"},
-    "component:irsaliyeKabulu": {"since": 2, "label": "İrsaliye alanı: Mal kabul (isteğe bağlı)", "requires": ["query:irsaliyeKabulleri"]},
-    "component:irsaliyeSatirlari": {"since": 2, "label": "İrsaliye satırları (siparişin kalan miktarları)", "requires": ["query:irsaliyeKaynak"]},
-    "component:irsaliyeNotu": {"since": 2, "label": "İrsaliye satırları notu", "requires": ["component:irsaliyeSatirlari"]},
-    "component:siparisIrsaliyeTablosu": {"since": 2, "label": "Siparişin kayıtlı irsaliyeleri", "requires": ["component:irsaliyeSiparisi", "query:siparisIrsaliyeleri"]},
-    "component:baglantiDugmesi": {"since": 1, "label": "Mal kabul bağla komutu", "requires": ["component:baglaPenceresi", "component:liste"]},
-    "component:baglaPenceresi": {"since": 2, "label": "Mal kabul bağlama penceresi", "requires": ["component:baglaKabulu", "component:baglaNotu", "query:bagla", "query:irsaliyeler"]},
-    "component:baglaKabulu": {"since": 2, "label": "Bağlama alanı: Mal kabul", "requires": ["query:baglaKabulleri"]},
-    "component:baglaNotu": {"since": 2, "label": "Bağlama notu"},
-    "component:baglantiKaldirDugmesi": {"since": 2, "label": "Mal kabul bağlantısını kaldır komutu", "requires": ["component:liste", "query:baglantiKaldir", "query:irsaliyeler"]},
-    "component:siparisiAcDugmesi": {"since": 1, "label": "Siparişi aç komutu", "requires": ["component:liste"]},
-    "component:malKabuluAcDugmesi": {"since": 1, "label": "Mal kabulü aç komutu (eski ekran)", "requires": ["component:liste"]},
-    "query:irsaliyeler": {"since": 1, "label": "Tedarikçi irsaliyelerini listele", "requires": ["component:suzgec", "component:liste"]},
-    "query:irsaliye": {"since": 1, "label": "Açık irsaliye belgesi", "requires": ["component:irsaliyeSecimi"]},
-    "query:satirlar": {"since": 1, "label": "İrsaliye satırları", "requires": ["component:irsaliyeSecimi"]},
-    "query:siparisler": {"since": 2, "label": "Satın alma siparişleri (irsaliye siparişi seçici)", "requires": ["component:irsaliyeSiparisi"]},
-    "query:irsaliyeKaynak": {"since": 2, "label": "Seçilen siparişin irsaliyelenecek kalan satırları", "requires": ["component:irsaliyeSiparisi"]},
-    "query:irsaliyeKabulleri": {"since": 2, "label": "Seçilen siparişin mal kabulleri", "requires": ["component:irsaliyeSiparisi"]},
-    "query:siparisIrsaliyeleri": {"since": 2, "label": "Seçilen siparişin irsaliyeleri", "requires": ["component:irsaliyeSiparisi"]},
-    "query:irsaliyeOlustur": {"since": 2, "label": "Siparişe tedarikçi irsaliyesi kaydet",
-      "requires": ["component:irsaliyeSiparisi", "component:belgeNo", "component:belgeTarihi", "component:irsaliyeKabulu", "component:irsaliyeSatirlari"]},
-    "query:baglaKabulleri": {"since": 2, "label": "Seçili irsaliyenin siparişindeki mal kabuller", "requires": ["component:liste"]},
-    "query:bagla": {"since": 2, "label": "İrsaliyeyi mal kabule bağla (liste)", "requires": ["component:liste", "component:baglaKabulu"]},
-    "query:belgeBaglaKabulleri": {"since": 2, "label": "Açık irsaliyenin siparişindeki mal kabuller", "requires": ["query:irsaliye"]},
-    "query:belgeBagla": {"since": 2, "label": "İrsaliyeyi mal kabule bağla (belge)", "requires": ["query:irsaliye", "component:belgeBaglaKabulu"]},
-    "query:baglantiKaldir": {"since": 2, "label": "Mal kabul bağlantısını kaldır (liste)", "requires": ["component:liste"]},
-    "query:belgeBaglantiKaldir": {"since": 2, "label": "Mal kabul bağlantısını kaldır (belge)", "requires": ["query:irsaliye"]}
+    "component:komutlar": {
+      "since": 1,
+      "label": "İşlem çubuğu",
+      "requires": [
+        "component:liste",
+        "component:suzgec",
+        "component:yeniIrsaliyeDugmesi",
+        "query:irsaliyeler"
+      ]
+    },
+    "component:baglantisizGostergesi": {
+      "since": 1,
+      "label": "Bağlantısı yok göstergesi",
+      "requires": [
+        "query:irsaliyeler"
+      ]
+    },
+    "component:suzgec": {
+      "since": 1,
+      "label": "Süzgeç alanı (arama)"
+    },
+    "component:liste": {
+      "since": 1,
+      "label": "İrsaliye listesi",
+      "requires": [
+        "component:acDugmesi",
+        "component:baglantiDugmesi",
+        "component:baglantiKaldirDugmesi",
+        "component:malKabuluAcDugmesi",
+        "component:siparisiAcDugmesi",
+        "query:irsaliyeler"
+      ]
+    },
+    "component:acDugmesi": {
+      "since": 1,
+      "label": "İrsaliye belgesini aç",
+      "requires": [
+        "component:irsaliyeDetayPenceresi",
+        "component:liste"
+      ]
+    },
+    "component:yeniIrsaliyeDugmesi": {
+      "since": 1,
+      "label": "Yeni irsaliye komutu",
+      "requires": [
+        "component:yeniIrsaliyePenceresi"
+      ]
+    },
+    "component:yeniIrsaliyePenceresi": {
+      "since": 2,
+      "label": "Siparişten irsaliye kaydetme penceresi",
+      "requires": [
+        "component:irsaliyeBilgileri",
+        "component:irsaliyeNotu",
+        "component:irsaliyeSatirlari",
+        "query:irsaliyeKaynak",
+        "query:irsaliyeOlustur",
+        "query:irsaliyeler"
+      ]
+    },
+    "component:irsaliyeBilgileri": {
+      "since": 2,
+      "label": "İrsaliye bilgileri",
+      "requires": [
+        "component:belgeNo",
+        "component:belgeTarihi",
+        "component:irsaliyeKabulu",
+        "component:irsaliyeSiparisi"
+      ]
+    },
+    "component:irsaliyeSiparisi": {
+      "since": 2,
+      "label": "İrsaliye alanı: Satın alma siparişi",
+      "requires": [
+        "query:siparisler"
+      ]
+    },
+    "component:belgeNo": {
+      "since": 2,
+      "label": "İrsaliye alanı: Tedarikçi irsaliye no"
+    },
+    "component:belgeTarihi": {
+      "since": 2,
+      "label": "İrsaliye alanı: Belge tarihi"
+    },
+    "component:irsaliyeKabulu": {
+      "since": 2,
+      "label": "İrsaliye alanı: Mal kabul (isteğe bağlı)",
+      "requires": [
+        "component:irsaliyeSiparisi",
+        "query:irsaliyeKabulleri"
+      ]
+    },
+    "component:irsaliyeSatirlari": {
+      "since": 2,
+      "label": "İrsaliye satırları (siparişin kalan miktarları)",
+      "requires": [
+        "query:irsaliyeKaynak"
+      ]
+    },
+    "component:irsaliyeNotu": {
+      "since": 2,
+      "label": "İrsaliye satırları notu",
+      "requires": [
+        "component:irsaliyeSatirlari"
+      ]
+    },
+    "component:baglantiDugmesi": {
+      "since": 1,
+      "label": "Mal kabul bağla komutu",
+      "requires": [
+        "component:baglaPenceresi",
+        "component:liste"
+      ]
+    },
+    "component:baglaPenceresi": {
+      "since": 2,
+      "label": "Mal kabul bağlama penceresi",
+      "requires": [
+        "component:baglaKabulu",
+        "component:baglaNotu",
+        "component:liste",
+        "query:bagla",
+        "query:irsaliyeler"
+      ]
+    },
+    "component:baglaKabulu": {
+      "since": 2,
+      "label": "Bağlama alanı: Mal kabul",
+      "requires": [
+        "query:baglaKabulleri"
+      ]
+    },
+    "component:baglaNotu": {
+      "since": 2,
+      "label": "Bağlama notu",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:baglantiKaldirDugmesi": {
+      "since": 2,
+      "label": "Mal kabul bağlantısını kaldır komutu",
+      "requires": [
+        "component:liste",
+        "query:baglantiKaldir",
+        "query:irsaliyeler"
+      ]
+    },
+    "component:siparisiAcDugmesi": {
+      "since": 1,
+      "label": "Siparişi aç komutu",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:malKabuluAcDugmesi": {
+      "since": 1,
+      "label": "Mal kabulü aç komutu (eski ekran)",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:irsaliyeler": {
+      "since": 1,
+      "label": "Tedarikçi irsaliyelerini listele",
+      "requires": [
+        "component:liste",
+        "component:suzgec"
+      ]
+    },
+    "query:irsaliye": {
+      "since": 1,
+      "label": "Açık irsaliye belgesi",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:satirlar": {
+      "since": 1,
+      "label": "İrsaliye satırları",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:siparisler": {
+      "since": 2,
+      "label": "Satın alma siparişleri (irsaliye siparişi seçici)",
+      "requires": [
+        "component:irsaliyeSiparisi"
+      ]
+    },
+    "query:irsaliyeKaynak": {
+      "since": 2,
+      "label": "Seçilen siparişin irsaliyelenecek kalan satırları",
+      "requires": [
+        "component:irsaliyeSiparisi"
+      ]
+    },
+    "query:irsaliyeKabulleri": {
+      "since": 2,
+      "label": "Seçilen siparişin mal kabulleri",
+      "requires": [
+        "component:irsaliyeSiparisi"
+      ]
+    },
+    "query:irsaliyeOlustur": {
+      "since": 2,
+      "label": "Siparişe tedarikçi irsaliyesi kaydet",
+      "requires": [
+        "component:belgeNo",
+        "component:belgeTarihi",
+        "component:irsaliyeKabulu",
+        "component:irsaliyeSatirlari",
+        "component:irsaliyeSiparisi"
+      ]
+    },
+    "query:baglaKabulleri": {
+      "since": 2,
+      "label": "Seçili irsaliyenin siparişindeki mal kabuller",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:bagla": {
+      "since": 2,
+      "label": "İrsaliyeyi mal kabule bağla (liste)",
+      "requires": [
+        "component:baglaKabulu",
+        "component:liste"
+      ]
+    },
+    "query:baglantiKaldir": {
+      "since": 2,
+      "label": "Mal kabul bağlantısını kaldır (liste)",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:irsaliyeDetayPenceresi": {
+      "since": 3,
+      "label": "İrsaliye detay penceresi",
+      "requires": [
+        "component:irsaliyeDetayBasligi",
+        "component:liste",
+        "component:satirTablosu"
+      ]
+    },
+    "component:irsaliyeDetayBasligi": {
+      "since": 3,
+      "label": "İrsaliye belge başlığı",
+      "requires": [
+        "query:irsaliye"
+      ]
+    },
+    "component:satirTablosu": {
+      "since": 1,
+      "label": "İrsaliye satırları",
+      "requires": [
+        "query:satirlar"
+      ]
+    }
   },
-  "screenViews": [ { "key": "purchase-delivery-notes", "component": "liste",
-                     "fields": { "documentNumber": "documentNumber", "documentDate": "documentDate", "purchaseOrderCode": "purchaseOrderCode",
-                                 "supplierName": "supplierName", "lineCount": "lineCount", "pricedGrandTotal": "pricedGrandTotal", "pricingState": "pricingState", "purchaseReceiptCode": "purchaseReceiptCode" } } ],
+  "screenViews": [
+    {
+      "key": "purchase-delivery-notes",
+      "component": "liste",
+      "fields": {
+        "documentNumber": "documentNumber",
+        "documentDate": "documentDate",
+        "purchaseOrderCode": "purchaseOrderCode",
+        "supplierName": "supplierName",
+        "purchaseReceiptCode": "purchaseReceiptCode",
+        "lineCount": "lineCount",
+        "pricedGrandTotal": "pricedGrandTotal",
+        "pricingState": "pricingState"
+      }
+    }
+  ],
   "definition": {
     "schemaVersion": 2,
     "components": [
-      { "id": "komutlar", "type": "actionBar", "name": "komutlar",
-        "props": { "newButton": "yeniIrsaliyeDugmesi", "focusInput": "suzgec", "exportTable": "liste",
-                   "titleCount": "{{irsaliyeler.meta.totalCount}}",
-                   "moreButtons": ["baglantiDugmesi", "baglantiKaldirDugmesi", "siparisiAcDugmesi", "malKabuluAcDugmesi"],
-                   "hiddenCommands": ["open", "save", "delete", "print"] } },
-
-      { "id": "irsaliyeSecimi", "type": "input", "name": "irsaliyeSecimi",
-        "props": { "inputType": "text", "label": "Açık irsaliye", "hidden": true } },
-
-      { "id": "baglantisizGostergesi", "type": "metric", "name": "baglantisizGostergesi",
-        "props": { "title": "Bağlantısı yok", "query": "irsaliyeler", "countWhen": "irsaliyeler.satir.purchaseReceiptId == null",
-                   "variant": "warning", "icon": "alert", "description": "bu sayfa · mal kabule bağlanmamış", "width": 3,
-                   "visibleWhen": "irsaliyeSecimi.value == null" } },
-      { "id": "suzgec", "type": "filterBar", "name": "suzgec",
-        "props": { "table": "liste", "width": 12, "search": true, "searchPlaceholder": "İrsaliye no, sipariş, tedarikçi veya mal kabul ara",
-                   "searchParam": "q", "visibleWhen": "irsaliyeSecimi.value == null" } },
-      { "id": "detayPaneli", "type": "input", "name": "detayPaneli",
-        "props": { "inputType": "checkbox", "label": "Detay paneli", "icon": "panel", "defaultWhen": "sayfa.genis == true" } },
-
-      { "id": "liste", "type": "dataTable", "name": "liste",
-        "props": { "title": "Gelen irsaliyeler", "query": "irsaliyeler", "paging": "server", "pageSize": 25, "width": 12,
-                   "visibleWhen": "irsaliyeSecimi.value == null",
-                   "widthWhen": "8=detayPaneli.value == true && liste.seciliSatir.id != null",
-                   "detailToggleInput": "detayPaneli",
-                   "columns": ["documentNumber", "documentDate", "purchaseOrderCode", "supplierName", "lineCount", "pricedGrandTotal", "pricingState", "purchaseReceiptCode"],
-                   "columnLabels": ["documentNumber=Tedarikçi irsaliye no", "documentDate=Belge tarihi", "purchaseOrderCode=Satın alma siparişi",
-                                    "supplierName=Tedarikçi", "lineCount=Satır", "pricedGrandTotal=Tutar", "pricingState=Fiyat", "purchaseReceiptCode=Mal kabul", "createdAt=Oluşturulma"],
-                   "columnFormats": ["documentNumber=code", "documentDate=date", "purchaseOrderCode=code", "lineCount=number", "pricedGrandTotal=money",
-                                     "pricingState=status", "purchaseReceiptCode=code", "createdAt=date"],
-                   "columnUnits": ["pricedGrandTotal=currencyCode"],
-                   "valueLabels": ["pricingState:Priced=—", "pricingState:PartlyFree=Kısmen bedelsiz", "pricingState:Free=Bedelsiz", "pricingState:Unpriced=Fiyatsız", "pricingState:PartlyUnpriced=Kısmen fiyatsız"],
-                   "toneMap": ["Bedelsiz=info", "Kısmen bedelsiz=info", "Fiyatsız=warning", "Kısmen fiyatsız=warning"],
-                   "rowOpenAction": "acDugmesi",
-                   "emptyText": "Aramanızla eşleşen irsaliye bulunamadı." } },
-      { "id": "acDugmesi", "type": "button", "name": "acDugmesi",
-        "props": { "text": "Aç", "icon": "open", "actionType": "setInput", "assignments": ["irsaliyeSecimi={{liste.seciliSatir.id}}"],
-                   "disabledWhen": "liste.seciliSatir.id == null", "disabledReason": "Önce bir kayıt seçin" } },
-
-      { "id": "detayKarti", "type": "card", "name": "detayKarti",
-        "props": { "variant": "panel", "title": "{{liste.seciliSatir.documentNumber}}", "description": "{{liste.seciliSatir.supplierName}}",
-                   "closeInput": "detayPaneli", "width": 4,
-                   "visibleWhen": "irsaliyeSecimi.value == null && detayPaneli.value == true && liste.seciliSatir.id != null" },
-        "children": [
-          { "id": "detayEslesti", "type": "badge", "name": "detayEslesti",
-            "props": { "text": "Mal kabul eşleşti", "variant": "success", "visibleWhen": "liste.seciliSatir.purchaseReceiptId != null" } },
-          { "id": "detayBaglantisiz", "type": "badge", "name": "detayBaglantisiz",
-            "props": { "text": "Bağlantısı yok", "variant": "warning", "visibleWhen": "liste.seciliSatir.purchaseReceiptId == null" } },
-          { "id": "detaySekmeleri", "type": "tabs", "name": "detaySekmeleri",
-            "props": { "tabs": ["Özet=ozetPaneli"] } },
-          { "id": "detayAc", "type": "button", "name": "detayAc",
-            "props": { "text": "İrsaliye belgesini aç ›", "actionType": "setInput", "assignments": ["irsaliyeSecimi={{liste.seciliSatir.id}}"] } }
-        ] },
-      { "id": "ozetPaneli", "type": "contextPanel", "name": "ozetPaneli",
-        "props": { "table": "liste", "width": 12,
-                   "fields": ["documentDate=Belge tarihi", "purchaseOrderCode=Sipariş", "purchaseReceiptCode=Mal kabul", "lineCount=Satır",
-                              "createdAt=Kayıt zamanı"] } },
-
-      { "id": "listeyeDonDugmesi", "type": "button", "name": "listeyeDonDugmesi",
-        "props": { "text": "‹ İrsaliyeler", "actionType": "setInput", "assignments": ["irsaliyeSecimi="] } },
-      { "id": "belgeBasligi", "type": "recordHeader", "name": "belgeBasligi",
-        "props": { "visibleWhen": "irsaliyeSecimi.value != null", "icon": "truck",
-                   "title": "{{irsaliye.rows[0].documentNumber}}",
-                   "subtitle": "Tedarikçi irsaliyesi · {{irsaliye.rows[0].supplierName}}",
-                   "fields": ["Belge tarihi={{irsaliye.rows[0].documentDate}}", "Sipariş={{irsaliye.rows[0].purchaseOrderCode}}",
-                              "Mal kabul={{irsaliye.rows[0].purchaseReceiptCode}}", "Satır={{irsaliye.rows[0].lineCount}}"],
-                   "fieldFormats": ["Belge tarihi=date"],
-                   "buttons": ["listeyeDonDugmesi", "belgeBaglantiDugmesi", "belgeBaglantiKaldirDugmesi"] } },
-      { "id": "baglantisizUyarisi", "type": "alert", "name": "baglantisizUyarisi",
-        "props": { "title": "Bağlantısı yok", "variant": "warning", "width": 12,
-                   "text": "Bu irsaliye henüz bir mal kabule bağlanmadı. Mal kabul bağla komutuyla aynı siparişin, satırları birebir eşleşen işlenmiş mal kabulünü seçin.",
-                   "visibleWhen": "irsaliyeSecimi.value != null && irsaliye.rows[0].id != null && irsaliye.rows[0].purchaseReceiptId == null" } },
-      { "id": "satirTablosu", "type": "dataTable", "name": "satirTablosu",
-        "props": { "title": "Satırlar", "query": "satirlar", "width": 12, "visibleWhen": "irsaliyeSecimi.value != null",
-                   "showGridSearch": false, "showColumnFilters": false, "showColumnChooser": false, "showPivot": false,
-                   "columns": ["orderLineNumber", "quantity", "isFreeOfCharge", "unitPrice", "discountPercent", "vatPercent", "lineNetAmount"],
-                   "columnLabels": ["orderLineNumber=Sipariş satırı", "quantity=Miktar", "isFreeOfCharge=Bedelsiz", "unitPrice=Birim fiyat",
-                                    "discountPercent=İsk. %", "vatPercent=KDV %", "lineNetAmount=Tutar"],
-                   "columnUnits": ["quantity=unitCode"], "columnFormats": ["orderLineNumber=number", "quantity=number", "isFreeOfCharge=status",
-                                    "unitPrice=money", "discountPercent=number", "vatPercent=number", "lineNetAmount=money"],
-                   "valueLabels": ["isFreeOfCharge:true=Bedelsiz", "isFreeOfCharge:false=—"], "toneMap": ["Bedelsiz=info"],
-                   "emptyText": "Satır ayrıntısı bulunamadı." } },
-      { "id": "belgeNotu", "type": "text", "name": "belgeNotu",
-        "props": { "text": "İrsaliye kaydı stok hareketi oluşturmaz. Stok girişi bağlı mal kabulde kaydedilir; irsaliye durumu ayrıca yönetilmez.",
-                   "visibleWhen": "irsaliyeSecimi.value != null" } },
-
-      { "id": "yeniIrsaliyeDugmesi", "type": "button", "name": "yeniIrsaliyeDugmesi",
-        "props": { "text": "Yeni irsaliye", "actionType": "openDialog", "dialogId": "yeniIrsaliyePenceresi" } },
-      { "id": "yeniIrsaliyePenceresi", "type": "dialog", "name": "yeniIrsaliyePenceresi",
-        "props": { "presentation": "dialog", "size": "xl", "title": "Siparişten tedarikçi irsaliyesi",
-                   "contains": ["irsaliyeBilgileri", "irsaliyeSatirlari", "irsaliyeNotu", "siparisIrsaliyeTablosu"],
-                   "saveQuery": "irsaliyeOlustur", "saveLabel": "İrsaliyeyi kaydet", "closeOnSave": true, "resetOnOpen": true,
-                   "refreshQueries": ["irsaliyeler", "irsaliyeKaynak", "siparisIrsaliyeleri"] } },
-      { "id": "irsaliyeBilgileri", "type": "formCard", "name": "irsaliyeBilgileri",
-        "props": { "title": "İrsaliye bilgileri", "columns": 2, "inputs": ["irsaliyeSiparisi", "belgeNo", "belgeTarihi", "irsaliyeKabulu"] } },
-      { "id": "irsaliyeSiparisi", "type": "input", "name": "irsaliyeSiparisi",
-        "props": { "inputType": "lookup", "label": "Satın alma siparişi", "required": true, "optionsQuery": "siparisler", "optionValueColumn": "id",
-                   "optionLabelColumn": "code", "optionDescriptionColumn": "supplierName", "minChars": 0,
-                   "optionsWhen": "satir.status in ['Open', 'PartiallyReceived', 'Received']", "clearsOnChange": ["irsaliyeKabulu"] } },
-      { "id": "belgeNo", "type": "input", "name": "belgeNo",
-        "props": { "inputType": "text", "label": "Tedarikçi irsaliye no", "required": true, "maxLength": 80, "placeholder": "IRS-2026-0042" } },
-      { "id": "belgeTarihi", "type": "input", "name": "belgeTarihi",
-        "props": { "inputType": "date", "label": "Belge tarihi", "required": true, "defaultValue": "{{bugun}}" } },
-      { "id": "irsaliyeKabulu", "type": "input", "name": "irsaliyeKabulu",
-        "props": { "inputType": "select", "label": "Mal kabul (isteğe bağlı)", "optionsQuery": "irsaliyeKabulleri", "optionValueColumn": "id",
-                   "optionLabelColumn": "code", "optionDescriptionColumn": "warehouseName", "optionsWhen": "satir.status == 'Posted'",
-                   "visibleWhen": "irsaliyeSiparisi.value != null" } },
-      { "id": "irsaliyeSatirlari", "type": "editableGrid", "name": "irsaliyeSatirlari",
-        "props": { "gridMode": "list", "title": "İrsaliye satırları", "addLabel": "Satır ekle", "maxRows": 200, "minRows": 1,
-                   "gridColumns": ["orderLineNumber|Sipariş satırı|number|required,readOnly",
-                                   "stockCode|Stok kodu|text|readOnly",
-                                   "stockName|Stok adı|text|readOnly",
-                                   "orderedQuantity|Sipariş|number|readOnly",
-                                   "notedQuantity|İrsaliyelenen|number|readOnly",
-                                   "remainingQuantity|Kalan|number|readOnly",
-                                   "quantity|İrsaliye miktarı|number|min:0,step:0.0001",
-                                   "unitCode|Birim|text|readOnly",
-                                   "isFreeOfCharge|Bedelsiz|checkbox",
-                                   "unitPrice|Birim fiyat|number|min:0,step:0.0001",
-                                   "discountPercent|İsk. %|number|min:0,max:100,step:0.01",
-                                   "vatPercent|KDV %|number|min:0,max:100,step:0.01"],
-                   "fillQuery": "irsaliyeKaynak", "fillColumns": { "quantity": "remainingQuantity" }, "skipWhenZero": "quantity",
-                   "lockColumnsWhen": ["unitPrice,discountPercent,vatPercent=satir.isFreeOfCharge == true"] } },
-      { "id": "irsaliyeNotu", "type": "text", "name": "irsaliyeNotu",
-        "props": { "text": "Satırlar siparişin irsaliyelenmemiş kalan miktarıyla dolar; belgede olmayan satırın miktarını 0 yapın. Miktar ve fiyat sipariş satırının temel biriminde girilir; tedarikçi irsaliyesinde fiyat yoksa boş bırakın, bedelsiz satırda fiyat girmeyin. Mal kabul seçilirse irsaliye satırları o mal kabulün satırlarıyla birebir eşleşmelidir. İrsaliye stok hareketi oluşturmaz. Gönderilecek satır: {{irsaliyeSatirlari.satirSayisi}}." } },
-      { "id": "siparisIrsaliyeTablosu", "type": "dataTable", "name": "siparisIrsaliyeTablosu",
-        "props": { "title": "Bu siparişin irsaliyeleri", "query": "siparisIrsaliyeleri", "width": 12, "visibleWhen": "irsaliyeSiparisi.value != null",
-                   "showGridSearch": false, "showColumnFilters": false, "showColumnChooser": false, "showPivot": false,
-                   "columns": ["documentNumber", "documentDate", "purchaseReceiptCode", "lineCount"],
-                   "columnLabels": ["documentNumber=Tedarikçi irsaliye no", "documentDate=Belge tarihi", "purchaseReceiptCode=Mal kabul", "lineCount=Satır"],
-                   "columnFormats": ["documentNumber=code", "documentDate=date", "purchaseReceiptCode=code", "lineCount=number"],
-                   "emptyText": "Bu sipariş için kayıtlı irsaliye yok." } },
-
-      { "id": "baglantiDugmesi", "type": "button", "name": "baglantiDugmesi",
-        "props": { "text": "Mal kabul bağla", "actionType": "openDialog", "dialogId": "baglaPenceresi",
-                   "disabledWhen": "liste.seciliSatir.id == null || liste.seciliSatir.purchaseReceiptId != null",
-                   "disabledReason": "Mal kabule bağlanmamış bir irsaliye seçin." } },
-      { "id": "baglaPenceresi", "type": "dialog", "name": "baglaPenceresi",
-        "props": { "presentation": "dialog", "size": "md", "title": "Mal kabul bağla · {{liste.seciliSatir.documentNumber}}",
-                   "contains": ["baglaKabulu", "baglaNotu"],
-                   "saveQuery": "bagla", "saveLabel": "Bağla", "closeOnSave": true, "resetOnOpen": true, "refreshQueries": ["irsaliyeler"] } },
-      { "id": "baglaKabulu", "type": "input", "name": "baglaKabulu",
-        "props": { "inputType": "select", "label": "Mal kabul", "required": true, "optionsQuery": "baglaKabulleri", "optionValueColumn": "id",
-                   "optionLabelColumn": "code", "optionDescriptionColumn": "warehouseName", "optionsWhen": "satir.status == 'Posted'" } },
-      { "id": "baglaNotu", "type": "text", "name": "baglaNotu",
-        "props": { "text": "Sipariş {{liste.seciliSatir.purchaseOrderCode}} için işlenmiş mal kabuller listelenir. İrsaliye ve mal kabul satırları aynı sipariş satırlarında ve aynı miktarlarda olmalıdır; başka irsaliyeye bağlı mal kabul seçilemez." } },
-      { "id": "baglantiKaldirDugmesi", "type": "button", "name": "baglantiKaldirDugmesi",
-        "props": { "text": "Mal kabul bağlantısını kaldır", "actionType": "query", "queryId": "baglantiKaldir", "confirmEnabled": true,
-                   "confirmText": "{{liste.seciliSatir.documentNumber}} irsaliyesinin {{liste.seciliSatir.purchaseReceiptCode}} mal kabul bağlantısı kaldırılsın mı? Stok hareketleri değişmez.",
-                   "successMessage": "Mal kabul bağlantısı kaldırıldı.", "refreshQueries": ["irsaliyeler"],
-                   "disabledWhen": "liste.seciliSatir.purchaseReceiptId == null", "disabledReason": "Bu irsaliye bir mal kabule bağlı değil." } },
-
-      { "id": "belgeBaglantiDugmesi", "type": "button", "name": "belgeBaglantiDugmesi",
-        "props": { "text": "Mal kabul bağla", "actionType": "openDialog", "dialogId": "belgeBaglaPenceresi",
-                   "visibleWhen": "irsaliye.rows[0].id != null && irsaliye.rows[0].purchaseReceiptId == null" } },
-      { "id": "belgeBaglaPenceresi", "type": "dialog", "name": "belgeBaglaPenceresi",
-        "props": { "presentation": "dialog", "size": "md", "title": "Mal kabul bağla · {{irsaliye.rows[0].documentNumber}}",
-                   "contains": ["belgeBaglaKabulu", "belgeBaglaNotu"],
-                   "saveQuery": "belgeBagla", "saveLabel": "Bağla", "closeOnSave": true, "resetOnOpen": true, "refreshQueries": ["irsaliye", "irsaliyeler"] } },
-      { "id": "belgeBaglaKabulu", "type": "input", "name": "belgeBaglaKabulu",
-        "props": { "inputType": "select", "label": "Mal kabul", "required": true, "optionsQuery": "belgeBaglaKabulleri", "optionValueColumn": "id",
-                   "optionLabelColumn": "code", "optionDescriptionColumn": "warehouseName", "optionsWhen": "satir.status == 'Posted'" } },
-      { "id": "belgeBaglaNotu", "type": "text", "name": "belgeBaglaNotu",
-        "props": { "text": "Sipariş {{irsaliye.rows[0].purchaseOrderCode}} için işlenmiş mal kabuller listelenir. İrsaliye ve mal kabul satırları aynı sipariş satırlarında ve aynı miktarlarda olmalıdır; başka irsaliyeye bağlı mal kabul seçilemez." } },
-      { "id": "belgeBaglantiKaldirDugmesi", "type": "button", "name": "belgeBaglantiKaldirDugmesi",
-        "props": { "text": "Bağlantıyı kaldır", "actionType": "query", "queryId": "belgeBaglantiKaldir", "confirmEnabled": true,
-                   "confirmText": "{{irsaliye.rows[0].documentNumber}} irsaliyesinin {{irsaliye.rows[0].purchaseReceiptCode}} mal kabul bağlantısı kaldırılsın mı? Stok hareketleri değişmez.",
-                   "successMessage": "Mal kabul bağlantısı kaldırıldı.", "refreshQueries": ["irsaliye", "irsaliyeler"],
-                   "visibleWhen": "irsaliye.rows[0].purchaseReceiptId != null" } },
-      { "id": "siparisiAcDugmesi", "type": "button", "name": "siparisiAcDugmesi",
-        "props": { "text": "Siparişi aç", "actionType": "erpPage", "pageKey": "sales-purchasing",
-                   "params": ["purchaseOrderId={{liste.seciliSatir.purchaseOrderId}}"],
-                   "disabledWhen": "liste.seciliSatir.purchaseOrderId == null", "disabledReason": "Önce bir kayıt seçin" } },
-      { "id": "malKabuluAcDugmesi", "type": "button", "name": "malKabuluAcDugmesi",
-        "props": { "text": "Mal kabulü aç", "actionType": "erpPage", "pageKey": "sales-purchase-receipts", "legacyScreen": true,
-                   "params": ["receiptId={{liste.seciliSatir.purchaseReceiptId}}"],
-                   "disabledWhen": "liste.seciliSatir.purchaseReceiptId == null", "disabledReason": "Bu irsaliye bir mal kabule bağlı değil." } }
+      {
+        "id": "komutlar",
+        "type": "actionBar",
+        "name": "komutlar",
+        "props": {
+          "newButton": "yeniIrsaliyeDugmesi",
+          "focusInput": "suzgec",
+          "exportTable": "liste",
+          "titleCount": "{{irsaliyeler.meta.totalCount}}",
+          "hiddenCommands": [
+            "open",
+            "save",
+            "delete",
+            "print"
+          ],
+          "slot": "commands"
+        }
+      },
+      {
+        "id": "baglantisizGostergesi",
+        "type": "metric",
+        "name": "baglantisizGostergesi",
+        "props": {
+          "title": "Bağlantısı yok",
+          "query": "irsaliyeler",
+          "countWhen": "irsaliyeler.satir.purchaseReceiptId == null",
+          "variant": "warning",
+          "icon": "alert",
+          "description": "bu sayfa · mal kabule bağlanmamış",
+          "slot": "indicators"
+        }
+      },
+      {
+        "id": "suzgec",
+        "type": "filterBar",
+        "name": "suzgec",
+        "props": {
+          "table": "liste",
+          "search": true,
+          "searchPlaceholder": "İrsaliye no, sipariş, tedarikçi veya mal kabul ara",
+          "searchParam": "q",
+          "slot": "filters"
+        }
+      },
+      {
+        "id": "liste",
+        "type": "dataTable",
+        "name": "liste",
+        "props": {
+          "title": "Gelen irsaliyeler",
+          "query": "irsaliyeler",
+          "paging": "server",
+          "pageSize": 25,
+          "columns": [
+            "documentNumber",
+            "documentDate",
+            "purchaseOrderCode",
+            "supplierName",
+            "purchaseReceiptCode",
+            "lineCount",
+            "pricedGrandTotal",
+            "pricingState"
+          ],
+          "columnLabels": [
+            "documentNumber=Tedarikçi irsaliye no",
+            "documentDate=Belge tarihi",
+            "purchaseOrderCode=Satın alma siparişi",
+            "supplierName=Tedarikçi",
+            "lineCount=Satır",
+            "pricedGrandTotal=Tutar",
+            "pricingState=Fiyat",
+            "purchaseReceiptCode=Mal kabul",
+            "createdAt=Oluşturulma"
+          ],
+          "columnFormats": [
+            "documentNumber=code",
+            "documentDate=date",
+            "purchaseOrderCode=code",
+            "lineCount=number",
+            "pricedGrandTotal=money",
+            "pricingState=status",
+            "purchaseReceiptCode=code",
+            "createdAt=date"
+          ],
+          "columnUnits": [
+            "pricedGrandTotal=currencyCode"
+          ],
+          "valueLabels": [
+            "pricingState:Priced=—",
+            "pricingState:PartlyFree=Kısmen bedelsiz",
+            "pricingState:Free=Bedelsiz",
+            "pricingState:Unpriced=Fiyatsız",
+            "pricingState:PartlyUnpriced=Kısmen fiyatsız"
+          ],
+          "toneMap": [
+            "Bedelsiz=info",
+            "Kısmen bedelsiz=info",
+            "Fiyatsız=warning",
+            "Kısmen fiyatsız=warning"
+          ],
+          "rowOpenAction": "acDugmesi",
+          "emptyText": "Aramanızla eşleşen irsaliye bulunamadı.",
+          "slot": "list",
+          "rowActions": [
+            "acDugmesi",
+            "siparisiAcDugmesi",
+            "malKabuluAcDugmesi",
+            "baglantiDugmesi",
+            "baglantiKaldirDugmesi"
+          ]
+        }
+      },
+      {
+        "id": "acDugmesi",
+        "type": "button",
+        "name": "acDugmesi",
+        "props": {
+          "text": "Aç",
+          "icon": "open",
+          "actionType": "openDialog",
+          "disabledWhen": "liste.seciliSatir.id == null",
+          "disabledReason": "Önce bir kayıt seçin",
+          "dialogId": "irsaliyeDetayPenceresi",
+          "slot": "rowActions"
+        }
+      },
+      {
+        "id": "yeniIrsaliyeDugmesi",
+        "type": "button",
+        "name": "yeniIrsaliyeDugmesi",
+        "props": {
+          "text": "Yeni irsaliye",
+          "actionType": "openDialog",
+          "dialogId": "yeniIrsaliyePenceresi",
+          "slot": "actions"
+        }
+      },
+      {
+        "id": "baglantiDugmesi",
+        "type": "button",
+        "name": "baglantiDugmesi",
+        "props": {
+          "text": "Mal kabul bağla",
+          "actionType": "openDialog",
+          "dialogId": "baglaPenceresi",
+          "disabledWhen": "liste.seciliSatir.id == null || liste.seciliSatir.purchaseReceiptId != null",
+          "disabledReason": "Mal kabule bağlanmamış bir irsaliye seçin.",
+          "slot": "rowActions"
+        }
+      },
+      {
+        "id": "baglantiKaldirDugmesi",
+        "type": "button",
+        "name": "baglantiKaldirDugmesi",
+        "props": {
+          "text": "Mal kabul bağlantısını kaldır",
+          "actionType": "query",
+          "queryId": "baglantiKaldir",
+          "confirmEnabled": true,
+          "confirmText": "{{liste.seciliSatir.documentNumber}} irsaliyesinin {{liste.seciliSatir.purchaseReceiptCode}} mal kabul bağlantısı kaldırılsın mı? Stok hareketleri değişmez.",
+          "successMessage": "Mal kabul bağlantısı kaldırıldı.",
+          "refreshQueries": [
+            "irsaliyeler"
+          ],
+          "disabledWhen": "liste.seciliSatir.purchaseReceiptId == null",
+          "disabledReason": "Bu irsaliye bir mal kabule bağlı değil.",
+          "slot": "rowActions"
+        }
+      },
+      {
+        "id": "siparisiAcDugmesi",
+        "type": "button",
+        "name": "siparisiAcDugmesi",
+        "props": {
+          "text": "Siparişi aç",
+          "actionType": "erpPage",
+          "pageKey": "sales-purchasing",
+          "params": [
+            "purchaseOrderId={{liste.seciliSatir.purchaseOrderId}}"
+          ],
+          "disabledWhen": "liste.seciliSatir.purchaseOrderId == null",
+          "disabledReason": "Önce bir kayıt seçin",
+          "slot": "rowActions"
+        }
+      },
+      {
+        "id": "malKabuluAcDugmesi",
+        "type": "button",
+        "name": "malKabuluAcDugmesi",
+        "props": {
+          "text": "Mal kabulü aç",
+          "actionType": "erpPage",
+          "pageKey": "sales-purchase-receipts",
+          "legacyScreen": true,
+          "params": [
+            "receiptId={{liste.seciliSatir.purchaseReceiptId}}"
+          ],
+          "disabledWhen": "liste.seciliSatir.purchaseReceiptId == null",
+          "disabledReason": "Bu irsaliye bir mal kabule bağlı değil.",
+          "slot": "rowActions"
+        }
+      },
+      {
+        "id": "irsaliyeDetayPenceresi",
+        "type": "dialog",
+        "name": "irsaliyeDetayPenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "xl",
+          "title": "İrsaliye · {{liste.seciliSatir.documentNumber}}",
+          "contains": [
+            "irsaliyeDetayBasligi",
+            "satirTablosu"
+          ],
+          "slot": "dialogs"
+        }
+      },
+      {
+        "id": "irsaliyeDetayBasligi",
+        "type": "recordHeader",
+        "name": "irsaliyeDetayBasligi",
+        "props": {
+          "icon": "file-text",
+          "title": "{{irsaliye.rows[0].documentNumber}}",
+          "subtitle": "{{irsaliye.rows[0].supplierName}}",
+          "fields": [
+            "Sipariş={{irsaliye.rows[0].purchaseOrderCode}}",
+            "Tarih={{irsaliye.rows[0].documentDate}}",
+            "Mal kabul={{irsaliye.rows[0].purchaseReceiptCode}}",
+            "Tutar={{irsaliye.rows[0].pricedGrandTotal}}",
+            "Fiyat={{irsaliye.rows[0].pricingState}}"
+          ],
+          "fieldFormats": [
+            "Tarih=date",
+            "Tutar=money"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "satirTablosu",
+        "type": "dataTable",
+        "name": "satirTablosu",
+        "props": {
+          "title": "Satırlar",
+          "query": "satirlar",
+          "showGridSearch": false,
+          "showColumnFilters": false,
+          "showColumnChooser": false,
+          "showPivot": false,
+          "columns": [
+            "orderLineNumber",
+            "quantity",
+            "isFreeOfCharge",
+            "unitPrice",
+            "discountPercent",
+            "vatPercent",
+            "lineNetAmount"
+          ],
+          "columnLabels": [
+            "orderLineNumber=Sipariş satırı",
+            "quantity=Miktar",
+            "isFreeOfCharge=Bedelsiz",
+            "unitPrice=Birim fiyat",
+            "discountPercent=İsk. %",
+            "vatPercent=KDV %",
+            "lineNetAmount=Tutar"
+          ],
+          "columnUnits": [
+            "quantity=unitCode"
+          ],
+          "columnFormats": [
+            "orderLineNumber=number",
+            "quantity=number",
+            "isFreeOfCharge=status",
+            "unitPrice=money",
+            "discountPercent=number",
+            "vatPercent=number",
+            "lineNetAmount=money"
+          ],
+          "valueLabels": [
+            "isFreeOfCharge:true=Bedelsiz",
+            "isFreeOfCharge:false=—"
+          ],
+          "toneMap": [
+            "Bedelsiz=info"
+          ],
+          "emptyText": "Satır ayrıntısı bulunamadı.",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "irsaliyeSatirlari",
+        "type": "editableGrid",
+        "name": "irsaliyeSatirlari",
+        "props": {
+          "gridMode": "list",
+          "title": "İrsaliye satırları",
+          "maxRows": 200,
+          "minRows": 1,
+          "gridColumns": [
+            "orderLineNumber|#|number|readOnly",
+            "stockCode|Stok kodu|text|readOnly",
+            "stockName|Stok adı|text|readOnly",
+            "quantity|İrsaliye miktarı|number|min:0",
+            "unitCode|Birim|text|readOnly",
+            "unitPrice|Birim fiyat|number|min:0",
+            "discountPercent|İskonto %|number|min:0,max:100",
+            "vatPercent|KDV %|number|min:0,max:100"
+          ],
+          "fillQuery": "irsaliyeKaynak",
+          "fillColumns": {
+            "quantity": "remainingQuantity"
+          },
+          "skipWhenZero": "quantity",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "yeniIrsaliyePenceresi",
+        "type": "dialog",
+        "name": "yeniIrsaliyePenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "xl",
+          "title": "Siparişten tedarikçi irsaliyesi",
+          "contains": [
+            "irsaliyeBilgileri",
+            "irsaliyeSatirlari",
+            "irsaliyeNotu"
+          ],
+          "saveQuery": "irsaliyeOlustur",
+          "saveLabel": "İrsaliyeyi kaydet",
+          "closeOnSave": true,
+          "resetOnOpen": true,
+          "refreshQueries": [
+            "irsaliyeler",
+            "irsaliyeKaynak"
+          ],
+          "slot": "dialogs"
+        }
+      },
+      {
+        "id": "irsaliyeBilgileri",
+        "type": "formCard",
+        "name": "irsaliyeBilgileri",
+        "props": {
+          "title": "İrsaliye bilgileri",
+          "columns": 2,
+          "inputs": [
+            "irsaliyeSiparisi",
+            "belgeNo",
+            "belgeTarihi",
+            "irsaliyeKabulu"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "irsaliyeSiparisi",
+        "type": "input",
+        "name": "irsaliyeSiparisi",
+        "props": {
+          "inputType": "lookup",
+          "label": "Satın alma siparişi",
+          "required": true,
+          "optionsQuery": "siparisler",
+          "optionValueColumn": "id",
+          "optionLabelColumn": "code",
+          "optionDescriptionColumn": "supplierName",
+          "minChars": 0,
+          "optionsWhen": "satir.status in ['Open', 'PartiallyReceived', 'Received']",
+          "clearsOnChange": [
+            "irsaliyeKabulu"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "belgeNo",
+        "type": "input",
+        "name": "belgeNo",
+        "props": {
+          "inputType": "text",
+          "label": "Tedarikçi irsaliye no",
+          "required": true,
+          "maxLength": 80,
+          "placeholder": "IRS-2026-0042",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "belgeTarihi",
+        "type": "input",
+        "name": "belgeTarihi",
+        "props": {
+          "inputType": "date",
+          "label": "Belge tarihi",
+          "required": true,
+          "defaultValue": "{{bugun}}",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "irsaliyeKabulu",
+        "type": "input",
+        "name": "irsaliyeKabulu",
+        "props": {
+          "inputType": "select",
+          "label": "Mal kabul (isteğe bağlı)",
+          "optionsQuery": "irsaliyeKabulleri",
+          "optionValueColumn": "id",
+          "optionLabelColumn": "code",
+          "optionDescriptionColumn": "warehouseName",
+          "optionsWhen": "satir.status == 'Posted'",
+          "visibleWhen": "irsaliyeSiparisi.value != null",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "irsaliyeNotu",
+        "type": "text",
+        "name": "irsaliyeNotu",
+        "props": {
+          "text": "Satırlar siparişin irsaliyelenmemiş kalan miktarıyla dolar; belgede olmayan satırın miktarını 0 yapın. Miktar ve fiyat sipariş satırının temel biriminde girilir; tedarikçi irsaliyesinde fiyat yoksa boş bırakın, bedelsiz satırda fiyat girmeyin. Mal kabul seçilirse irsaliye satırları o mal kabulün satırlarıyla birebir eşleşmelidir. İrsaliye stok hareketi oluşturmaz. Gönderilecek satır: {{irsaliyeSatirlari.satirSayisi}}.",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "baglaPenceresi",
+        "type": "dialog",
+        "name": "baglaPenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "md",
+          "title": "Mal kabul bağla · {{liste.seciliSatir.documentNumber}}",
+          "contains": [
+            "baglaKabulu",
+            "baglaNotu"
+          ],
+          "saveQuery": "bagla",
+          "saveLabel": "Bağla",
+          "closeOnSave": true,
+          "resetOnOpen": true,
+          "refreshQueries": [
+            "irsaliyeler"
+          ],
+          "slot": "dialogs"
+        }
+      },
+      {
+        "id": "baglaKabulu",
+        "type": "input",
+        "name": "baglaKabulu",
+        "props": {
+          "inputType": "select",
+          "label": "Mal kabul",
+          "required": true,
+          "optionsQuery": "baglaKabulleri",
+          "optionValueColumn": "id",
+          "optionLabelColumn": "code",
+          "optionDescriptionColumn": "warehouseName",
+          "optionsWhen": "satir.status == 'Posted'",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "baglaNotu",
+        "type": "text",
+        "name": "baglaNotu",
+        "props": {
+          "text": "Sipariş {{liste.seciliSatir.purchaseOrderCode}} için işlenmiş mal kabuller listelenir. İrsaliye ve mal kabul satırları aynı sipariş satırlarında ve aynı miktarlarda olmalıdır; başka irsaliyeye bağlı mal kabul seçilemez.",
+          "slot": "dialog"
+        }
+      }
     ],
     "queries": [
-      { "id": "irsaliyeler", "name": "irsaliyeler", "kind": "read", "operation": "satinalma.irsaliye.listele", "runOn": "load",
+      {
+        "id": "irsaliyeler",
+        "name": "irsaliyeler",
+        "kind": "read",
+        "operation": "satinalma.irsaliye.listele",
+        "runOn": "load",
         "parameters": [
-          { "name": "q", "binding": "{{suzgec.q}}", "type": "text" },
-          { "name": "page", "binding": "{{liste.sayfa}}", "type": "int" },
-          { "name": "pageSize", "binding": "{{liste.sayfaBoyutu}}", "type": "int" } ] },
-      { "id": "irsaliye", "name": "irsaliye", "kind": "read", "operation": "satinalma.irsaliye.getir", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{irsaliyeSecimi.value}}", "type": "guid" } ] },
-      { "id": "satirlar", "name": "satirlar", "kind": "read", "operation": "satinalma.irsaliye.satirlari", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{irsaliyeSecimi.value}}", "type": "guid" } ] },
-      { "id": "siparisler", "name": "siparisler", "kind": "read", "operation": "satinalma.siparis.listele", "runOn": "load",
-        "parameters": [ { "name": "q", "binding": "{{irsaliyeSiparisi.search}}", "type": "text" } ] },
-      { "id": "irsaliyeKaynak", "name": "irsaliyeKaynak", "kind": "read", "operation": "satinalma.irsaliye.siparisSatirlari", "runOn": "load",
-        "parameters": [ { "name": "orderId", "binding": "{{irsaliyeSiparisi.value}}", "type": "guid" } ] },
-      { "id": "irsaliyeKabulleri", "name": "irsaliyeKabulleri", "kind": "read", "operation": "satinalma.siparis.malKabulleri", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{irsaliyeSiparisi.value}}", "type": "guid" } ] },
-      { "id": "siparisIrsaliyeleri", "name": "siparisIrsaliyeleri", "kind": "read", "operation": "satinalma.irsaliye.siparisIrsaliyeleri", "runOn": "load",
-        "parameters": [ { "name": "orderId", "binding": "{{irsaliyeSiparisi.value}}", "type": "guid" } ] },
-      { "id": "irsaliyeOlustur", "name": "irsaliyeOlustur", "kind": "insert", "operation": "satinalma.irsaliye.olustur", "runOn": "manual",
+          {
+            "name": "q",
+            "binding": "{{suzgec.q}}",
+            "type": "text"
+          },
+          {
+            "name": "page",
+            "binding": "{{liste.sayfa}}",
+            "type": "int"
+          },
+          {
+            "name": "pageSize",
+            "binding": "{{liste.sayfaBoyutu}}",
+            "type": "int"
+          }
+        ]
+      },
+      {
+        "id": "irsaliye",
+        "name": "irsaliye",
+        "kind": "read",
+        "operation": "satinalma.irsaliye.getir",
+        "runOn": "load",
         "parameters": [
-          { "name": "orderId", "binding": "{{irsaliyeSiparisi.value}}", "type": "guid" },
-          { "name": "documentNumber", "binding": "{{belgeNo.value}}", "type": "text" },
-          { "name": "documentDate", "binding": "{{belgeTarihi.value}}", "type": "date" },
-          { "name": "purchaseReceiptId", "binding": "{{irsaliyeKabulu.value}}", "type": "guid" },
-          { "name": "lines", "binding": "{{irsaliyeSatirlari.satirlar}}", "type": "list" } ] },
-      { "id": "baglaKabulleri", "name": "baglaKabulleri", "kind": "read", "operation": "satinalma.siparis.malKabulleri", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{liste.seciliSatir.purchaseOrderId}}", "type": "guid" } ] },
-      { "id": "bagla", "name": "bagla", "kind": "update", "operation": "satinalma.irsaliye.malKabulBagla", "runOn": "manual",
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "satirlar",
+        "name": "satirlar",
+        "kind": "read",
+        "operation": "satinalma.irsaliye.satirlari",
+        "runOn": "load",
         "parameters": [
-          { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" },
-          { "name": "purchaseReceiptId", "binding": "{{baglaKabulu.value}}", "type": "guid" } ] },
-      { "id": "belgeBaglaKabulleri", "name": "belgeBaglaKabulleri", "kind": "read", "operation": "satinalma.siparis.malKabulleri", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{irsaliye.rows[0].purchaseOrderId}}", "type": "guid" } ] },
-      { "id": "belgeBagla", "name": "belgeBagla", "kind": "update", "operation": "satinalma.irsaliye.malKabulBagla", "runOn": "manual",
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "siparisler",
+        "name": "siparisler",
+        "kind": "read",
+        "operation": "satinalma.siparis.listele",
+        "runOn": "load",
         "parameters": [
-          { "name": "id", "binding": "{{irsaliye.rows[0].id}}", "type": "guid" },
-          { "name": "purchaseReceiptId", "binding": "{{belgeBaglaKabulu.value}}", "type": "guid" } ] },
-      { "id": "baglantiKaldir", "name": "baglantiKaldir", "kind": "update", "operation": "satinalma.irsaliye.malKabulBaglantisiKaldir", "runOn": "manual",
-        "parameters": [ { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" } ] },
-      { "id": "belgeBaglantiKaldir", "name": "belgeBaglantiKaldir", "kind": "update", "operation": "satinalma.irsaliye.malKabulBaglantisiKaldir", "runOn": "manual",
-        "parameters": [ { "name": "id", "binding": "{{irsaliye.rows[0].id}}", "type": "guid" } ] }
-    ]
+          {
+            "name": "q",
+            "binding": "{{irsaliyeSiparisi.search}}",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "irsaliyeKaynak",
+        "name": "irsaliyeKaynak",
+        "kind": "read",
+        "operation": "satinalma.irsaliye.siparisSatirlari",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "orderId",
+            "binding": "{{irsaliyeSiparisi.value}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "irsaliyeKabulleri",
+        "name": "irsaliyeKabulleri",
+        "kind": "read",
+        "operation": "satinalma.siparis.malKabulleri",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{irsaliyeSiparisi.value}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "irsaliyeOlustur",
+        "name": "irsaliyeOlustur",
+        "kind": "insert",
+        "operation": "satinalma.irsaliye.olustur",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "orderId",
+            "binding": "{{irsaliyeSiparisi.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "documentNumber",
+            "binding": "{{belgeNo.value}}",
+            "type": "text"
+          },
+          {
+            "name": "documentDate",
+            "binding": "{{belgeTarihi.value}}",
+            "type": "date"
+          },
+          {
+            "name": "purchaseReceiptId",
+            "binding": "{{irsaliyeKabulu.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "lines",
+            "binding": "{{irsaliyeSatirlari.satirlar}}",
+            "type": "list"
+          }
+        ]
+      },
+      {
+        "id": "baglaKabulleri",
+        "name": "baglaKabulleri",
+        "kind": "read",
+        "operation": "satinalma.siparis.malKabulleri",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.purchaseOrderId}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "bagla",
+        "name": "bagla",
+        "kind": "update",
+        "operation": "satinalma.irsaliye.malKabulBagla",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          },
+          {
+            "name": "purchaseReceiptId",
+            "binding": "{{baglaKabulu.value}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "baglantiKaldir",
+        "name": "baglantiKaldir",
+        "kind": "update",
+        "operation": "satinalma.irsaliye.malKabulBaglantisiKaldir",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      }
+    ],
+    "template": {
+      "name": "list"
+    }
   }
 }
