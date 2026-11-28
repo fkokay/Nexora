@@ -1840,3 +1840,8 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
 - Bilinen kayıp: cariden açılan yeni siparişte müşteri ön dolumu yok (Belge kalıbında ön dolum yok).
 - Studio: girdi alanlarında `readOnly` seçeneği.
 - Doğrulama: ilgili erp-web (44) ve Studio (95) vitest dosyaları yerelde geçti; .NET testleri CI'da.
+
+### Eski oluşturma standartları kaldırıldı (2026-11-28)
+- `sales-invoice-create` ve `finance-journal-vouchers` standartları kaldırıldı; yeni fatura ve yevmiye fişi akışları Belge ekranlarına yönlendirildi.
+- `finance-journal-ledger` yevmiye listesi korundu.
+- Kalan eski anahtar referansları yalnızca eski rota yönlendirmesi ve arşiv/test kanıtı içindir.

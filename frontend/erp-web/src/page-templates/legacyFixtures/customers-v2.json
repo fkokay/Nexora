@@ -178,7 +178,7 @@
                    "disabledWhen": "liste.seciliSatir.id == null || liste.seciliSatir.type == 'Supplier' || liste.seciliSatir.type == 'Employee'",
                    "disabledReason": "Önce bir müşteri veya bayi kartı seçin; satış işlemleri yalnız müşteri ve bayi kartlarında." } },
       { "id": "yeniFatura", "type": "button", "name": "yeniFatura",
-        "props": { "text": "Yeni fatura", "actionType": "erpPage", "pageKey": "sales-invoice-create", "target": "newTab",
+        "props": { "text": "Yeni fatura", "actionType": "erpPage", "pageKey": "sales-invoice-document", "target": "newTab",
                    "params": ["customerId={{liste.seciliSatir.id}}"],
                    "disabledWhen": "liste.seciliSatir.id == null || liste.seciliSatir.type == 'Supplier' || liste.seciliSatir.type == 'Employee'",
                    "disabledReason": "Önce bir müşteri veya bayi kartı seçin; satış işlemleri yalnız müşteri ve bayi kartlarında." } },

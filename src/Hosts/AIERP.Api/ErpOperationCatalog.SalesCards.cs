@@ -32,7 +32,7 @@ internal static partial class ErpOperationCatalog
         var previewLines = ListParameter<SalesPreviewLineRequest>("lines");
         var writeLines = ListParameter<SalesQuoteLineWriteRequest>("lines");
 
-        // ---- Fatura (sales-invoice-create): standalone invoice + delivery in one write ----
+        // ---- Fatura Belgesi: standalone invoice + delivery in one write ----
         const string invoicesRoute = "/api/sales/invoices";
         // requestId is page-made (autoId): a retry with the same content returns the invoice (200), other content 409.
         // The e-archive payment date and due date are DateTimeOffset: datetime parameters (ISO date and time with offset).

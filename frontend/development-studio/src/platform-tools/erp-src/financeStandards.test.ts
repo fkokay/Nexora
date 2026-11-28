@@ -7,7 +7,6 @@ import standard2 from "../../../../../src/Hosts/AIERP.Api/SystemPages/Standards/
 import standard3 from "../../../../../src/Hosts/AIERP.Api/SystemPages/Standards/finance-trial-balance.json?raw";
 import standard4 from "../../../../../src/Hosts/AIERP.Api/SystemPages/Standards/finance-ledger-chart.json?raw";
 import standard5 from "../../../../../src/Hosts/AIERP.Api/SystemPages/Standards/finance-journal-ledger.json?raw";
-import standard6 from "../../../../../src/Hosts/AIERP.Api/SystemPages/Standards/finance-journal-vouchers.json?raw";
 
 // Finans / Genel Muhasebe standartları (src/Hosts/AIERP.Api/SystemPages/Standards/finance-*.json): tasarımcıda tanınmayan tür/özellik
 // olmadan açılmalı, uzlaştırmadan özellik kaybetmeden geçmeli ve koşulları tasarımcının denetimine takılmamalıdır.
@@ -16,7 +15,7 @@ type Standard = { definition: { template?: { name: string }; queries: { id: stri
 const { reconcileDefinition, managedKeys, contentFields, palette } = designerInternals;
 const standards: [string, Standard][] = ([
   ["finance-accounts", standard0], ["finance-banks", standard1], ["finance-account-create", standard2], ["finance-trial-balance", standard3],
-  ["finance-ledger-chart", standard4], ["finance-journal-ledger", standard5], ["finance-journal-vouchers", standard6],
+  ["finance-ledger-chart", standard4], ["finance-journal-ledger", standard5],
 ] as [string, string][]).map(([key, json]) => [key, JSON.parse(json) as Standard]);
 const flatten = (list: Component[]): Component[] => list.flatMap((component) => [component, ...flatten(component.children ?? [])]);
 const CONDITION_PROPS = ["visibleWhen", "disabledWhen", "requiredWhen", "activeWhen", "sequenceWhen", "defaultWhen", "countWhen"];
