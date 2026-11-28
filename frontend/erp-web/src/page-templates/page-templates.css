@@ -22,6 +22,7 @@
 .list-template-indicators { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; min-width: 0; }
 .list-template-main { display: flex; gap: 12px; align-items: flex-start; width: 100%; min-width: 0; }
 .list-template-list { flex: 1 1 0; width: 100%; min-width: 0; container-type: inline-size; container-name: list-box; }
+.list-template-list.is-full-width { flex: 1 1 100%; }
 .list-template-detail { flex: 0 0 320px; min-width: 0; }
 /* Kalıbın kendi genişliği 720 px'in altındaysa (JS `is-stacked`, ölçü `.list-template-main` üzerinde) detay paneli listenin altına iner. */
 .list-template-main.is-stacked { flex-direction: column; align-items: stretch; }

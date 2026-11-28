@@ -158,9 +158,9 @@ describe('Depo Yönetimi standart tanımı', { timeout: 30000 }, () => {
 
   it('the card group asks for a selection, then shows the picked warehouse with its location count', async () => {
     await openList();
-    expect(within(detail()).getByText('Bir depo seçin; ayrıntıları burada görün.')).toBeTruthy();
+    expect(document.querySelector('.list-template-detail')).toBeNull();
     await pick('Merkez');
-    expect(within(detail()).queryByText('Bir depo seçin; ayrıntıları burada görün.')).toBeNull();
+    expect(document.querySelector('.list-template-detail')).not.toBeNull();
     await waitFor(() => expect(gets(`/api/warehouses/${W1}/locations`)).toHaveLength(1), T);
     const metric = within(detail()).getByText('Konum sayısı', { selector: '.tenant-metric-label' }).closest('article') as HTMLElement;
     await waitFor(() => expect(metric.querySelector('strong')?.textContent).toBe('1'), T);
