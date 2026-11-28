@@ -26,6 +26,7 @@ internal static partial class ErpOperationCatalog
         const string deliveryNote = "/api/purchasing/delivery-notes/{id}";
         const string receipts = "/api/purchasing/receipts";
         const string receipt = receipts + "/{id}";
+        const string standaloneReceipts = "/api/purchasing/standalone-receipts";
         const string invoices = "/api/purchasing/invoices";
         const string invoice = invoices + "/{id}";
         const string returns = "/api/purchasing/returns";
@@ -246,8 +247,16 @@ internal static partial class ErpOperationCatalog
         // ---- Mal kabul (siparişten) ----
         // Resolves to erp.purchase-orders.create (nested route). requestId is page-made: a retry returns the existing receipt.
         yield return Write(PurchasingModule, "satinalma.malKabul.olustur", "Siparişten mal kabul oluştur", "insert", "POST", order + "/receipts",
-            [id, .. BodyParameters<PurchaseReceiptWriteRequest>(sourceBacked: false), Lines<PurchaseReceiptLineWriteRequest>(), customFields],
+            [id, .. BodyParameters<PurchaseReceiptWriteRequest>(sourceBacked: false, "lines", "customFields", "trackingAllocations"), Lines<PurchaseReceiptLineWriteRequest>(),
+                ListParameter<PurchaseReceiptTrackingAllocationWriteRequest>("trackingAllocations"), customFields],
             Record(Columns<PurchaseReceiptSummary>()), null, null);
+        // Siparişsiz kabuller taslak olarak kaydedilir; izleme dağılımı post adımında satır kimliğiyle gönderilir.
+        yield return Write(PurchasingModule, "satinalma.malKabul.siparissizOlustur", "Siparişsiz mal kabul taslağı oluştur", "insert", "POST", "/api/purchasing/standalone-receipts",
+            [.. BodyParameters<StandalonePurchaseReceiptWrite>(sourceBacked: false), Lines<StandalonePurchaseReceiptLineWrite>()],
+            Record(Columns<StandalonePurchaseReceiptDraftResult>()), null, null);
+        yield return Write(PurchasingModule, "satinalma.malKabul.siparissizKaydet", "Siparişsiz mal kabulü kaydet ve stoğa al", "update", "POST", "/api/purchasing/standalone-receipts" + "/{id}/post",
+            [id, .. BodyParameters<StandalonePostRequest>(sourceBacked: false, "tracking"), ListParameter<StandaloneTrackingAllocation>("tracking")],
+            Record(Columns<StandalonePurchaseReceiptDraftResult>()), null, null);
         // Retired: the same read as satinalma.siparis.satirlari (which now declares its columns). Names are permanent, so it stays
         // deprecated: pages that already use it keep working, new uses are rejected and Studio hides it.
         yield return Read(PurchasingModule, "satinalma.malKabul.siparisSatirlari", "Mal kabul için sipariş satırları (kalan miktar)", order, [id],

@@ -620,7 +620,8 @@ public sealed class ErpOperationCatalogTests
         // (SalesCardOperationsTests); + 14 Satınalma Faz 2 lines and customFields (PurchasingErpOperationCatalogTests);
         // + the optional invoice line prices of satis.irsaliye.faturalastir and satinalma.malKabul.faturala.
         // + the standalone delivery draft writes of satis.irsaliye (olustur, guncelle lines).
-        Assert.Equal(49, collections.Length);
+        // + the standalone receipt post tracking and the order receipt trackingAllocations, and the standalone receipt draft lines.
+        Assert.Equal(52, collections.Length);
         foreach (var (op, parameter) in collections)
         {
             Assert.Equal("body", parameter.In);

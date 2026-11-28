@@ -6549,6 +6549,16 @@ purchaseOrders.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, T
 purchaseOrders.MapPost("/{id:guid}/receipts", async (Guid id, PurchaseReceiptWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    if (request.TrackingAllocations is { } trackingAllocations)
+    {
+        if (request.Lines.Any(x => x.Tracking is { Count: > 0 }))
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["trackingAllocations"] = ["Takip dağıtımı aynı istekte yalnız bir biçimde gönderilebilir."] });
+        var groupedTracking = trackingAllocations.GroupBy(x => x.OrderLineNumber).ToDictionary(g => g.Key,
+            g => (IReadOnlyList<InventoryTrackingAllocationRequest>)g.Select(x => new InventoryTrackingAllocationRequest(x.TrackingCode, x.Quantity, x.ExpiryDate)).ToList());
+        if (trackingAllocations.Any(x => !request.Lines.Any(line => line.OrderLineNumber == x.OrderLineNumber)))
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["trackingAllocations"] = ["Takip dağıtımı kabul satırlarında bulunmayan sipariş satırını içeriyor."] });
+        request = request with { Lines = request.Lines.Select(line => line with { Tracking = groupedTracking.GetValueOrDefault(line.OrderLineNumber) }).ToArray() };
+    }
     var errors = PurchaseReceiptValidation.Validate(request);
     if (errors is not null) return Results.ValidationProblem(errors);
     await using var transaction = await db.Database.BeginTransactionAsync();
@@ -6634,6 +6644,7 @@ purchaseOrders.MapPost("/{id:guid}/receipts", async (Guid id, PurchaseReceiptWri
         receipt.CustomFieldValues.Add(new PurchaseReceiptCustomFieldValue { TenantId = tenantId, Receipt = receipt, DefinitionId = definitionId, Value = value, DefinitionVersion = field.Version });
         receipt.CustomFieldValueRevisions.Add(new PurchaseReceiptCustomFieldValueRevision { TenantId = tenantId, Receipt = receipt, DefinitionId = definitionId, NewValue = value, DefinitionVersion = field.Version, ChangedByUserId = GetUserId(principal) });
     }
+    var receiptTrackingCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     foreach (var input in request.Lines.OrderBy(x => x.OrderLineNumber))
     {
         var line = linesByNumber[input.OrderLineNumber];
@@ -6656,6 +6667,8 @@ purchaseOrders.MapPost("/{id:guid}/receipts", async (Guid id, PurchaseReceiptWri
         if (trackingError is not null) return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{input.OrderLineNumber}].tracking"] = [trackingError] });
         foreach (var trace in input.Tracking ?? [])
         {
+            if (!receiptTrackingCodes.Add($"{item.Id:N}:{trace.TrackingCode.Trim()}"))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{input.OrderLineNumber}].tracking"] = ["Aynı mal kabul içinde takip kodu tekrarlanamaz."] });
             var priorTrace = await db.InventoryTransactionTraces.AsNoTracking().Where(x => x.TenantId == tenantId && x.StockItemId == item.Id && x.TrackingCode == trace.TrackingCode.Trim()).ToListAsync();
             if (item.TrackingMode == InventoryTrackingMode.Lot && priorTrace.Any(x => x.ExpiryDate != trace.ExpiryDate))
                 return Results.Conflict(new { error = $"Lot {trace.TrackingCode} için son kullanma tarihi değiştirilemez." });

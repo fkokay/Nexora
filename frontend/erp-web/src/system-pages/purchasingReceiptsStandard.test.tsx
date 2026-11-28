@@ -1,10 +1,9 @@
-import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import catalog from './purchasingReceiptsOperations.fixture.json';
 import { T, page, query, salesHarness } from './salesStandardHarness';
 
-// "Mal kabulleri" standart tanımı (sales-purchase-receipts.json, Liste kalıbı): sayfalı liste, detay paneli, Aç penceresi,
-// onaylı iptal ve Faturala gezinmesi. Siparişsiz / izlemeli kabul bu ekranda yok (kalıba pencere satır tablosu gelince eklenecek).
+// "Mal kabulleri" standart tanımı (sales-purchase-receipts.json, Liste kalıbı): liste, detay, siparişsiz kabul ve izlemeli kabul.
 
 const { api } = vi.hoisted(() => ({ api: vi.fn() }));
 vi.mock('../erpApi', () => ({ api }));
@@ -21,10 +20,14 @@ const rows = () => [
   receipt(R2, 'MK-0002', 'Voided'),
 ];
 let voidFailure: { status: number; message: string } | null = null;
+const ORDERLESS_ID = '77777777-0000-0000-0000-000000000001';
 
 function respond(url: string, method: string): unknown {
   const [path] = url.split('?');
   if (method === 'GET') {
+    if (path === '/api/purchasing/standalone-invoices/suppliers') return page([{ id: 'supplier-1', code: 'SUP-1', name: 'Tedarikçi' }]);
+    if (path === '/api/warehouses') return [{ id: 'warehouse-1', code: 'WH-1', name: 'Ana depo' }];
+    if (path === '/api/stock/items') return page([{ id: 'stock-1', code: 'MAT-1', name: 'Malzeme', unitCode: 'EA' }]);
     if (path === '/api/purchasing/receipts') return page(rows());
     const one = /^\/api\/purchasing\/receipts\/([^/]+)$/.exec(path);
     if (one) {
@@ -32,6 +35,8 @@ function respond(url: string, method: string): unknown {
         lines: [{ orderLineNumber: 1, stockItemId: 'st1', stockCode: 'AMB-1', stockName: 'Koli 40x30', unitCode: 'ADET', quantity: 4, enteredQuantity: 4, enteredUnitCode: 'ADET' }] };
     }
   }
+  if (method === 'POST' && path === '/api/purchasing/standalone-receipts') return { id: ORDERLESS_ID, code: 'GR-OPEN-1', status: 'Draft' };
+  if (method === 'POST' && path === `/api/purchasing/standalone-receipts/${ORDERLESS_ID}/post`) return { id: ORDERLESS_ID, status: 'Posted' };
   if (method === 'POST' && /^\/api\/purchasing\/receipts\/[^/]+\/void$/.test(path)) {
     if (voidFailure) {
       const failure = voidFailure;
@@ -48,11 +53,57 @@ beforeEach(() => { api.mockReset(); localStorage.clear(); voidFailure = null; h.
 afterEach(() => { h.reset(); cleanup(); });
 
 describe('Mal kabulleri standart tanımı', { timeout: 30000 }, () => {
-  it('is a v3 preview Liste standard that uses only operations from the catalog fixture', () => {
-    expect(h.standard).toMatchObject({ screenKey: KEY, version: 3, stage: 'preview' });
+  it('is a v4 preview Liste standard that uses only operations from the catalog fixture', () => {
+    expect(h.standard).toMatchObject({ screenKey: KEY, version: 4, stage: 'preview' });
     const names = new Set(catalog.operations.map((operation) => operation.name));
     expect(h.standard.definition.queries.filter((item) => !names.has(item.operation))).toEqual([]);
     expect((h.standard.definition as unknown as { template: unknown }).template).toEqual({ name: 'list' });
+  });
+
+  it('defines an orderless receipt dialog with a stop-on-error draft and post sequence', () => {
+    const components = h.standard.definition.components;
+    const dialog = components.find((item) => item.id === 'siparissizPencere');
+    expect(dialog?.props).toMatchObject({ saveSequence: ['siparissizTaslak', 'siparissizKaydet'], stopOnError: true });
+    expect(components.find((item) => item.id === 'siparissizKalemleri')?.props?.gridColumns).toHaveLength(7);
+    expect(h.standard.definition.queries.find((item) => item.id === 'siparissizTaslak')?.operation).toBe('satinalma.malKabul.siparissizOlustur');
+    expect(h.standard.definition.queries.find((item) => item.id === 'siparissizKaydet')?.operation).toBe('satinalma.malKabul.siparissizKaydet');
+  });
+
+  it('saves the orderless receipt window by creating a draft and then posting it', async () => {
+    const components = h.standard.definition.components;
+    components.find((item) => item.id === 'siparissizTedarikci')!.props!.staticOptions = ['supplier-1=Tedarikçi'];
+    components.find((item) => item.id === 'siparissizDepo')!.props!.staticOptions = ['warehouse-1=Ana depo'];
+    components.find((item) => item.id === 'siparissizKalemleri')!.props!.columnStaticOptions = ['stockItemId=stock-1=MAT-1 · Malzeme'];
+    h.setup();
+    await h.selectRow('MK-0001');
+    fireEvent.click(await h.menuItem(/^Siparişsiz mal kabul$/));
+    const dialog = await h.dialog(/^Siparişsiz mal kabul$/);
+    const supplier = within(dialog).getByLabelText('Tedarikçi');
+    fireEvent.keyDown(supplier, { key: 'ArrowDown' });
+    fireEvent.keyDown(supplier, { key: 'Enter' });
+    const warehouse = within(dialog).getByLabelText('Depo');
+    fireEvent.keyDown(warehouse, { key: 'ArrowDown' });
+    fireEvent.keyDown(warehouse, { key: 'Enter' });
+    fireEvent.change(within(dialog).getByLabelText('Tarih'), { target: { value: '2026-11-28' } });
+    fireEvent.change(within(dialog).getByLabelText('Mal kabul no'), { target: { value: 'GR-OPEN-1' } });
+    const grid = within(dialog).getByText('Mal kabul satırları').closest('section')!;
+    fireEvent.click(within(grid).getByRole('button', { name: 'Satır ekle' }));
+    const stock = within(grid).getByLabelText('Stok (satır 1)');
+    fireEvent.click(stock);
+    fireEvent.click(within(dialog).getByRole('option', { name: /MAT-1 · Malzeme/ }));
+    expect((stock as HTMLInputElement).value).not.toBe('');
+    fireEvent.change(within(grid).getByLabelText('Miktar (satır 1)'), { target: { value: '3' } });
+    fireEvent.change(within(grid).getByLabelText('Birim (satır 1)'), { target: { value: 'EA' } });
+    fireEvent.change(within(grid).getByLabelText('Birim maliyet (satır 1)'), { target: { value: '12.5' } });
+    const save = within(dialog).getByRole('button', { name: 'Kaydet' });
+    expect((save as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(save);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await h.waitWrites(2);
+    expect(h.writes().map((call) => call.url)).toEqual([
+      '/api/purchasing/standalone-receipts', `/api/purchasing/standalone-receipts/${ORDERLESS_ID}/post`,
+    ]);
+    expect(JSON.parse(h.writes()[0].body!).lines).toMatchObject([{ stockItemId: 'stock-1', quantity: 3, unitCode: 'EA', unitCostBase: 12.5 }]);
   });
 
   it('lists the first page with status labels; a selected row loads the receipt', async () => {
@@ -100,6 +151,7 @@ describe('Mal kabulleri standart tanımı', { timeout: 30000 }, () => {
     fireEvent.click(await h.menuItem(/^Faturala/));
     await waitFor(() => expect(h.state.navigations).toHaveLength(1), T);
     expect(h.state.navigations[0]).toMatchObject({ page: 'purchase-invoice-document', params: { receiptId: R1 } });
-    expect(h.menuItems().some((item) => /Siparişsiz|Eski ekran/.test(item))).toBe(false);
+    expect(h.menuItems().some((item) => /Siparişsiz mal kabul/.test(item))).toBe(true);
+    expect(h.menuItems().some((item) => /Eski ekran/.test(item))).toBe(false);
   });
 });

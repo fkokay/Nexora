@@ -100,6 +100,8 @@ public sealed class StandaloneInventoryDocumentsIntegrationTests
         var tenantId = Guid.NewGuid(); var userId = Guid.NewGuid(); var tenant = new Tenant { Id = tenantId, Name = "Standalone test", Slug = $"standalone-{tenantId:N}" };
         var supplier = new CustomerAccount { TenantId = tenantId, Tenant = tenant, Code = "SUP-1", Name = "Supplier", Type = CounterpartyType.Supplier, CurrencyCode = "TRY" };
         var warehouse = new Warehouse { TenantId = tenantId, Tenant = tenant, Code = "MAIN", Name = "Main warehouse" };
+        var otherTenant = new Tenant { Id = Guid.NewGuid(), Name = "Other tenant", Slug = $"standalone-other-{Guid.NewGuid():N}" };
+        var otherWarehouse = new Warehouse { TenantId = otherTenant.Id, Tenant = otherTenant, Code = "OTHER", Name = "Other warehouse" };
         var location = new WarehouseLocation { TenantId = tenantId, WarehouseId = warehouse.Id, Warehouse = warehouse, Code = "A-01", Name = "Shelf A-01" };
         var item = new StockItem { TenantId = tenantId, Tenant = tenant, Code = "MAT-1", Name = "Material", UnitCode = "EA", TrackingMode = InventoryTrackingMode.Lot };
         var builder = WebApplication.CreateBuilder(); builder.WebHost.UseTestServer();
@@ -110,7 +112,7 @@ public sealed class StandaloneInventoryDocumentsIntegrationTests
         await using (var scope = app.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>(); await db.Database.EnsureCreatedAsync();
-            db.Tenants.Add(tenant); db.CustomerAccounts.Add(supplier); db.Warehouses.Add(warehouse); db.WarehouseLocations.Add(location); db.StockItems.Add(item); await db.SaveChangesAsync();
+            db.Tenants.AddRange(tenant, otherTenant); db.CustomerAccounts.Add(supplier); db.Warehouses.AddRange(warehouse, otherWarehouse); db.WarehouseLocations.Add(location); db.StockItems.Add(item); await db.SaveChangesAsync();
         }
         using var client = app.GetTestClient(); client.DefaultRequestHeaders.Add("X-Test-Tenant", tenantId.ToString("D")); client.DefaultRequestHeaders.Add("X-Test-User", userId.ToString("D"));
         var create = await client.PostAsJsonAsync("/api/purchasing/standalone-receipts", new
@@ -139,8 +141,31 @@ public sealed class StandaloneInventoryDocumentsIntegrationTests
         var updated = await client.GetFromJsonAsync<JsonElement>($"/api/purchasing/standalone-receipts/{id}");
         Assert.Equal("GR-OPEN-1-EDIT", updated.GetProperty("code").GetString());
         Assert.Equal("LOT-2026-B", updated.GetProperty("lines")[0].GetProperty("trackingCode").GetString());
-        var post = await client.PostAsJsonAsync($"/api/purchasing/standalone-receipts/{id}/post", new { });
+        var savedLineId = updated.GetProperty("lines")[0].GetProperty("id").GetGuid();
+        var wrongWarehouse = await client.PostAsJsonAsync("/api/purchasing/standalone-receipts", new
+        {
+            requestId = Guid.NewGuid(), code = "GR-CROSS-TENANT", supplierId = supplier.Id, warehouseId = otherWarehouse.Id, receiptDate = "2026-10-30",
+            lines = new[] { new { stockItemId = item.Id, quantity = 1m, unitCode = "EA", unitCostBase = 1m, trackingCode = "LOT-X", expiryDate = "2027-10-30" } }
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, wrongWarehouse.StatusCode);
+        var mismatchedTracking = await client.PostAsJsonAsync($"/api/purchasing/standalone-receipts/{id}/post", new { tracking = new[] { new { lineId = savedLineId, trackingCode = "LOT-2026-B", quantity = 1m, expiryDate = "2027-11-30" } } });
+        Assert.Equal(HttpStatusCode.BadRequest, mismatchedTracking.StatusCode);
+        var duplicateTracking = await client.PostAsJsonAsync($"/api/purchasing/standalone-receipts/{id}/post", new { tracking = new[] {
+            new { lineId = savedLineId, trackingCode = "LOT-REPEAT", quantity = 1m, expiryDate = "2027-11-30" },
+            new { lineId = savedLineId, trackingCode = "LOT-REPEAT", quantity = 1m, expiryDate = "2027-11-30" } } });
+        Assert.Equal(HttpStatusCode.BadRequest, duplicateTracking.StatusCode);
+        var post = await client.PostAsJsonAsync($"/api/purchasing/standalone-receipts/{id}/post", new { tracking = new[] {
+            new { lineId = savedLineId, trackingCode = "LOT-2026-B", quantity = 1m, expiryDate = "2027-11-30" },
+            new { lineId = savedLineId, trackingCode = "LOT-2026-C", quantity = 1m, expiryDate = "2027-11-30" } } });
         Assert.Equal(HttpStatusCode.OK, post.StatusCode);
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var movement = await db.InventoryTransactions.Include(x => x.Tracking).SingleAsync(x => x.TenantId == tenantId && x.StandalonePurchaseReceiptLineId == savedLineId);
+            Assert.Equal(14m, movement.UnitCostBase);
+            Assert.Equal(2m, movement.Quantity);
+            Assert.Equal(new[] { "LOT-2026-B", "LOT-2026-C" }, movement.Tracking.Select(x => x.TrackingCode).OrderBy(x => x).ToArray());
+        }
         var postedEdit = await client.PutAsJsonAsync($"/api/purchasing/standalone-receipts/{id}", new
         {
             requestId = Guid.NewGuid(), code = "GR-POSTED-EDIT", supplierId = supplier.Id, warehouseId = warehouse.Id, receiptDate = "2026-10-30",
@@ -152,14 +177,14 @@ public sealed class StandaloneInventoryDocumentsIntegrationTests
         {
             var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>(); var movement = await db.InventoryTransactions.Include(x => x.Tracking).SingleAsync(x => x.TenantId == tenantId);
             Assert.Equal(InventoryDirection.Receipt, movement.Direction); Assert.Equal(2m, movement.Quantity); Assert.Equal(14m, movement.UnitCostBase); Assert.Equal(location.Id, movement.StorageLocationId);
-            var trace = Assert.Single(movement.Tracking); Assert.Equal("LOT-2026-B", trace.TrackingCode); Assert.Equal(new DateOnly(2027, 11, 30), trace.ExpiryDate);
+            Assert.Equal(new[] { "LOT-2026-B", "LOT-2026-C" }, movement.Tracking.Select(x => x.TrackingCode).OrderBy(x => x).ToArray()); Assert.All(movement.Tracking, x => Assert.Equal(new DateOnly(2027, 11, 30), x.ExpiryDate));
         }
         var voided = await client.PostAsync($"/api/purchasing/standalone-receipts/{id}/void", null); Assert.Equal(HttpStatusCode.OK, voided.StatusCode);
         await using (var scope = app.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>(); var movements = await db.InventoryTransactions.Include(x => x.Tracking).Where(x => x.TenantId == tenantId).OrderBy(x => x.Direction).ToListAsync();
             Assert.Equal(2, movements.Count); Assert.Contains(movements, x => x.Direction == InventoryDirection.Issue && x.ReversalOfId == movements.Single(m => m.Direction == InventoryDirection.Receipt).Id);
-            Assert.All(movements, x => { Assert.Equal("LOT-2026-B", Assert.Single(x.Tracking).TrackingCode); Assert.Equal(location.Id, x.StorageLocationId); });
+            Assert.All(movements, x => { Assert.Equal(new[] { "LOT-2026-B", "LOT-2026-C" }, x.Tracking.Select(t => t.TrackingCode).OrderBy(t => t).ToArray()); Assert.Equal(location.Id, x.StorageLocationId); });
             Assert.Equal(StandaloneInventoryDocumentStatus.Voided, await db.StandalonePurchaseReceipts.Where(x => x.Id == id).Select(x => x.Status).SingleAsync());
         }
         await app.StopAsync();

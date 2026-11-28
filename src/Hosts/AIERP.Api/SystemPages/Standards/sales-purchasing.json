@@ -3,7 +3,7 @@
   "title": "Satınalma siparişleri",
   "description": "Tedarikçi siparişlerini, teslim alınan miktarları ve mal kabul ile fatura zincirini izleyin.",
   "module": "Satın Alma",
-  "version": 4,
+  "version": 5,
   "stage": "preview",
   "items": {
     "component:suzgec": {
@@ -323,6 +323,30 @@
       "requires": [
         "component:liste"
       ]
+    },
+    "component:kabulIzlemeDugmesi": {
+      "since": 5,
+      "label": "Lot/seri dağılımı penceresini aç komutu",
+      "requires": [
+        "component:malKabulPenceresi",
+        "component:kabulIzlemePenceresi"
+      ]
+    },
+    "component:kabulIzlemePenceresi": {
+      "since": 5,
+      "label": "Lot/seri dağılımı penceresi",
+      "requires": [
+        "component:kabulIzlemeIzgarasi",
+        "component:malKabulPenceresi"
+      ]
+    },
+    "component:kabulIzlemeIzgarasi": {
+      "since": 5,
+      "label": "Lot/seri dağılımı satırları",
+      "requires": [
+        "component:kabulIzlemePenceresi",
+        "query:kabulKaynak"
+      ]
     }
   },
   "screenViews": [
@@ -588,7 +612,8 @@
             "kabulBilgileri",
             "kabulIstekKimligi",
             "kabulNotu",
-            "kabulDurumu"
+            "kabulDurumu",
+            "kabulIzlemeDugmesi"
           ],
           "saveQuery": "malKabulOlustur",
           "saveLabel": "Mal kabulü kaydet",
@@ -638,7 +663,7 @@
         "type": "text",
         "name": "kabulNotu",
         "props": {
-          "text": "Satırlar siparişin kalan miktarı ve fiyatıyla gelir. Kabul edilmeyecek satırın miktarını 0 yapın ya da satırı silin; miktarı 0 olan satır gönderilmez. Fiyat sipariş satırının temel biriminde girilir; bedelsiz satırda fiyat, iskonto ve KDV girilmez. Lot/seri izlemeli stok bu pencereden kabul edilemez (sunucu reddeder): o satırları 0 yapıp eski ekranda kabul edin.",
+          "text": "Satırlar siparişin kalan miktarı ve fiyatıyla gelir. Kabul edilmeyecek satırın miktarını 0 yapın ya da satırı silin; miktarı 0 olan satır gönderilmez. Fiyat sipariş satırının temel biriminde girilir; bedelsiz satırda fiyat, iskonto ve KDV girilmez. Lot/seri izlemeli kalemlerde kabul miktarını karşılayacak dağılımları ayrı pencereden girin.",
           "slot": "dialog"
         }
       },
@@ -955,6 +980,50 @@
           "emptyText": "Özel alan değeri yok.",
           "slot": "dialog"
         }
+      },
+      {
+        "id": "kabulIzlemeDugmesi",
+        "type": "button",
+        "name": "kabulIzlemeDugmesi",
+        "props": {
+          "text": "Lot/seri dağılımı",
+          "actionType": "openDialog",
+          "dialogId": "kabulIzlemePenceresi",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "kabulIzlemePenceresi",
+        "type": "dialog",
+        "name": "kabulIzlemePenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "lg",
+          "title": "Lot/seri dağılımı",
+          "contains": [
+            "kabulIzlemeIzgarasi"
+          ],
+          "slot": "dialogs"
+        }
+      },
+      {
+        "id": "kabulIzlemeIzgarasi",
+        "type": "editableGrid",
+        "name": "kabulIzlemeIzgarasi",
+        "props": {
+          "title": "Lot/seri dağılımı",
+          "gridMode": "list",
+          "addLabel": "Satır ekle",
+          "maxRows": 200,
+          "minRows": 0,
+          "gridColumns": [
+            "orderLineNumber|Sipariş satırı|lookup:kabulKaynak:orderLineNumber:stockCode:stockName|required",
+            "trackingCode|Lot/seri kodu|text|required",
+            "quantity|Miktar|number|required,min:0",
+            "expiryDate|Son kullanma|date"
+          ],
+          "slot": "dialog"
+        }
       }
     ],
     "queries": [
@@ -1187,6 +1256,11 @@
             "name": "lines",
             "binding": "{{kabulKalemleri.satirlar}}",
             "type": "list"
+          },
+          {
+            "name": "trackingAllocations",
+            "binding": "{{kabulIzlemeIzgarasi.satirlar}}",
+            "type": "list"
           }
         ]
       }
@@ -1211,6 +1285,16 @@
         {"component": "komutlar", "prop": "openParams", "from": [null]},
         {"component": "komutlar", "prop": "openTable", "from": [null]},
         {"component": "komutlar", "prop": "openTarget", "from": [null]}
+      ]
+    },
+    {
+      "id": "izleme",
+      "label": "Mal kabul penceresinde lot/seri dağılımı penceresi",
+      "below": 5,
+      "add": ["component:kabulIzlemeDugmesi", "component:kabulIzlemePenceresi", "component:kabulIzlemeIzgarasi"],
+      "append": [{"component": "malKabulPenceresi", "prop": "contains", "values": ["kabulIzlemeDugmesi"]}],
+      "set": [
+        {"component": "kabulNotu", "prop": "text", "from": ["Satırlar siparişin kalan miktarı ve fiyatıyla gelir. Kabul edilmeyecek satırın miktarını 0 yapın ya da satırı silin; miktarı 0 olan satır gönderilmez. Fiyat sipariş satırının temel biriminde girilir; bedelsiz satırda fiyat, iskonto ve KDV girilmez. Lot/seri izlemeli stok bu pencereden kabul edilemez (sunucu reddeder): o satırları 0 yapıp eski ekranda kabul edin."]}
       ]
     }
   ]

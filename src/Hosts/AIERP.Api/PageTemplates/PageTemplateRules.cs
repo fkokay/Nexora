@@ -188,6 +188,11 @@ internal static class PageTemplateRules
                 foreach (var card in Children(part).Prepend(part).Where(x => TypeOf(x) == "formCard"))
                     owned.AddRange(StringArray(card, "inputs"));
             }
+            if (owned.Distinct(StringComparer.Ordinal).Count() != owned.Count)
+            {
+                error = PencereIcerigi(owned.GroupBy(x => x, StringComparer.Ordinal).First(x => x.Count() > 1).Key);
+                return owners;
+            }
             foreach (var id in owned.Distinct(StringComparer.Ordinal))
                 if (!owners.TryAdd(id, dialogId) && owners[id] != dialogId && !shared.Contains(id)) shared.Add(id);
         }
@@ -407,7 +412,7 @@ internal static class PageTemplateRules
     }
 
     /// <summary>The window's custom fields block and row table rules (at most one each; saved by the window's own save step).</summary>
-    private static string? ValidateWindowExtras(JsonElement dialog, (JsonElement Component, string Slot, string Type)[] parts, JsonElement queries)
+    private static string? ValidateWindowExtras(JsonElement dialog, (JsonElement Component, string Slot, string Type)[] parts, JsonElement queries, JsonElement components)
     {
         var blocks = parts.Where(x => x.Type == "customFieldsBlock").ToArray();
         var grids = parts.Where(x => x.Type == "editableGrid").ToArray();
@@ -422,9 +427,14 @@ internal static class PageTemplateRules
         if (grids.Length == 1)
         {
             if (WindowGridError(grids[0].Component) is { } gridError) return gridError;
-            if (steps.Length == 0) return SatirEylem;
             var name = NameOf(grids[0].Component);
-            if (!Binds(queries, steps, name, "satirlar")) return SatirKayit(name);
+            var savedHere = steps.Length > 0 && Binds(queries, steps, name, "satirlar");
+            var savedByOwningWorkflow = components.ValueKind != JsonValueKind.Array ? [] : components.EnumerateArray()
+                .Where(x => TypeOf(x) == "dialog" && Id(x) != Id(dialog))
+                .SelectMany(x => x.TryGetProperty("props", out var props) ? SaveSteps(props) : Enumerable.Empty<string>())
+                .Distinct(StringComparer.Ordinal).ToArray();
+            var savedElsewhere = Binds(queries, savedByOwningWorkflow, name, "satirlar");
+            if (!savedHere && !savedElsewhere) return steps.Length == 0 ? SatirEylem : SatirKayit(name);
         }
         return null;
     }
@@ -729,7 +739,7 @@ internal static class PageTemplateRules
             if (parts.Count(x => x.Type == "recordHeader") > 1) return PencereOzet;
             if (parts.Count(x => x.Type == "tabs") + parts.SelectMany(x => Children(x.Component)).Count(x => TypeOf(x) == "tabs") > 1) return PencereSekme;
             if (placed.FirstOrDefault(x => Id(x.Component) == window.Key) is { Component.ValueKind: JsonValueKind.Object } owner
-                && ValidateWindowExtras(owner.Component, parts, queries) is { } extrasError) return extrasError;
+                && ValidateWindowExtras(owner.Component, parts, queries, components) is { } extrasError) return extrasError;
         }
 
         foreach (var (component, slot, type) in placed)
