@@ -37,10 +37,10 @@ public sealed class PurchasingDocumentSystemPagesTests
         { "sales-purchase-returns", "Satınalma İadeleri" },
     };
 
-    /// <summary>Versions: receipts v2 and invoices v3 are Liste-template standards (satın alma 1. dalga); returns stays v2.</summary>
+    /// <summary>Versions: receipts and returns are v3 Liste-template standards (Satın Alma 2. dalga).</summary>
     private static readonly Dictionary<string, int> Versions = new(StringComparer.Ordinal)
     {
-        ["sales-purchase-receipts"] = 2, ["sales-purchase-invoice-entry"] = 1, ["sales-purchase-invoices"] = 3, ["sales-purchase-returns"] = 2,
+        ["sales-purchase-receipts"] = 3, ["sales-purchase-invoice-entry"] = 1, ["sales-purchase-invoices"] = 3, ["sales-purchase-returns"] = 3,
     };
 
     /// <summary>The page params each legacy purchasing screen reads (K7 readers); a legacy command sends only these.</summary>
@@ -344,7 +344,6 @@ public sealed class PurchasingDocumentSystemPagesTests
     {
         { "sales-purchase-receipts", "faturaAcDugmesi", "sales-purchase-invoices", ["purchaseInvoiceId={{kabul.rows[0].invoice.id}}"] },
         { "sales-purchase-invoice-entry", "eskiEkranDugmesi", "sales-purchase-invoice-entry", ["receiptId={{kabulSecimi.value}}"] },
-        { "sales-purchase-returns", "eskiEkranDugmesi", "sales-purchase-returns", [] },
         { "sales-purchase-returns", "faturaAcDugmesi", "sales-purchase-invoices", ["purchaseInvoiceId={{liste.seciliSatir.purchaseInvoiceId}}"] },
     };
 

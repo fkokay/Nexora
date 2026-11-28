@@ -1793,3 +1793,11 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
 - **Karşılıksız kalan:** `fixed-asset-create` özetinde "Aylık amortisman" hesaplanan göstergesi yok (kalıpta özet alanları hesap ifadesi bilmiyor; maliyet ve ömür gösterilir). Kaydetten sonra kıymet kartı açılmıyor: kalıbın "kayıttan sonra" komutu sayfa parametresi taşımadığı için kayıt sonrası kıymet listesi açılır. `fixed-assets` durum süzgeci seçenekleri yüklü satırlardan gelir (sunucuya giden seçimli süzgeç).
 - **Doğrulanan (yerel):** Üç standart yüklenir ve şemadan geçer; ilgili .NET testleri (`FixedAssetSystemPagesTests`, `FinanceSystemPagesTests`, `SystemPageStandardsTests`) ile ERP ve Studio standart vitest dosyaları kalıba uyarlandı ve geçti.
 - **Doğrulanmayan:** Ekranların canlıda gerçek firma kopyasıyla ve tarayıcıda görsel olarak denenmesi; eski firma kopyalarının standarda sıfırlanması bu işte yok.
+
+### Satın Alma 2. dalga (2026-11-28)
+
+- **Değişen:** `sales-requests`, `sales-purchasing`, `sales-purchase-delivery-notes` ve `sales-purchase-returns` v3 Liste kalıbına taşındı; `sales-purchase-receipts` v3 oldu. Sürüm manifesti ve şema geçiş testindeki liste güncellendi; .NET, ERP ve Studio testleri yeni düzen beklentilerine uyarlandı.
+- **Sadeleşen:** Liste ekranlarında detaylar pencereye taşındı; özel filtre kartları, eski ekran geçişleri ve kalıba sığmayan satır hesapları/bağlam alanları kaldırıldı. Mevcut işlemler korundu.
+- **Atlanan:** Mal kabullerde siparişsiz mal kabul penceresi ve lot/seri dağıtım satır tablosu eklenmedi. Mevcut oluşturma API’si siparişe bağlı; takip tahsisleri iç içe yapıda olduğundan düz kalıp satır tablosuna eşlenemedi.
+- **Doğrulanan:** Değiştirilen ERP Vitest dosyaları (5) ve Studio Vitest dosyası geçti.
+- **Doğrulanmayan:** .NET test/build istek gereği çalıştırılmadı; tarayıcıda canlı görsel deneme yapılmadı.

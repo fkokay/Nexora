@@ -1,245 +1,918 @@
 {
-  "screenKey": "sales-purchase-returns", "title": "Satınalma İadeleri",
-  "description": "Tedarikçilere geri gönderilen ürünler. İade stoktan düşülür ve tedarikçi borcunu azaltır.", "module": "Satın Alma",
-  "version": 2, "stage": "preview",
+  "screenKey": "sales-purchase-returns",
+  "title": "Satınalma İadeleri",
+  "description": "Tedarikçilere geri gönderilen ürünler. İade stoktan düşülür ve tedarikçi borcunu azaltır.",
+  "module": "Satın Alma",
+  "version": 3,
+  "stage": "preview",
   "items": {
-    "component:komutlar": {"since": 1, "label": "İşlem çubuğu", "requires": ["component:suzgec", "component:liste", "component:yeniIadeDugmesi", "component:acDugmesi", "component:iptalMenuDugmesi", "component:faturaAcDugmesi", "component:eskiEkranDugmesi", "query:iadeler"]},
-    "component:olusturmaNotu": {"since": 1, "label": "İade oluşturma notu"},
-    "component:iptalGostergesi": {"since": 1, "label": "İptal göstergesi (bu sayfa)", "requires": ["query:iadeler"]},
-    "component:suzgec": {"since": 1, "label": "Süzgeç alanı (arama)", "requires": ["component:liste"]},
-    "component:detayPaneli": {"since": 1, "label": "Detay paneli anahtarı"},
-    "component:liste": {"since": 1, "label": "Alış iadeleri listesi", "requires": ["component:detayPaneli", "component:acDugmesi", "component:iptalSatir", "query:iadeler"]},
-    "component:acDugmesi": {"since": 1, "label": "Belgeyi aç komutu", "requires": ["component:belgePenceresi", "component:liste"]},
-    "component:iptalSatir": {"since": 1, "label": "İptal et satır düğmesi", "requires": ["component:liste", "query:iadeIptalSatir", "query:iadeler"]},
-    "component:detayKarti": {"since": 1, "label": "Detay paneli", "requires": ["component:detayPaneli", "component:liste", "component:ozetPaneli", "component:panelZinciri", "component:panelSatirlari", "component:belgePenceresi", "query:iade"]},
-    "component:ozetPaneli": {"since": 1, "label": "Detay: Özet", "requires": ["component:liste"]},
-    "component:panelZinciri": {"since": 1, "label": "Detay: Belge zinciri", "requires": ["component:liste"]},
-    "component:panelSatirlari": {"since": 1, "label": "Detay: Satırlar", "requires": ["query:iadeSatirlari"]},
-    "component:belgePenceresi": {"since": 1, "label": "Alış iadesi belgesi", "requires": ["component:belgeBasligi", "component:belgeTutarlari", "component:belgeAkisi", "component:belgeSatirlari", "component:islendiNotu", "component:iptalNotu"]},
-    "component:belgeBasligi": {"since": 1, "label": "Belge: İade bilgileri", "requires": ["query:iade"]},
-    "component:belgeTutarlari": {"since": 1, "label": "Belge: Toplamlar", "requires": ["query:iade"]},
-    "component:belgeAkisi": {"since": 1, "label": "Belge: Durum akışı", "requires": ["query:iade"]},
-    "component:belgeSatirlari": {"since": 1, "label": "Belge: Satırlar", "requires": ["query:iadeSatirlari"]},
-    "component:islendiNotu": {"since": 1, "label": "Belge: İşlenmiş iade notu", "requires": ["query:iade"]},
-    "component:iptalNotu": {"since": 1, "label": "Belge: İptal edilmiş iade notu", "requires": ["query:iade"]},
-    "component:yeniIadeDugmesi": {"since": 1, "label": "Yeni iade komutu", "requires": ["component:iadePenceresi"]},
-    "component:iadePenceresi": {"since": 2, "label": "Alış iadesi oluşturma penceresi", "requires": ["component:iadeBilgileri", "component:iadeKimligi", "component:iadeKalemleri", "component:iadeNotu", "query:iadeOlustur", "query:iadeler", "query:iadeKaynak"]},
-    "component:iadeBilgileri": {"since": 2, "label": "İade bilgileri", "requires": ["component:iadeFatura", "component:iadeDepo", "component:iadeTarihi"]},
-    "component:iadeFatura": {"since": 2, "label": "İade alanı: Kaynak alış faturası", "requires": ["component:iadeKalemleri", "query:faturalar"]},
-    "component:iadeDepo": {"since": 2, "label": "İade alanı: Çıkış deposu", "requires": ["component:iadeKalemleri", "query:depolar"]},
-    "component:iadeTarihi": {"since": 2, "label": "İade alanı: İade tarihi"},
-    "component:iadeKimligi": {"since": 2, "label": "İade tekrar deneme kimliği (gizli)"},
-    "component:iadeKalemleri": {"since": 2, "label": "İade satırları (iade edilebilir fatura satırları)", "requires": ["query:iadeKaynak", "query:iadeKonumlar"]},
-    "component:iadeNotu": {"since": 2, "label": "İade satırları notu", "requires": ["component:iadeKalemleri"]},
-    "component:iptalMenuDugmesi": {"since": 1, "label": "İptal et komutu", "requires": ["component:liste", "query:iadeIptal", "query:iadeler", "query:iade"]},
-    "component:faturaAcDugmesi": {"since": 1, "label": "Faturayı aç komutu (eski ekran)", "requires": ["component:liste"]},
-    "component:eskiEkranDugmesi": {"since": 1, "label": "Eski ekranda aç komutu"},
-    "query:iadeler": {"since": 1, "label": "Alış iadelerini listele", "requires": ["component:suzgec", "component:liste"]},
-    "query:iade": {"since": 1, "label": "Seçili alış iadesi", "requires": ["component:liste"]},
-    "query:iadeSatirlari": {"since": 1, "label": "Seçili iadenin satırları", "requires": ["component:liste"]},
-    "query:iadeIptal": {"since": 1, "label": "Alış iadesini iptal et (menü)", "requires": ["query:iade"]},
-    "query:iadeIptalSatir": {"since": 1, "label": "Alış iadesini iptal et (satır)", "requires": ["component:liste"]},
-    "query:faturalar": {"since": 2, "label": "Alış faturaları (iade kaynağı seçici)", "requires": ["component:iadeFatura"]},
-    "query:depolar": {"since": 2, "label": "Depolar (iade çıkış deposu)"},
-    "query:iadeKonumlar": {"since": 2, "label": "İade deposunun konumları", "requires": ["component:iadeDepo"]},
-    "query:iadeKaynak": {"since": 2, "label": "Seçilen faturanın iade edilebilir satırları", "requires": ["component:iadeFatura"]},
-    "query:iadeOlustur": {"since": 2, "label": "Alış faturasından iade oluştur",
-      "requires": ["component:iadeFatura", "component:iadeKimligi", "component:iadeDepo", "component:iadeTarihi", "component:iadeKalemleri"]}
+    "component:suzgec": {
+      "since": 1,
+      "label": "Süzgeç alanı (arama)"
+    },
+    "component:acDugmesi": {
+      "since": 1,
+      "label": "Belgeyi aç komutu",
+      "requires": [
+        "component:belgePenceresi",
+        "component:liste"
+      ]
+    },
+    "component:liste": {
+      "since": 1,
+      "label": "Alış iadeleri listesi",
+      "requires": [
+        "component:acDugmesi",
+        "component:faturaAcDugmesi",
+        "component:iptalSatir",
+        "query:iadeler"
+      ]
+    },
+    "component:belgePenceresi": {
+      "since": 1,
+      "label": "Alış iadesi belgesi",
+      "requires": [
+        "component:belgeAkisi",
+        "component:belgeBasligi",
+        "component:belgeSatirlari",
+        "component:belgeTutarlari",
+        "component:iptalNotu",
+        "component:islendiNotu",
+        "query:iade"
+      ]
+    },
+    "component:belgeTutarlari": {
+      "since": 1,
+      "label": "Belge: Toplamlar",
+      "requires": [
+        "query:iade"
+      ]
+    },
+    "component:iadePenceresi": {
+      "since": 2,
+      "label": "Alış iadesi oluşturma penceresi",
+      "requires": [
+        "component:iadeBilgileri",
+        "component:iadeDepo",
+        "component:iadeFatura",
+        "component:iadeKalemleri",
+        "component:iadeKimligi",
+        "component:iadeNotu",
+        "component:iadeTarihi",
+        "query:iadeKaynak",
+        "query:iadeOlustur",
+        "query:iadeler"
+      ]
+    },
+    "component:yeniIadeDugmesi": {
+      "since": 1,
+      "label": "Yeni iade komutu",
+      "requires": [
+        "component:iadePenceresi"
+      ]
+    },
+    "component:iptalSatir": {
+      "since": 1,
+      "label": "İptal et satır düğmesi",
+      "requires": [
+        "component:liste",
+        "query:iade",
+        "query:iadeIptalSatir",
+        "query:iadeler"
+      ]
+    },
+    "component:iadeDepo": {
+      "since": 1,
+      "label": "iadeDepo",
+      "requires": [
+        "query:depolar"
+      ]
+    },
+    "component:komutlar": {
+      "since": 1,
+      "label": "İşlem çubuğu",
+      "requires": [
+        "component:liste",
+        "component:suzgec",
+        "component:yeniIadeDugmesi",
+        "query:iadeler"
+      ]
+    },
+    "component:iptalGostergesi": {
+      "since": 1,
+      "label": "İptal göstergesi (bu sayfa)",
+      "requires": [
+        "query:iadeler"
+      ]
+    },
+    "component:iadeNotu": {
+      "since": 2,
+      "label": "İade satırları notu",
+      "requires": [
+        "component:iadeKalemleri"
+      ]
+    },
+    "component:belgeSatirlari": {
+      "since": 1,
+      "label": "Belge: Satırlar",
+      "requires": [
+        "query:iadeSatirlari"
+      ]
+    },
+    "component:iadeTarihi": {
+      "since": 1,
+      "label": "iadeTarihi"
+    },
+    "component:detayKarti": {
+      "since": 1,
+      "label": "Detay paneli",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:iptalNotu": {
+      "since": 1,
+      "label": "Belge: İptal edilmiş iade notu",
+      "requires": [
+        "query:iade"
+      ]
+    },
+    "component:iadeFatura": {
+      "since": 1,
+      "label": "iadeFatura",
+      "requires": [
+        "query:faturalar"
+      ]
+    },
+    "component:iadeKimligi": {
+      "since": 2,
+      "label": "İade tekrar deneme kimliği (gizli)"
+    },
+    "component:iadeBilgileri": {
+      "since": 2,
+      "label": "İade bilgileri",
+      "requires": [
+        "component:iadeDepo",
+        "component:iadeFatura",
+        "component:iadeTarihi"
+      ]
+    },
+    "component:belgeBasligi": {
+      "since": 1,
+      "label": "Belge: İade bilgileri",
+      "requires": [
+        "query:iade"
+      ]
+    },
+    "component:belgeAkisi": {
+      "since": 1,
+      "label": "Belge: Durum akışı",
+      "requires": [
+        "query:iade"
+      ]
+    },
+    "component:islendiNotu": {
+      "since": 1,
+      "label": "Belge: İşlenmiş iade notu",
+      "requires": [
+        "query:iade"
+      ]
+    },
+    "component:iadeKalemleri": {
+      "since": 2,
+      "label": "İade satırları (iade edilebilir fatura satırları)",
+      "requires": [
+        "query:iadeKaynak",
+        "query:iadeKonumlar"
+      ]
+    },
+    "component:faturaAcDugmesi": {
+      "since": 1,
+      "label": "Faturayı aç komutu (eski ekran)",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:iadeler": {
+      "since": 1,
+      "label": "Alış iadelerini listele",
+      "requires": [
+        "component:liste",
+        "component:suzgec"
+      ]
+    },
+    "query:iade": {
+      "since": 1,
+      "label": "Seçili alış iadesi",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:iadeSatirlari": {
+      "since": 1,
+      "label": "Seçili iadenin satırları",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:iadeIptalSatir": {
+      "since": 1,
+      "label": "Alış iadesini iptal et (satır)",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:faturalar": {
+      "since": 2,
+      "label": "Alış faturaları (iade kaynağı seçici)",
+      "requires": [
+        "component:iadeFatura"
+      ]
+    },
+    "query:depolar": {
+      "since": 2,
+      "label": "Depolar (iade çıkış deposu)"
+    },
+    "query:iadeKonumlar": {
+      "since": 2,
+      "label": "İade deposunun konumları",
+      "requires": [
+        "component:iadeDepo"
+      ]
+    },
+    "query:iadeKaynak": {
+      "since": 2,
+      "label": "Seçilen faturanın iade edilebilir satırları",
+      "requires": [
+        "component:iadeFatura"
+      ]
+    },
+    "query:iadeOlustur": {
+      "since": 2,
+      "label": "Alış faturasından iade oluştur",
+      "requires": [
+        "component:iadeDepo",
+        "component:iadeFatura",
+        "component:iadeKalemleri",
+        "component:iadeKimligi",
+        "component:iadeTarihi"
+      ]
+    }
   },
   "definition": {
     "schemaVersion": 2,
     "components": [
-      { "id": "komutlar", "type": "actionBar", "name": "komutlar",
-        "props": { "newButton": "yeniIadeDugmesi", "openButton": "acDugmesi", "focusInput": "suzgec", "exportTable": "liste",
-                   "titleCount": "{{iadeler.meta.totalCount}}",
-                   "moreButtons": ["iptalMenuDugmesi", "faturaAcDugmesi", "eskiEkranDugmesi"],
-                   "hiddenCommands": ["save", "delete", "print"] } },
-      { "id": "olusturmaNotu", "type": "text", "name": "olusturmaNotu",
-        "props": { "text": "Yeni iade, işlenmiş bir alış faturasının iade edilebilir satırlarından oluşturulur.", "width": 9 } },
-      { "id": "iptalGostergesi", "type": "metric", "name": "iptalGostergesi",
-        "props": { "title": "İptal", "query": "iadeler", "countWhen": "iadeler.satir.status == 'Voided'", "icon": "ban",
-                   "description": "bu sayfa", "width": 3 } },
-
-      { "id": "suzgec", "type": "filterBar", "name": "suzgec",
-        "props": { "table": "liste", "width": 12, "search": true, "searchPlaceholder": "İade no, fatura veya tedarikçi ara", "searchParam": "q" } },
-      { "id": "detayPaneli", "type": "input", "name": "detayPaneli",
-        "props": { "inputType": "checkbox", "label": "Detay paneli", "icon": "panel", "defaultWhen": "sayfa.genis == true" } },
-
-      { "id": "liste", "type": "dataTable", "name": "liste",
-        "props": { "title": "Alış iadeleri", "query": "iadeler", "paging": "server", "pageSize": 25, "width": 12,
-                   "widthWhen": "8=detayPaneli.value == true && liste.seciliSatir.id != null",
-                   "detailToggleInput": "detayPaneli",
-                   "columns": ["code", "returnDate", "supplierName", "invoiceCode", "warehouseName", "lineCount", "grandTotal", "status"],
-                   "columnLabels": ["code=İade no", "returnDate=Tarih", "supplierName=Tedarikçi", "invoiceCode=Fatura", "warehouseName=Depo",
-                                    "lineCount=Satır", "grandTotal=Tutar", "status=Durum", "currencyCode=Döviz", "createdAt=Oluşturulma"],
-                   "columnUnits": ["grandTotal=currencyCode"],
-                   "columnFormats": ["code=code", "returnDate=date", "invoiceCode=code", "lineCount=number", "grandTotal=money", "status=status",
-                                     "createdAt=date"],
-                   "valueLabels": ["status:Posted=İşlendi", "status:Voided=İptal"],
-                   "toneMap": ["İşlendi=success", "İptal=info"],
-                   "rowActions": ["acDugmesi", "iptalSatir"], "rowOpenAction": "acDugmesi",
-                   "emptyText": "Henüz alış iadesi yok. İade, kayıtlı bir alış faturasının detayından oluşturulur." } },
-      { "id": "acDugmesi", "type": "button", "name": "acDugmesi",
-        "props": { "text": "Aç", "icon": "open", "actionType": "openDialog", "dialogId": "belgePenceresi",
-                   "disabledWhen": "liste.seciliSatir.id == null", "disabledReason": "Önce bir kayıt seçin" } },
-      { "id": "iptalSatir", "type": "button", "name": "iptalSatir",
-        "props": { "text": "İptal et", "actionType": "query", "queryId": "iadeIptalSatir", "confirmEnabled": true,
-                   "confirmText": "{{liste.seciliSatir.code}} alış iadesi iptal edilsin mi? Stok ve cari hareketleri ters kaydedilecek.",
-                   "successMessage": "Alış iadesi iptal edildi; stok ve cari kayıtları ters hareketle korundu.",
-                   "errorMessage": "Alış iadesi iptal edilemedi.", "refreshQueries": ["iadeler", "iade"],
-                   "visibleWhen": "liste.seciliSatir.status == 'Posted'" } },
-
-      { "id": "detayKarti", "type": "card", "name": "detayKarti",
-        "props": { "variant": "panel", "title": "{{liste.seciliSatir.code}}", "description": "{{liste.seciliSatir.supplierName}}",
-                   "closeInput": "detayPaneli", "width": 4,
-                   "visibleWhen": "detayPaneli.value == true && liste.seciliSatir.id != null" },
+      {
+        "id": "komutlar",
+        "type": "actionBar",
+        "name": "komutlar",
+        "props": {
+          "newButton": "yeniIadeDugmesi",
+          "focusInput": "suzgec",
+          "exportTable": "liste",
+          "titleCount": "{{iadeler.meta.totalCount}}",
+          "hiddenCommands": [
+            "save",
+            "delete",
+            "print"
+          ],
+          "slot": "commands"
+        }
+      },
+      {
+        "id": "iptalGostergesi",
+        "type": "metric",
+        "name": "iptalGostergesi",
+        "props": {
+          "title": "İptal",
+          "query": "iadeler",
+          "countWhen": "iadeler.satir.status == 'Voided'",
+          "icon": "ban",
+          "description": "bu sayfa",
+          "slot": "indicators"
+        }
+      },
+      {
+        "id": "suzgec",
+        "type": "filterBar",
+        "name": "suzgec",
+        "props": {
+          "table": "liste",
+          "search": true,
+          "searchPlaceholder": "İade no, fatura veya tedarikçi ara",
+          "searchParam": "q",
+          "slot": "filters"
+        }
+      },
+      {
+        "id": "liste",
+        "type": "dataTable",
+        "name": "liste",
+        "props": {
+          "title": "Alış iadeleri",
+          "query": "iadeler",
+          "paging": "server",
+          "pageSize": 25,
+          "columns": [
+            "code",
+            "returnDate",
+            "supplierName",
+            "invoiceCode",
+            "warehouseName",
+            "lineCount",
+            "grandTotal",
+            "status"
+          ],
+          "columnLabels": [
+            "code=İade no",
+            "returnDate=Tarih",
+            "supplierName=Tedarikçi",
+            "invoiceCode=Fatura",
+            "warehouseName=Depo",
+            "lineCount=Satır",
+            "grandTotal=Tutar",
+            "status=Durum",
+            "currencyCode=Döviz",
+            "createdAt=Oluşturulma"
+          ],
+          "columnUnits": [
+            "grandTotal=currencyCode"
+          ],
+          "columnFormats": [
+            "code=code",
+            "returnDate=date",
+            "invoiceCode=code",
+            "lineCount=number",
+            "grandTotal=money",
+            "status=status",
+            "createdAt=date"
+          ],
+          "valueLabels": [
+            "status:Posted=İşlendi",
+            "status:Voided=İptal"
+          ],
+          "toneMap": [
+            "İşlendi=success",
+            "İptal=info"
+          ],
+          "rowActions": [
+            "acDugmesi",
+            "iptalSatir",
+            "faturaAcDugmesi"
+          ],
+          "rowOpenAction": "acDugmesi",
+          "emptyText": "Henüz alış iadesi yok. İade, kayıtlı bir alış faturasının detayından oluşturulur.",
+          "slot": "list"
+        }
+      },
+      {
+        "id": "acDugmesi",
+        "type": "button",
+        "name": "acDugmesi",
+        "props": {
+          "text": "Aç",
+          "icon": "open",
+          "actionType": "openDialog",
+          "dialogId": "belgePenceresi",
+          "disabledWhen": "liste.seciliSatir.id == null",
+          "disabledReason": "Önce bir kayıt seçin",
+          "slot": "rowActions"
+        }
+      },
+      {
+        "id": "iptalSatir",
+        "type": "button",
+        "name": "iptalSatir",
+        "props": {
+          "text": "İptal et",
+          "actionType": "query",
+          "queryId": "iadeIptalSatir",
+          "confirmEnabled": true,
+          "confirmText": "{{liste.seciliSatir.code}} alış iadesi iptal edilsin mi? Stok ve cari hareketleri ters kaydedilecek.",
+          "successMessage": "Alış iadesi iptal edildi; stok ve cari kayıtları ters hareketle korundu.",
+          "errorMessage": "Alış iadesi iptal edilemedi.",
+          "refreshQueries": [
+            "iadeler",
+            "iade"
+          ],
+          "visibleWhen": "liste.seciliSatir.status == 'Posted'",
+          "slot": "rowActions"
+        }
+      },
+      {
+        "id": "faturaAcDugmesi",
+        "type": "button",
+        "name": "faturaAcDugmesi",
+        "props": {
+          "text": "Faturayı aç",
+          "actionType": "erpPage",
+          "pageKey": "sales-purchase-invoices",
+          "legacyScreen": true,
+          "target": "newTab",
+          "params": [
+            "purchaseInvoiceId={{liste.seciliSatir.purchaseInvoiceId}}"
+          ],
+          "disabledWhen": "liste.seciliSatir.id == null",
+          "disabledReason": "Önce bir kayıt seçin",
+          "slot": "rowActions"
+        }
+      },
+      {
+        "id": "yeniIadeDugmesi",
+        "type": "button",
+        "name": "yeniIadeDugmesi",
+        "props": {
+          "text": "Yeni iade",
+          "actionType": "openDialog",
+          "dialogId": "iadePenceresi",
+          "slot": "actions"
+        }
+      },
+      {
+        "id": "detayKarti",
+        "type": "card",
+        "name": "detayKarti",
+        "props": {
+          "variant": "panel",
+          "title": "{{liste.seciliSatir.code}}",
+          "description": "{{liste.seciliSatir.supplierName}}",
+          "slot": "detail"
+        },
         "children": [
-          { "id": "detayIslendi", "type": "badge", "name": "detayIslendi",
-            "props": { "text": "İşlendi", "variant": "success", "visibleWhen": "liste.seciliSatir.status == 'Posted'" } },
-          { "id": "detayIptal", "type": "badge", "name": "detayIptal",
-            "props": { "text": "İptal", "variant": "info", "visibleWhen": "liste.seciliSatir.status == 'Voided'" } },
-          { "id": "genelToplamGostergesi", "type": "metric", "name": "genelToplamGostergesi",
-            "props": { "title": "Genel toplam", "value": "{{iade.rows[0].grandTotal}}", "format": "money", "width": 6, "icon": "receipt",
-                       "description": "{{iade.rows[0].currencyCode}}" } },
-          { "id": "araToplamGostergesi", "type": "metric", "name": "araToplamGostergesi",
-            "props": { "title": "Ara toplam", "value": "{{iade.rows[0].subtotal}}", "format": "money", "width": 6, "icon": "calculator",
-                       "description": "{{iade.rows[0].currencyCode}}" } },
-          { "id": "iskontoGostergesi", "type": "metric", "name": "iskontoGostergesi",
-            "props": { "title": "İskonto", "value": "{{iade.rows[0].discountTotal}}", "format": "money", "width": 6, "icon": "percent",
-                       "description": "{{iade.rows[0].currencyCode}}" } },
-          { "id": "kdvGostergesi", "type": "metric", "name": "kdvGostergesi",
-            "props": { "title": "KDV", "value": "{{iade.rows[0].taxTotal}}", "format": "money", "width": 6, "icon": "landmark",
-                       "description": "{{iade.rows[0].currencyCode}}" } },
-          { "id": "detaySekmeleri", "type": "tabs", "name": "detaySekmeleri",
-            "props": { "tabs": ["Özet=ozetPaneli,panelZinciri", "Satırlar=panelSatirlari"] } },
-          { "id": "detayAc", "type": "button", "name": "detayAc",
-            "props": { "text": "Belgeyi aç ›", "actionType": "openDialog", "dialogId": "belgePenceresi" } }
-        ] },
-      { "id": "ozetPaneli", "type": "contextPanel", "name": "ozetPaneli",
-        "props": { "table": "liste", "width": 12,
-                   "fields": ["returnDate=İade tarihi", "warehouseName=Depo", "invoiceCode=Alış faturası", "currencyCode=Döviz", "lineCount=Satır sayısı"] } },
-      { "id": "panelZinciri", "type": "text", "name": "panelZinciri",
-        "props": { "title": "Belge zinciri", "text": "Alış faturası {{liste.seciliSatir.invoiceCode}} → Bu iade {{liste.seciliSatir.code}}" } },
-      { "id": "panelSatirlari", "type": "dataTable", "name": "panelSatirlari",
-        "props": { "title": "Satırlar", "query": "iadeSatirlari", "width": 12, "showGridSearch": false, "showColumnFilters": false,
-                   "showColumnChooser": false, "showExport": false, "showPivot": false, "showCsv": false, "showSelectedExport": false,
-                   "columns": ["stockName", "quantity", "lineTotal"],
-                   "columnLabels": ["stockName=Stok", "quantity=Miktar", "lineTotal=Toplam"],
-                   "columnUnits": ["stockName=stockCode", "quantity=unitCode"],
-                   "columnFormats": ["quantity=number", "lineTotal=money"],
-                   "emptyText": "Satır yok." } },
-
-      { "id": "belgePenceresi", "type": "dialog", "name": "belgePenceresi",
-        "props": { "presentation": "dialog", "size": "xl", "title": "Alış iadesi · {{iade.rows[0].code}}",
-                   "contains": ["belgeBasligi", "belgeTutarlari", "belgeAkisi", "belgeSatirlari", "islendiNotu", "iptalNotu"] } },
-      { "id": "belgeBasligi", "type": "recordHeader", "name": "belgeBasligi",
-        "props": { "icon": "truck", "title": "{{iade.rows[0].code}}", "subtitle": "{{iade.rows[0].supplierName}}",
-                   "fields": ["İade tarihi={{iade.rows[0].returnDate}}", "İadenin çıktığı depo={{iade.rows[0].warehouseName}}",
-                              "Kaynak fatura={{iade.rows[0].invoiceCode}}", "Para birimi={{iade.rows[0].currencyCode}}"],
-                   "fieldFormats": ["İade tarihi=date"] } },
-      { "id": "belgeTutarlari", "type": "recordHeader", "name": "belgeTutarlari",
-        "props": { "title": "Toplamlar",
-                   "fields": ["Ara toplam={{iade.rows[0].subtotal}}", "İskonto={{iade.rows[0].discountTotal}}",
-                              "KDV={{iade.rows[0].taxTotal}}", "Genel toplam={{iade.rows[0].grandTotal}}"],
-                   "fieldFormats": ["Ara toplam=money", "İskonto=money", "KDV=money", "Genel toplam=money"],
-                   "fieldUnits": ["Ara toplam={{iade.rows[0].currencyCode}}", "İskonto={{iade.rows[0].currencyCode}}",
-                                  "KDV={{iade.rows[0].currencyCode}}", "Genel toplam={{iade.rows[0].currencyCode}}"] } },
-      { "id": "belgeAkisi", "type": "steps", "name": "belgeAkisi",
-        "props": { "steps": ["İşlendi", "İptal"],
-                   "activeWhen": ["iade.rows[0].status == 'Posted'", "iade.rows[0].status == 'Voided'"] } },
-      { "id": "belgeSatirlari", "type": "dataTable", "name": "belgeSatirlari",
-        "props": { "title": "Satırlar", "query": "iadeSatirlari", "width": 12, "showPivot": false,
-                   "columns": ["orderLineNumber", "stockCode", "stockName", "quantity", "enteredQuantity", "unitPrice", "discountAmount", "vatPercent", "taxAmount", "lineTotal"],
-                   "columnLabels": ["orderLineNumber=#", "stockCode=Stok kodu", "stockName=Stok adı", "quantity=Miktar", "enteredQuantity=Girilen miktar",
-                                    "unitPrice=Birim fiyat", "discountAmount=İskonto", "vatPercent=KDV %", "taxAmount=KDV", "lineTotal=Toplam",
-                                    "lineSubtotal=Ara toplam", "discountPercent=İskonto %"],
-                   "columnUnits": ["quantity=unitCode", "enteredQuantity=enteredUnitCode"],
-                   "columnFormats": ["orderLineNumber=number", "stockCode=code", "quantity=number", "enteredQuantity=number", "unitPrice=number",
-                                     "discountAmount=money", "vatPercent=number", "taxAmount=money", "lineTotal=money", "lineSubtotal=money",
-                                     "discountPercent=number"],
-                   "emptyText": "Satır yok." } },
-      { "id": "islendiNotu", "type": "text", "name": "islendiNotu",
-        "props": { "text": "İade stoktan düşülür ve tedarikçi borcunu azaltır.", "visibleWhen": "iade.rows[0].status == 'Posted'" } },
-      { "id": "iptalNotu", "type": "text", "name": "iptalNotu",
-        "props": { "text": "Bu iade iptal edildi; stok ve cari hareketleri ters kayıtla geri alındı.", "visibleWhen": "iade.rows[0].status == 'Voided'" } },
-
-      { "id": "yeniIadeDugmesi", "type": "button", "name": "yeniIadeDugmesi",
-        "props": { "text": "Yeni iade", "actionType": "openDialog", "dialogId": "iadePenceresi" } },
-
-      { "id": "iadePenceresi", "type": "dialog", "name": "iadePenceresi",
-        "props": { "presentation": "dialog", "size": "xl", "title": "Yeni alış iadesi",
-                   "contains": ["iadeBilgileri", "iadeKimligi", "iadeKalemleri", "iadeNotu"],
-                   "saveQuery": "iadeOlustur", "saveLabel": "İadeyi kaydet", "closeOnSave": true, "resetOnOpen": true,
-                   "refreshQueries": ["iadeler", "iadeKaynak"] } },
-      { "id": "iadeBilgileri", "type": "formCard", "name": "iadeBilgileri",
-        "props": { "title": "İade bilgileri", "columns": 3, "inputs": ["iadeFatura", "iadeDepo", "iadeTarihi"] } },
-      { "id": "iadeFatura", "type": "input", "name": "iadeFatura",
-        "props": { "inputType": "lookup", "label": "Alış faturası", "required": true, "optionsQuery": "faturalar", "optionValueColumn": "id",
-                   "optionLabelColumn": "code", "optionDescriptionColumn": "supplierName", "minChars": 0,
-                   "optionsWhen": "satir.status == 'Posted'" } },
-      { "id": "iadeDepo", "type": "input", "name": "iadeDepo",
-        "props": { "inputType": "lookup", "label": "İadenin çıktığı depo", "required": true, "optionsQuery": "depolar", "optionValueColumn": "id",
-                   "optionLabelColumn": "name", "optionDescriptionColumn": "code", "minChars": 0, "optionsWhen": "satir.isActive == true",
-                   "clearsOnChange": ["iadeKalemleri.storageLocationId"] } },
-      { "id": "iadeTarihi", "type": "input", "name": "iadeTarihi",
-        "props": { "inputType": "date", "label": "İade tarihi", "required": true, "defaultValue": "{{bugun}}" } },
-      { "id": "iadeKimligi", "type": "input", "name": "iadeKimligi",
-        "props": { "inputType": "text", "label": "İade tekrar deneme kimliği", "hidden": true, "autoId": true } },
-      { "id": "iadeKalemleri", "type": "editableGrid", "name": "iadeKalemleri",
-        "props": { "gridMode": "list", "title": "İade edilecek satırlar", "addLabel": "Satır ekle", "maxRows": 200, "minRows": 1,
-                   "gridColumns": ["purchaseInvoiceLineId|Fatura satırı|lookup:iadeKaynak:purchaseInvoiceLineId:stockCode:stockName|required,readOnly",
-                                   "invoicedQuantity|Faturalanan|number|readOnly",
-                                   "returnedQuantity|İade edilen|number|readOnly",
-                                   "remainingQuantity|Kalan|number|readOnly",
-                                   "quantity|İade miktarı|number|min:0,step:0.0001",
-                                   "unitCode|Birim|text|readOnly",
-                                   "unitPrice|Birim fiyat|number|readOnly",
-                                   "storageLocationId|Konum|lookup:iadeKonumlar:id:code:name"],
-                   "columnOptionsWhen": ["storageLocationId=satir.isActive == true"],
-                   "fillQuery": "iadeKaynak", "fillColumns": { "quantity": "remainingQuantity" }, "skipWhenZero": "quantity" } },
-      { "id": "iadeNotu", "type": "text", "name": "iadeNotu",
-        "props": { "text": "Fatura seçilince satırlar kalan iade edilebilir miktarla dolar; iade etmeyeceğiniz satırın miktarını 0 yapın. Gönderilecek satır: {{iadeKalemleri.satirSayisi}}. İade miktarı kalanı ve depodaki stoğu aşamaz." } },
-      { "id": "iptalMenuDugmesi", "type": "button", "name": "iptalMenuDugmesi",
-        "props": { "text": "İadeyi iptal et", "actionType": "query", "queryId": "iadeIptal", "confirmEnabled": true,
-                   "confirmText": "{{liste.seciliSatir.code}} alış iadesi iptal edilsin mi? Stok ve cari hareketleri ters kaydedilecek.",
-                   "successMessage": "Alış iadesi iptal edildi; stok ve cari kayıtları ters hareketle korundu.",
-                   "errorMessage": "Alış iadesi iptal edilemedi.", "refreshQueries": ["iadeler", "iade"],
-                   "visibleWhen": "liste.seciliSatir.status == 'Posted'" } },
-      { "id": "faturaAcDugmesi", "type": "button", "name": "faturaAcDugmesi",
-        "props": { "text": "Faturayı aç", "actionType": "erpPage", "pageKey": "sales-purchase-invoices", "legacyScreen": true, "target": "newTab",
-                   "params": ["purchaseInvoiceId={{liste.seciliSatir.purchaseInvoiceId}}"],
-                   "disabledWhen": "liste.seciliSatir.id == null", "disabledReason": "Önce bir kayıt seçin" } },
-      { "id": "eskiEkranDugmesi", "type": "button", "name": "eskiEkranDugmesi",
-        "props": { "text": "Eski ekranda aç", "actionType": "erpPage", "pageKey": "sales-purchase-returns", "legacyScreen": true } }
+          {
+            "id": "ozetPaneli",
+            "type": "contextPanel",
+            "name": "ozetPaneli",
+            "props": {
+              "table": "liste",
+              "width": 12,
+              "fields": [
+                "returnDate=İade tarihi",
+                "warehouseName=Depo",
+                "invoiceCode=Alış faturası",
+                "currencyCode=Döviz",
+                "lineCount=Satır sayısı"
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "belgePenceresi",
+        "type": "dialog",
+        "name": "belgePenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "xl",
+          "title": "Alış iadesi · {{iade.rows[0].code}}",
+          "contains": [
+            "belgeAkisi",
+            "iptalNotu",
+            "belgeTutarlari",
+            "islendiNotu",
+            "belgeBasligi",
+            "belgeSatirlari"
+          ],
+          "slot": "dialogs"
+        }
+      },
+      {
+        "id": "belgeBasligi",
+        "type": "recordHeader",
+        "name": "belgeBasligi",
+        "props": {
+          "icon": "truck",
+          "title": "{{iade.rows[0].code}}",
+          "subtitle": "{{iade.rows[0].supplierName}}",
+          "fields": [
+            "İade tarihi={{iade.rows[0].returnDate}}",
+            "İadenin çıktığı depo={{iade.rows[0].warehouseName}}",
+            "Kaynak fatura={{iade.rows[0].invoiceCode}}",
+            "Para birimi={{iade.rows[0].currencyCode}}"
+          ],
+          "fieldFormats": [
+            "İade tarihi=date"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "belgeTutarlari",
+        "type": "recordHeader",
+        "name": "belgeTutarlari",
+        "props": {
+          "title": "Toplamlar",
+          "fields": [
+            "Ara toplam={{iade.rows[0].subtotal}}",
+            "İskonto={{iade.rows[0].discountTotal}}",
+            "KDV={{iade.rows[0].taxTotal}}",
+            "Genel toplam={{iade.rows[0].grandTotal}}"
+          ],
+          "fieldFormats": [
+            "Ara toplam=money",
+            "İskonto=money",
+            "KDV=money",
+            "Genel toplam=money"
+          ],
+          "fieldUnits": [
+            "Ara toplam={{iade.rows[0].currencyCode}}",
+            "İskonto={{iade.rows[0].currencyCode}}",
+            "KDV={{iade.rows[0].currencyCode}}",
+            "Genel toplam={{iade.rows[0].currencyCode}}"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "belgeAkisi",
+        "type": "steps",
+        "name": "belgeAkisi",
+        "props": {
+          "steps": [
+            "İşlendi",
+            "İptal"
+          ],
+          "activeWhen": [
+            "iade.rows[0].status == 'Posted'",
+            "iade.rows[0].status == 'Voided'"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "belgeSatirlari",
+        "type": "dataTable",
+        "name": "belgeSatirlari",
+        "props": {
+          "title": "Satırlar",
+          "query": "iadeSatirlari",
+          "showPivot": false,
+          "columns": [
+            "orderLineNumber",
+            "stockCode",
+            "stockName",
+            "quantity",
+            "enteredQuantity",
+            "unitPrice",
+            "discountAmount",
+            "vatPercent",
+            "taxAmount",
+            "lineTotal"
+          ],
+          "columnLabels": [
+            "orderLineNumber=#",
+            "stockCode=Stok kodu",
+            "stockName=Stok adı",
+            "quantity=Miktar",
+            "enteredQuantity=Girilen miktar",
+            "unitPrice=Birim fiyat",
+            "discountAmount=İskonto",
+            "vatPercent=KDV %",
+            "taxAmount=KDV",
+            "lineTotal=Toplam",
+            "lineSubtotal=Ara toplam",
+            "discountPercent=İskonto %"
+          ],
+          "columnUnits": [
+            "quantity=unitCode",
+            "enteredQuantity=enteredUnitCode"
+          ],
+          "columnFormats": [
+            "orderLineNumber=number",
+            "stockCode=code",
+            "quantity=number",
+            "enteredQuantity=number",
+            "unitPrice=number",
+            "discountAmount=money",
+            "vatPercent=number",
+            "taxAmount=money",
+            "lineTotal=money",
+            "lineSubtotal=money",
+            "discountPercent=number"
+          ],
+          "emptyText": "Satır yok.",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "islendiNotu",
+        "type": "text",
+        "name": "islendiNotu",
+        "props": {
+          "text": "İade stoktan düşülür ve tedarikçi borcunu azaltır.",
+          "visibleWhen": "iade.rows[0].status == 'Posted'",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "iptalNotu",
+        "type": "text",
+        "name": "iptalNotu",
+        "props": {
+          "text": "Bu iade iptal edildi; stok ve cari hareketleri ters kayıtla geri alındı.",
+          "visibleWhen": "iade.rows[0].status == 'Voided'",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "iadePenceresi",
+        "type": "dialog",
+        "name": "iadePenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "xl",
+          "title": "Yeni alış iadesi",
+          "contains": [
+            "iadeKimligi",
+            "iadeFatura",
+            "iadeNotu",
+            "iadeTarihi",
+            "iadeDepo",
+            "iadeKalemleri",
+            "iadeBilgileri"
+          ],
+          "saveQuery": "iadeOlustur",
+          "saveLabel": "İadeyi kaydet",
+          "closeOnSave": true,
+          "resetOnOpen": true,
+          "refreshQueries": [
+            "iadeler",
+            "iadeKaynak"
+          ],
+          "slot": "dialogs"
+        }
+      },
+      {
+        "id": "iadeBilgileri",
+        "type": "formCard",
+        "name": "iadeBilgileri",
+        "props": {
+          "title": "İade bilgileri",
+          "columns": 3,
+          "inputs": [
+            "iadeFatura",
+            "iadeDepo",
+            "iadeTarihi"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "iadeKimligi",
+        "type": "input",
+        "name": "iadeKimligi",
+        "props": {
+          "inputType": "text",
+          "label": "İade tekrar deneme kimliği",
+          "hidden": true,
+          "autoId": true,
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "iadeKalemleri",
+        "type": "editableGrid",
+        "name": "iadeKalemleri",
+        "props": {
+          "gridMode": "list",
+          "title": "İade edilecek satırlar",
+          "addLabel": "Satır ekle",
+          "maxRows": 200,
+          "minRows": 1,
+          "gridColumns": [
+            "purchaseInvoiceLineId|Fatura satırı|lookup:iadeKaynak:purchaseInvoiceLineId:stockCode:stockName|required,readOnly",
+            "invoicedQuantity|Faturalanan|number|readOnly",
+            "returnedQuantity|İade edilen|number|readOnly",
+            "remainingQuantity|Kalan|number|readOnly",
+            "quantity|İade miktarı|number|min:0,step:0.0001",
+            "unitCode|Birim|text|readOnly",
+            "unitPrice|Birim fiyat|number|readOnly",
+            "storageLocationId|Konum|lookup:iadeKonumlar:id:code:name"
+          ],
+          "columnOptionsWhen": [
+            "storageLocationId=satir.isActive == true"
+          ],
+          "fillQuery": "iadeKaynak",
+          "fillColumns": {
+            "quantity": "remainingQuantity"
+          },
+          "skipWhenZero": "quantity",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "iadeNotu",
+        "type": "text",
+        "name": "iadeNotu",
+        "props": {
+          "text": "Fatura seçilince satırlar kalan iade edilebilir miktarla dolar; iade etmeyeceğiniz satırın miktarını 0 yapın. Gönderilecek satır: {{iadeKalemleri.satirSayisi}}. İade miktarı kalanı ve depodaki stoğu aşamaz.",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "iadeFatura",
+        "type": "input",
+        "name": "iadeFatura",
+        "props": {
+          "inputType": "lookup",
+          "label": "Alış faturası",
+          "required": true,
+          "optionsQuery": "faturalar",
+          "optionValueColumn": "id",
+          "optionLabelColumn": "code",
+          "optionDescriptionColumn": "supplierName",
+          "minChars": 0,
+          "optionsWhen": "satir.status == 'Posted'",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "iadeTarihi",
+        "type": "input",
+        "name": "iadeTarihi",
+        "props": {
+          "inputType": "date",
+          "label": "İade tarihi",
+          "required": true,
+          "defaultValue": "{{bugun}}",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "iadeDepo",
+        "type": "input",
+        "name": "iadeDepo",
+        "props": {
+          "inputType": "lookup",
+          "label": "İadenin çıktığı depo",
+          "required": true,
+          "optionsQuery": "depolar",
+          "optionValueColumn": "id",
+          "optionLabelColumn": "name",
+          "optionDescriptionColumn": "code",
+          "minChars": 0,
+          "optionsWhen": "satir.isActive == true",
+          "clearsOnChange": [
+            "iadeKalemleri.storageLocationId"
+          ],
+          "slot": "dialog"
+        }
+      }
     ],
     "queries": [
-      { "id": "iadeler", "name": "iadeler", "kind": "read", "operation": "satinalma.iade.listele", "runOn": "load",
+      {
+        "id": "iadeler",
+        "name": "iadeler",
+        "kind": "read",
+        "operation": "satinalma.iade.listele",
+        "runOn": "load",
         "parameters": [
-          { "name": "q", "binding": "{{suzgec.q}}", "type": "text" },
-          { "name": "page", "binding": "{{liste.sayfa}}", "type": "int" },
-          { "name": "pageSize", "binding": "{{liste.sayfaBoyutu}}", "type": "int" } ] },
-      { "id": "iade", "name": "iade", "kind": "read", "operation": "satinalma.iade.getir", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" } ] },
-      { "id": "iadeSatirlari", "name": "iadeSatirlari", "kind": "read", "operation": "satinalma.iade.satirlari", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" } ] },
-      { "id": "iadeIptal", "name": "iadeIptal", "kind": "update", "operation": "satinalma.iade.iptal", "runOn": "manual",
-        "parameters": [ { "name": "id", "binding": "{{iade.rows[0].id}}", "type": "guid" } ] },
-      { "id": "iadeIptalSatir", "name": "iadeIptalSatir", "kind": "update", "operation": "satinalma.iade.iptal", "runOn": "manual",
-        "parameters": [ { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" } ] },
-      { "id": "faturalar", "name": "faturalar", "kind": "read", "operation": "satinalma.fatura.listele", "runOn": "load",
-        "parameters": [ { "name": "q", "binding": "{{iadeFatura.search}}", "type": "text" } ] },
-      { "id": "depolar", "name": "depolar", "kind": "read", "operation": "depo.listele", "runOn": "load", "parameters": [] },
-      { "id": "iadeKonumlar", "name": "iadeKonumlar", "kind": "read", "operation": "depo.konumlari", "runOn": "load",
-        "parameters": [ { "name": "warehouseId", "binding": "{{iadeDepo.value}}", "type": "guid" } ] },
-      { "id": "iadeKaynak", "name": "iadeKaynak", "kind": "read", "operation": "satinalma.fatura.iadeEdilebilirSatirlar", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{iadeFatura.value}}", "type": "guid" } ] },
-      { "id": "iadeOlustur", "name": "iadeOlustur", "kind": "insert", "operation": "satinalma.iade.olustur", "runOn": "manual",
+          {
+            "name": "q",
+            "binding": "{{suzgec.q}}",
+            "type": "text"
+          },
+          {
+            "name": "page",
+            "binding": "{{liste.sayfa}}",
+            "type": "int"
+          },
+          {
+            "name": "pageSize",
+            "binding": "{{liste.sayfaBoyutu}}",
+            "type": "int"
+          }
+        ]
+      },
+      {
+        "id": "iade",
+        "name": "iade",
+        "kind": "read",
+        "operation": "satinalma.iade.getir",
+        "runOn": "load",
         "parameters": [
-          { "name": "id", "binding": "{{iadeFatura.value}}", "type": "guid" },
-          { "name": "requestId", "binding": "{{iadeKimligi.value}}", "type": "guid" },
-          { "name": "warehouseId", "binding": "{{iadeDepo.value}}", "type": "guid" },
-          { "name": "returnDate", "binding": "{{iadeTarihi.value}}", "type": "date" },
-          { "name": "lines", "binding": "{{iadeKalemleri.satirlar}}", "type": "list" } ] }
-    ]
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "iadeSatirlari",
+        "name": "iadeSatirlari",
+        "kind": "read",
+        "operation": "satinalma.iade.satirlari",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "iadeIptalSatir",
+        "name": "iadeIptalSatir",
+        "kind": "update",
+        "operation": "satinalma.iade.iptal",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "faturalar",
+        "name": "faturalar",
+        "kind": "read",
+        "operation": "satinalma.fatura.listele",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "q",
+            "binding": "{{iadeFatura.search}}",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "depolar",
+        "name": "depolar",
+        "kind": "read",
+        "operation": "depo.listele",
+        "runOn": "load",
+        "parameters": []
+      },
+      {
+        "id": "iadeKonumlar",
+        "name": "iadeKonumlar",
+        "kind": "read",
+        "operation": "depo.konumlari",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "warehouseId",
+            "binding": "{{iadeDepo.value}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "iadeKaynak",
+        "name": "iadeKaynak",
+        "kind": "read",
+        "operation": "satinalma.fatura.iadeEdilebilirSatirlar",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{iadeFatura.value}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "iadeOlustur",
+        "name": "iadeOlustur",
+        "kind": "insert",
+        "operation": "satinalma.iade.olustur",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{iadeFatura.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "requestId",
+            "binding": "{{iadeKimligi.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "warehouseId",
+            "binding": "{{iadeDepo.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "returnDate",
+            "binding": "{{iadeTarihi.value}}",
+            "type": "date"
+          },
+          {
+            "name": "lines",
+            "binding": "{{iadeKalemleri.satirlar}}",
+            "type": "list"
+          }
+        ]
+      }
+    ],
+    "template": {
+      "name": "list"
+    }
   }
 }

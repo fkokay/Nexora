@@ -1,361 +1,1211 @@
 {
-  "screenKey": "sales-purchasing", "title": "Satınalma siparişleri",
-  "description": "Tedarikçi siparişlerini, teslim alınan miktarları ve mal kabul ile fatura zincirini izleyin.", "module": "Satın Alma",
-  "version": 2, "stage": "preview",
+  "screenKey": "sales-purchasing",
+  "title": "Satınalma siparişleri",
+  "description": "Tedarikçi siparişlerini, teslim alınan miktarları ve mal kabul ile fatura zincirini izleyin.",
+  "module": "Satın Alma",
+  "version": 3,
+  "stage": "preview",
   "items": {
-    "component:komutlar": {"since": 1, "label": "İşlem çubuğu", "requires": ["component:suzgec", "component:liste", "component:yeniSiparisDugmesi", "component:acDugmesi", "component:malKabulDugmesi", "component:eskiEkranDugmesi", "query:siparisler"]},
-    "component:siparisSecimi": {"since": 1, "label": "Açık sipariş belgesi (gizli)"},
-    "component:acikGostergesi": {"since": 1, "label": "Açık siparişler göstergesi", "requires": ["component:siparisSecimi", "component:durumSecimi", "query:sayAcik"]},
-    "component:kismenGostergesi": {"since": 1, "label": "Kısmen alındı göstergesi", "requires": ["component:siparisSecimi", "component:durumSecimi", "query:sayKismen"]},
-    "component:gecikmisGostergesi": {"since": 1, "label": "Gecikmiş göstergesi", "requires": ["component:siparisSecimi", "component:gecikmisSecimi", "query:sayGecikmis"]},
-    "component:durumAcik": {"since": 1, "label": "Sayaç durumu: Açık (gizli)"},
-    "component:durumKismen": {"since": 1, "label": "Sayaç durumu: Kısmen alındı (gizli)"},
-    "component:gecikmisSabit": {"since": 1, "label": "Sayaç süzgeci: Gecikmiş (gizli)"},
-    "component:sayacSayfaBoyutu": {"since": 1, "label": "Sayaç sayfa boyutu (gizli)"},
-    "component:suzgec": {"since": 1, "label": "Süzgeç alanı (arama)", "requires": ["component:siparisSecimi", "component:liste"]},
-    "component:secimCipleri": {"since": 1, "label": "Durum seçimi çipleri", "requires": ["component:siparisSecimi", "component:durumSecimi"]},
-    "component:suzgecSecimleri": {"since": 1, "label": "Süzgeç seçimleri kartı", "requires": ["component:siparisSecimi", "component:durumSecimi", "component:gecikmisSecimi"]},
-    "component:durumSecimi": {"since": 1, "label": "Durum seçimi"},
-    "component:gecikmisSecimi": {"since": 1, "label": "Yalnız gecikmiş siparişler"},
-    "component:detayPaneli": {"since": 1, "label": "Detay paneli anahtarı"},
-    "component:liste": {"since": 1, "label": "Sipariş listesi", "requires": ["component:siparisSecimi", "component:detayPaneli", "component:acDugmesi", "query:siparisler"]},
-    "component:acDugmesi": {"since": 1, "label": "Sipariş belgesini aç", "requires": ["component:siparisSecimi", "component:liste"]},
-    "component:detayKarti": {"since": 1, "label": "Detay paneli", "requires": ["component:siparisSecimi", "component:detayPaneli", "component:liste", "component:ozetPaneli", "component:acDugmesi"]},
-    "component:ozetPaneli": {"since": 1, "label": "Detay: Özet", "requires": ["component:liste"]},
-    "component:belgeBasligi": {"since": 1, "label": "Sipariş belgesi başlığı", "requires": ["component:siparisSecimi", "component:listeyeDonDugmesi", "component:belgeMalKabulDugmesi", "query:siparis"]},
-    "component:belgeMalKabulDugmesi": {"since": 1, "label": "Belge: Mal kabul oluştur", "requires": ["component:siparisSecimi", "component:malKabulPenceresi", "query:siparis"]},
-    "component:listeyeDonDugmesi": {"since": 1, "label": "Listeye dön düğmesi", "requires": ["component:siparisSecimi"]},
-    "component:durumAdimlari": {"since": 1, "label": "Sipariş durum akışı", "requires": ["component:siparisSecimi", "query:siparis"]},
-    "component:kapaliUyarisi": {"since": 1, "label": "İptal / ret uyarısı", "requires": ["component:siparisSecimi", "query:siparis"]},
-    "component:toplamGostergesi": {"since": 1, "label": "Belge: Genel toplam", "requires": ["component:siparisSecimi", "query:siparis"]},
-    "component:teslimGostergesi": {"since": 1, "label": "Belge: Teslim alınan", "requires": ["component:siparisSecimi", "query:siparis"]},
-    "component:faturaGostergesi": {"since": 1, "label": "Belge: Faturalanan mal kabul", "requires": ["component:siparisSecimi", "query:siparis"]},
-    "component:gecikmeGostergesi": {"since": 1, "label": "Belge: Beklenen teslim", "requires": ["component:siparisSecimi", "query:siparis"]},
-    "component:belgeSekmeleri": {"since": 1, "label": "Belge sekmeleri", "requires": ["component:siparisSecimi", "component:satirTablosu", "component:kabulTablosu", "component:belgeZinciri", "component:siparisNotu", "component:alanTablosu", "query:malKabuller"]},
-    "component:satirTablosu": {"since": 1, "label": "Belge: Satırlar", "requires": ["query:satirlar"]},
-    "component:kabulTablosu": {"since": 1, "label": "Belge: Mal kabulleri", "requires": ["component:kabulAcDugmesi", "component:faturalaDugmesi", "query:malKabuller"]},
-    "component:kabulAcDugmesi": {"since": 1, "label": "Mal kabulü aç satır düğmesi (eski ekran)", "requires": ["component:kabulTablosu"]},
-    "component:faturalaDugmesi": {"since": 1, "label": "Faturala satır düğmesi", "requires": ["component:kabulTablosu"]},
-    "component:belgeZinciri": {"since": 1, "label": "Belge zinciri", "requires": ["query:siparis", "query:malKabuller"]},
-    "component:siparisNotu": {"since": 1, "label": "Sipariş notu", "requires": ["query:siparis"]},
-    "component:alanTablosu": {"since": 1, "label": "Belge: Özel alanlar", "requires": ["query:ozelDegerler"]},
-    "component:yeniSiparisDugmesi": {"since": 1, "label": "Yeni sipariş komutu"},
-    "component:malKabulDugmesi": {"since": 1, "label": "Mal kabul oluştur komutu (siparişi açar)", "requires": ["component:siparisSecimi", "component:liste"]},
-    "component:malKabulPenceresi": {"since": 2, "label": "Mal kabul penceresi",
-      "requires": ["component:siparisSecimi", "component:kabulBilgileri", "component:kabulIstekKimligi", "component:kabulNotu", "component:kabulKalemleri",
-                   "component:kabulDurumu", "component:izlemeliKabulDugmesi", "query:malKabulOlustur", "query:kabulKaynak", "query:siparis",
-                   "query:satirlar", "query:malKabuller", "query:siparisler", "query:sayAcik", "query:sayKismen", "query:sayGecikmis"]},
-    "component:kabulBilgileri": {"since": 2, "label": "Mal kabul bilgileri (depo, tarih)", "requires": ["component:kabulDepo", "component:kabulTarihi"]},
-    "component:kabulDepo": {"since": 2, "label": "Mal kabul alanı: Depo", "requires": ["query:depolar", "query:siparis", "component:kabulKalemleri"]},
-    "component:kabulTarihi": {"since": 2, "label": "Mal kabul alanı: Kabul tarihi"},
-    "component:kabulIstekKimligi": {"since": 2, "label": "Mal kabul tekrar deneme kimliği (gizli)"},
-    "component:kabulNotu": {"since": 2, "label": "Mal kabul bilgi notu"},
-    "component:kabulKalemleri": {"since": 2, "label": "Mal kabul satırları (siparişin kalanı)", "requires": ["query:kabulKaynak", "query:kabulKonumlari"]},
-    "component:kabulDurumu": {"since": 2, "label": "Mal kabul satır sayacı", "requires": ["component:kabulKalemleri"]},
-    "component:izlemeliKabulDugmesi": {"since": 2, "label": "Lot/seri izlemeli kabul (eski ekran)", "requires": ["component:siparisSecimi"]},
-    "component:eskiEkranDugmesi": {"since": 1, "label": "Siparişi eski ekranda aç", "requires": ["component:siparisSecimi", "component:liste"]},
-    "query:siparisler": {"since": 1, "label": "Satınalma siparişlerini listele", "requires": ["component:suzgec", "component:durumSecimi", "component:gecikmisSecimi", "component:liste"]},
-    "query:sayAcik": {"since": 1, "label": "Açık sipariş sayısı", "requires": ["component:suzgec", "component:durumAcik", "component:sayacSayfaBoyutu"]},
-    "query:sayKismen": {"since": 1, "label": "Kısmen alınan sipariş sayısı", "requires": ["component:suzgec", "component:durumKismen", "component:sayacSayfaBoyutu"]},
-    "query:sayGecikmis": {"since": 1, "label": "Gecikmiş sipariş sayısı", "requires": ["component:suzgec", "component:gecikmisSabit", "component:sayacSayfaBoyutu"]},
-    "query:siparis": {"since": 1, "label": "Açık sipariş belgesi", "requires": ["component:siparisSecimi"]},
-    "query:satirlar": {"since": 1, "label": "Sipariş satırları", "requires": ["component:siparisSecimi"]},
-    "query:malKabuller": {"since": 1, "label": "Siparişin mal kabulleri", "requires": ["component:siparisSecimi"]},
-    "query:ozelDegerler": {"since": 1, "label": "Siparişin özel alanları", "requires": ["component:siparisSecimi"]},
-    "query:kabulKaynak": {"since": 2, "label": "Mal kabul kaynağı: siparişin kalan satırları", "requires": ["component:siparisSecimi"]},
-    "query:depolar": {"since": 2, "label": "Depoları listele"},
-    "query:kabulKonumlari": {"since": 2, "label": "Kabul deposunun konumları", "requires": ["component:kabulDepo"]},
-    "query:malKabulOlustur": {"since": 2, "label": "Siparişe mal kabul oluştur",
-      "requires": ["component:siparisSecimi", "component:kabulIstekKimligi", "component:kabulDepo", "component:kabulTarihi", "component:kabulKalemleri"]}
+    "component:suzgec": {
+      "since": 1,
+      "label": "Süzgeç alanı (arama)"
+    },
+    "component:acDugmesi": {
+      "since": 1,
+      "label": "Sipariş belgesini aç",
+      "requires": [
+        "component:liste",
+        "component:siparisDetayPenceresi"
+      ]
+    },
+    "component:durumSecimi": {
+      "since": 1,
+      "label": "durumSecimi"
+    },
+    "component:gecikmisGostergesi": {
+      "since": 1,
+      "label": "Gecikmiş göstergesi",
+      "requires": [
+        "query:sayGecikmis"
+      ]
+    },
+    "component:kabulNotu": {
+      "since": 2,
+      "label": "Mal kabul bilgi notu"
+    },
+    "component:siparisDetayPenceresi": {
+      "since": 3,
+      "label": "siparisDetayPenceresi",
+      "requires": [
+        "component:faturalaDugmesi",
+        "component:kabulAcDugmesi",
+        "component:siparisDetayBasligi",
+        "component:siparisDetaySekmeleri",
+        "query:siparis"
+      ]
+    },
+    "component:kabulTarihi": {
+      "since": 1,
+      "label": "kabulTarihi"
+    },
+    "component:komutlar": {
+      "since": 1,
+      "label": "İşlem çubuğu",
+      "requires": [
+        "component:liste",
+        "component:suzgec",
+        "component:yeniSiparisDugmesi",
+        "query:siparisler"
+      ]
+    },
+    "component:durumKismen": {
+      "since": 1,
+      "label": "durumKismen"
+    },
+    "component:kabulDepo": {
+      "since": 1,
+      "label": "kabulDepo",
+      "requires": [
+        "query:depolar",
+        "query:siparis"
+      ]
+    },
+    "component:durumAcik": {
+      "since": 1,
+      "label": "durumAcik"
+    },
+    "component:faturalaDugmesi": {
+      "since": 1,
+      "label": "faturalaDugmesi",
+      "requires": [
+        "component:kabulTablosu"
+      ]
+    },
+    "component:kabulTablosu": {
+      "since": 1,
+      "label": "kabulTablosu",
+      "requires": [
+        "query:malKabuller"
+      ]
+    },
+    "component:kabulBilgileri": {
+      "since": 2,
+      "label": "Mal kabul bilgileri (depo, tarih)",
+      "requires": [
+        "component:kabulDepo",
+        "component:kabulTarihi"
+      ]
+    },
+    "component:kabulKalemleri": {
+      "since": 2,
+      "label": "Mal kabul satırları (siparişin kalanı)",
+      "requires": [
+        "query:kabulKaynak",
+        "query:kabulKonumlari"
+      ]
+    },
+    "component:detayKarti": {
+      "since": 1,
+      "label": "Detay paneli",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:yeniSiparisDugmesi": {
+      "since": 1,
+      "label": "Yeni sipariş komutu"
+    },
+    "component:siparisDetayBasligi": {
+      "since": 3,
+      "label": "siparisDetayBasligi",
+      "requires": [
+        "query:siparis"
+      ]
+    },
+    "component:kismenGostergesi": {
+      "since": 1,
+      "label": "Kısmen alındı göstergesi",
+      "requires": [
+        "query:sayKismen"
+      ]
+    },
+    "component:acikGostergesi": {
+      "since": 1,
+      "label": "Açık siparişler göstergesi",
+      "requires": [
+        "query:sayAcik"
+      ]
+    },
+    "component:malKabulDugmesi": {
+      "since": 1,
+      "label": "Mal kabul oluştur komutu (siparişi açar)",
+      "requires": [
+        "component:liste",
+        "component:malKabulPenceresi"
+      ]
+    },
+    "component:kabulAcDugmesi": {
+      "since": 1,
+      "label": "kabulAcDugmesi",
+      "requires": [
+        "component:kabulTablosu"
+      ]
+    },
+    "component:sayacSayfaBoyutu": {
+      "since": 1,
+      "label": "sayacSayfaBoyutu"
+    },
+    "component:kabulDurumu": {
+      "since": 2,
+      "label": "Mal kabul satır sayacı",
+      "requires": [
+        "component:kabulKalemleri"
+      ]
+    },
+    "component:izlemeliKabulDugmesi": {
+      "since": 2,
+      "label": "Lot/seri izlemeli kabul (eski ekran)",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:kabulIstekKimligi": {
+      "since": 2,
+      "label": "Mal kabul tekrar deneme kimliği (gizli)"
+    },
+    "component:gecikmisSabit": {
+      "since": 1,
+      "label": "gecikmisSabit"
+    },
+    "component:satirTablosu": {
+      "since": 1,
+      "label": "satirTablosu",
+      "requires": [
+        "query:satirlar"
+      ]
+    },
+    "component:malKabulPenceresi": {
+      "since": 2,
+      "label": "Mal kabul penceresi",
+      "requires": [
+        "component:izlemeliKabulDugmesi",
+        "component:kabulBilgileri",
+        "component:kabulDepo",
+        "component:kabulDurumu",
+        "component:kabulIstekKimligi",
+        "component:kabulKalemleri",
+        "component:kabulNotu",
+        "component:kabulTarihi",
+        "query:kabulKaynak",
+        "query:malKabulOlustur",
+        "query:malKabuller",
+        "query:satirlar",
+        "query:sayAcik",
+        "query:sayGecikmis",
+        "query:sayKismen",
+        "query:siparis",
+        "query:siparisler"
+      ]
+    },
+    "component:siparisDetaySekmeleri": {
+      "since": 3,
+      "label": "siparisDetaySekmeleri",
+      "requires": [
+        "component:kabulTablosu",
+        "component:satirTablosu"
+      ]
+    },
+    "component:gecikmisSecimi": {
+      "since": 1,
+      "label": "gecikmisSecimi"
+    },
+    "component:liste": {
+      "since": 1,
+      "label": "Sipariş listesi",
+      "requires": [
+        "component:acDugmesi",
+        "component:malKabulDugmesi",
+        "query:siparisler"
+      ]
+    },
+    "query:siparisler": {
+      "since": 1,
+      "label": "Satınalma siparişlerini listele",
+      "requires": [
+        "component:durumSecimi",
+        "component:gecikmisSecimi",
+        "component:liste",
+        "component:suzgec"
+      ]
+    },
+    "query:sayAcik": {
+      "since": 1,
+      "label": "Açık sipariş sayısı",
+      "requires": [
+        "component:durumAcik",
+        "component:sayacSayfaBoyutu",
+        "component:suzgec"
+      ]
+    },
+    "query:sayKismen": {
+      "since": 1,
+      "label": "Kısmen alınan sipariş sayısı",
+      "requires": [
+        "component:durumKismen",
+        "component:sayacSayfaBoyutu",
+        "component:suzgec"
+      ]
+    },
+    "query:sayGecikmis": {
+      "since": 1,
+      "label": "Gecikmiş sipariş sayısı",
+      "requires": [
+        "component:gecikmisSabit",
+        "component:sayacSayfaBoyutu",
+        "component:suzgec"
+      ]
+    },
+    "query:siparis": {
+      "since": 1,
+      "label": "Açık sipariş belgesi",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:satirlar": {
+      "since": 1,
+      "label": "Sipariş satırları",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:malKabuller": {
+      "since": 1,
+      "label": "Siparişin mal kabulleri",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:kabulKaynak": {
+      "since": 2,
+      "label": "Mal kabul kaynağı: siparişin kalan satırları",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:depolar": {
+      "since": 2,
+      "label": "Depoları listele"
+    },
+    "query:kabulKonumlari": {
+      "since": 2,
+      "label": "Kabul deposunun konumları",
+      "requires": [
+        "component:kabulDepo"
+      ]
+    },
+    "query:malKabulOlustur": {
+      "since": 2,
+      "label": "Siparişe mal kabul oluştur",
+      "requires": [
+        "component:kabulDepo",
+        "component:kabulIstekKimligi",
+        "component:kabulKalemleri",
+        "component:kabulTarihi",
+        "component:liste"
+      ]
+    },
+    "component:alanTablosu": {
+      "since": 1,
+      "label": "Belge: Özel alanlar",
+      "requires": [
+        "query:ozelDegerler"
+      ]
+    },
+    "query:ozelDegerler": {
+      "since": 1,
+      "label": "Siparişin özel alanları",
+      "requires": [
+        "component:liste"
+      ]
+    }
   },
-  "screenViews": [ { "key": "purchase-orders", "component": "liste",
-                     "fields": { "code": "code", "supplierName": "supplierName", "orderDate": "orderDate", "expectedReceiptDate": "expectedReceiptDate",
-                                 "lineCount": "lineCount", "grandTotal": "grandTotal", "currencyCode": "currencyCode", "status": "status" } } ],
+  "screenViews": [
+    {
+      "key": "purchase-orders",
+      "component": "liste",
+      "fields": {
+        "code": "code",
+        "supplierName": "supplierName",
+        "orderDate": "orderDate",
+        "expectedReceiptDate": "expectedReceiptDate",
+        "lineCount": "lineCount",
+        "grandTotal": "grandTotal",
+        "currencyCode": "currencyCode",
+        "status": "status"
+      }
+    }
+  ],
   "definition": {
     "schemaVersion": 2,
     "components": [
-      { "id": "komutlar", "type": "actionBar", "name": "komutlar",
-        "props": { "newButton": "yeniSiparisDugmesi", "focusInput": "suzgec", "exportTable": "liste",
-                   "titleCount": "{{siparisler.meta.totalCount}}", "moreButtons": ["malKabulDugmesi", "eskiEkranDugmesi"],
-                   "hiddenCommands": ["open", "save", "delete", "print"] } },
-
-      { "id": "siparisSecimi", "type": "input", "name": "siparisSecimi",
-        "props": { "inputType": "text", "label": "Açık sipariş", "hidden": true, "defaultValue": "{{sayfa.parametre.purchaseOrderId}}" } },
-
-      { "id": "acikGostergesi", "type": "metric", "name": "acikGostergesi",
-        "props": { "title": "Açık", "value": "{{sayAcik.meta.totalCount}}", "format": "number", "width": 4, "icon": "inbox",
-                   "description": "mal bekliyor · tıkla: süz", "filterInput": "durumSecimi", "filterValue": "Open",
-                   "visibleWhen": "siparisSecimi.value == null" } },
-      { "id": "kismenGostergesi", "type": "metric", "name": "kismenGostergesi",
-        "props": { "title": "Kısmen alındı", "value": "{{sayKismen.meta.totalCount}}", "format": "number", "width": 4, "icon": "hourglass",
-                   "variant": "warning", "description": "mal bekliyor · tıkla: süz", "filterInput": "durumSecimi", "filterValue": "PartiallyReceived",
-                   "visibleWhen": "siparisSecimi.value == null" } },
-      { "id": "gecikmisGostergesi", "type": "metric", "name": "gecikmisGostergesi",
-        "props": { "title": "Gecikmiş", "value": "{{sayGecikmis.meta.totalCount}}", "format": "number", "width": 4, "icon": "alert",
-                   "variant": "danger", "description": "beklenen teslim geçti · tıkla: süz", "filterInput": "gecikmisSecimi", "filterValue": "true",
-                   "visibleWhen": "siparisSecimi.value == null" } },
-      { "id": "durumAcik", "type": "input", "name": "durumAcik",
-        "props": { "inputType": "text", "label": "Sayaç durumu", "hidden": true, "defaultValue": "Open" } },
-      { "id": "durumKismen", "type": "input", "name": "durumKismen",
-        "props": { "inputType": "text", "label": "Sayaç durumu", "hidden": true, "defaultValue": "PartiallyReceived" } },
-      { "id": "gecikmisSabit", "type": "input", "name": "gecikmisSabit",
-        "props": { "inputType": "text", "label": "Sayaç süzgeci", "hidden": true, "defaultValue": "true" } },
-      { "id": "sayacSayfaBoyutu", "type": "input", "name": "sayacSayfaBoyutu",
-        "props": { "inputType": "text", "label": "Sayaç sayfa boyutu", "hidden": true, "defaultValue": "1" } },
-
-      { "id": "suzgec", "type": "filterBar", "name": "suzgec",
-        "props": { "table": "liste", "width": 6, "search": true, "searchPlaceholder": "Sipariş no veya tedarikçi ile ara", "searchParam": "q",
-                   "visibleWhen": "siparisSecimi.value == null" } },
-      { "id": "suzgecSecimleri", "type": "formCard", "name": "suzgecSecimleri",
-        "props": { "title": "Süzgeçler", "layout": "inline", "width": 6, "inputs": ["durumSecimi", "gecikmisSecimi"], "visibleWhen": "siparisSecimi.value == null" } },
-      { "id": "durumSecimi", "type": "input", "name": "durumSecimi",
-        "props": { "inputType": "select", "label": "Durum",
-                   "staticOptions": ["=Tümü", "PendingApproval=Onay bekliyor", "Open=Açık", "PartiallyReceived=Kısmen alındı", "Received=Tam alındı",
-                                     "Cancelled=İptal", "Rejected=Reddedildi"] } },
-      { "id": "gecikmisSecimi", "type": "input", "name": "gecikmisSecimi",
-        "props": { "inputType": "checkbox", "label": "Gecikmiş" } },
-      { "id": "detayPaneli", "type": "input", "name": "detayPaneli",
-        "props": { "inputType": "checkbox", "label": "Detay paneli", "icon": "panel", "defaultWhen": "sayfa.genis == true" } },
-      { "id": "secimCipleri", "type": "filterChips", "name": "secimCipleri",
-        "props": { "width": 12, "inputs": ["durumSecimi"], "visibleWhen": "siparisSecimi.value == null" } },
-
-      { "id": "liste", "type": "dataTable", "name": "liste",
-        "props": { "title": "Satınalma siparişleri", "query": "siparisler", "paging": "server", "pageSize": 25, "width": 12,
-                   "visibleWhen": "siparisSecimi.value == null",
-                   "widthWhen": "8=detayPaneli.value == true && liste.seciliSatir.id != null",
-                   "detailToggleInput": "detayPaneli",
-                   "columns": ["code", "supplierName", "orderDate", "expectedReceiptDate", "lineCount", "receivedPercent", "grandTotal", "status",
-                               "delayDays"],
-                   "columnLabels": ["code=Sipariş no", "supplierName=Tedarikçi", "orderDate=Sipariş tarihi", "expectedReceiptDate=Beklenen teslim",
-                                    "lineCount=Satır", "receivedPercent=Teslim alınan %", "grandTotal=Genel toplam", "currencyCode=Döviz",
-                                    "status=Durum", "delayDays=Gecikme (gün)", "receivedQuantity=Alınan miktar", "orderedQuantity=Sipariş miktarı"],
-                   "columnUnits": ["grandTotal=currencyCode"],
-                   "columnFormats": ["code=code", "orderDate=date", "expectedReceiptDate=date", "lineCount=number", "receivedPercent=number",
-                                     "grandTotal=money", "status=status", "delayDays=number", "receivedQuantity=number", "orderedQuantity=number"],
-                   "valueLabels": ["status:PendingApproval=Onay bekliyor", "status:Open=Açık", "status:PartiallyReceived=Kısmen alındı",
-                                   "status:Received=Tam alındı", "status:Cancelled=İptal", "status:Rejected=Reddedildi"],
-                   "toneMap": ["Onay bekliyor=warning", "Açık=info", "Kısmen alındı=warning", "Tam alındı=success", "Reddedildi=danger"],
-                   "rowOpenAction": "acDugmesi",
-                   "emptyText": "Filtrelerle eşleşen satın alma siparişi yok." } },
-      { "id": "acDugmesi", "type": "button", "name": "acDugmesi",
-        "props": { "text": "Aç", "icon": "open", "actionType": "setInput", "assignments": ["siparisSecimi={{liste.seciliSatir.id}}"],
-                   "disabledWhen": "liste.seciliSatir.id == null", "disabledReason": "Önce bir kayıt seçin" } },
-
-      { "id": "detayKarti", "type": "card", "name": "detayKarti",
-        "props": { "variant": "panel", "title": "{{liste.seciliSatir.code}}", "description": "{{liste.seciliSatir.supplierName}}",
-                   "closeInput": "detayPaneli", "width": 4,
-                   "visibleWhen": "siparisSecimi.value == null && detayPaneli.value == true && liste.seciliSatir.id != null" },
+      {
+        "id": "komutlar",
+        "type": "actionBar",
+        "name": "komutlar",
+        "props": {
+          "newButton": "yeniSiparisDugmesi",
+          "focusInput": "suzgec",
+          "exportTable": "liste",
+          "titleCount": "{{siparisler.meta.totalCount}}",
+          "hiddenCommands": [
+            "open",
+            "save",
+            "delete",
+            "print"
+          ],
+          "slot": "commands"
+        }
+      },
+      {
+        "id": "acikGostergesi",
+        "type": "metric",
+        "name": "acikGostergesi",
+        "props": {
+          "title": "Açık",
+          "value": "{{sayAcik.meta.totalCount}}",
+          "format": "number",
+          "icon": "inbox",
+          "description": "mal bekliyor · tıkla: süz",
+          "filterInput": "durumSecimi",
+          "filterValue": "Open",
+          "slot": "indicators"
+        }
+      },
+      {
+        "id": "kismenGostergesi",
+        "type": "metric",
+        "name": "kismenGostergesi",
+        "props": {
+          "title": "Kısmen alındı",
+          "value": "{{sayKismen.meta.totalCount}}",
+          "format": "number",
+          "icon": "hourglass",
+          "variant": "warning",
+          "description": "mal bekliyor · tıkla: süz",
+          "filterInput": "durumSecimi",
+          "filterValue": "PartiallyReceived",
+          "slot": "indicators"
+        }
+      },
+      {
+        "id": "gecikmisGostergesi",
+        "type": "metric",
+        "name": "gecikmisGostergesi",
+        "props": {
+          "title": "Gecikmiş",
+          "value": "{{sayGecikmis.meta.totalCount}}",
+          "format": "number",
+          "icon": "alert",
+          "variant": "danger",
+          "description": "beklenen teslim geçti · tıkla: süz",
+          "filterInput": "gecikmisSecimi",
+          "filterValue": "true",
+          "slot": "indicators"
+        }
+      },
+      {
+        "id": "suzgec",
+        "type": "filterBar",
+        "name": "suzgec",
+        "props": {
+          "table": "liste",
+          "search": true,
+          "searchPlaceholder": "Sipariş no veya tedarikçi ile ara",
+          "searchParam": "q",
+          "slot": "filters"
+        }
+      },
+      {
+        "id": "liste",
+        "type": "dataTable",
+        "name": "liste",
+        "props": {
+          "title": "Satınalma siparişleri",
+          "query": "siparisler",
+          "paging": "server",
+          "pageSize": 25,
+          "columns": [
+            "code",
+            "supplierName",
+            "orderDate",
+            "expectedReceiptDate",
+            "lineCount",
+            "receivedPercent",
+            "grandTotal",
+            "status",
+            "delayDays"
+          ],
+          "columnLabels": [
+            "code=Sipariş no",
+            "supplierName=Tedarikçi",
+            "orderDate=Sipariş tarihi",
+            "expectedReceiptDate=Beklenen teslim",
+            "lineCount=Satır",
+            "receivedPercent=Teslim alınan %",
+            "grandTotal=Genel toplam",
+            "currencyCode=Döviz",
+            "status=Durum",
+            "delayDays=Gecikme (gün)",
+            "receivedQuantity=Alınan miktar",
+            "orderedQuantity=Sipariş miktarı"
+          ],
+          "columnUnits": [
+            "grandTotal=currencyCode"
+          ],
+          "columnFormats": [
+            "code=code",
+            "orderDate=date",
+            "expectedReceiptDate=date",
+            "lineCount=number",
+            "receivedPercent=number",
+            "grandTotal=money",
+            "status=status",
+            "delayDays=number",
+            "receivedQuantity=number",
+            "orderedQuantity=number"
+          ],
+          "valueLabels": [
+            "status:PendingApproval=Onay bekliyor",
+            "status:Open=Açık",
+            "status:PartiallyReceived=Kısmen alındı",
+            "status:Received=Tam alındı",
+            "status:Cancelled=İptal",
+            "status:Rejected=Reddedildi"
+          ],
+          "toneMap": [
+            "Onay bekliyor=warning",
+            "Açık=info",
+            "Kısmen alındı=warning",
+            "Tam alındı=success",
+            "Reddedildi=danger"
+          ],
+          "rowOpenAction": "acDugmesi",
+          "emptyText": "Filtrelerle eşleşen satın alma siparişi yok.",
+          "slot": "list",
+          "rowActions": [
+            "acDugmesi",
+            "malKabulDugmesi"
+          ]
+        }
+      },
+      {
+        "id": "acDugmesi",
+        "type": "button",
+        "name": "acDugmesi",
+        "props": {
+          "text": "Aç",
+          "icon": "open",
+          "actionType": "openDialog",
+          "disabledWhen": "liste.seciliSatir.id == null",
+          "disabledReason": "Önce bir kayıt seçin",
+          "slot": "rowActions",
+          "dialogId": "siparisDetayPenceresi"
+        }
+      },
+      {
+        "id": "malKabulDugmesi",
+        "type": "button",
+        "name": "malKabulDugmesi",
+        "props": {
+          "text": "Mal kabul oluştur ›",
+          "actionType": "openDialog",
+          "disabledWhen": "liste.seciliSatir.status != 'Open' && liste.seciliSatir.status != 'PartiallyReceived'",
+          "disabledReason": "Mal kabul yalnız açık ya da kısmen alınmış siparişe yapılır.",
+          "slot": "rowActions",
+          "dialogId": "malKabulPenceresi"
+        }
+      },
+      {
+        "id": "detayKarti",
+        "type": "card",
+        "name": "detayKarti",
+        "props": {
+          "variant": "panel",
+          "title": "{{liste.seciliSatir.code}}",
+          "description": "{{liste.seciliSatir.supplierName}}",
+          "slot": "detail"
+        },
         "children": [
-          { "id": "detayGecikmis", "type": "badge", "name": "detayGecikmis",
-            "props": { "text": "Gecikmiş · {{liste.seciliSatir.delayDays}} gün", "variant": "danger", "visibleWhen": "liste.seciliSatir.isOverdue == true" } },
-          { "id": "detayTeslim", "type": "metric", "name": "detayTeslim",
-            "props": { "title": "Teslim alınan", "value": "{{liste.seciliSatir.receivedPercent}}", "format": "number", "width": 6, "icon": "truck",
-                       "description": "% · {{liste.seciliSatir.receivedQuantity}} / {{liste.seciliSatir.orderedQuantity}}" } },
-          { "id": "detayToplam", "type": "metric", "name": "detayToplam",
-            "props": { "title": "Genel toplam", "value": "{{liste.seciliSatir.grandTotal}}", "format": "money", "width": 6, "icon": "wallet",
-                       "description": "{{liste.seciliSatir.currencyCode}}" } },
-          { "id": "detaySekmeleri", "type": "tabs", "name": "detaySekmeleri",
-            "props": { "tabs": ["Özet=ozetPaneli"] } },
-          { "id": "detayAc", "type": "button", "name": "detayAc",
-            "props": { "text": "Sipariş belgesini aç ›", "actionType": "setInput", "assignments": ["siparisSecimi={{liste.seciliSatir.id}}"] } },
-          { "id": "detayMalKabul", "type": "button", "name": "detayMalKabul",
-            "props": { "text": "Mal kabul oluştur ›", "actionType": "setInput", "assignments": ["siparisSecimi={{liste.seciliSatir.id}}"],
-                       "visibleWhen": "liste.seciliSatir.status == 'Open' || liste.seciliSatir.status == 'PartiallyReceived'" } }
-        ] },
-      { "id": "ozetPaneli", "type": "contextPanel", "name": "ozetPaneli",
-        "props": { "table": "liste", "width": 12,
-                   "fields": ["orderDate=Sipariş tarihi", "expectedReceiptDate=Beklenen teslim", "delayDays=Gecikme (gün)", "lineCount=Satır",
-                              "orderedQuantity=Sipariş miktarı", "receivedQuantity=Alınan miktar", "currencyCode=Döviz"] } },
-
-      { "id": "listeyeDonDugmesi", "type": "button", "name": "listeyeDonDugmesi",
-        "props": { "text": "‹ Siparişler", "actionType": "setInput", "assignments": ["siparisSecimi="] } },
-      { "id": "belgeBasligi", "type": "recordHeader", "name": "belgeBasligi",
-        "props": { "visibleWhen": "siparisSecimi.value != null", "icon": "shopping-cart",
-                   "title": "{{siparis.rows[0].code}} · {{siparis.rows[0].supplierName}}",
-                   "subtitle": "Satınalma siparişi · {{siparis.rows[0].currencyCode}}",
-                   "fields": ["Sipariş tarihi={{siparis.rows[0].orderDate}}", "Beklenen teslim={{siparis.rows[0].expectedReceiptDate}}",
-                              "Ara toplam={{siparis.rows[0].subtotal}}", "İskonto={{siparis.rows[0].discountTotal}}", "KDV={{siparis.rows[0].taxTotal}}"],
-                   "fieldFormats": ["Sipariş tarihi=date", "Beklenen teslim=date", "Ara toplam=money", "İskonto=money", "KDV=money"],
-                   "fieldUnits": ["Ara toplam={{siparis.rows[0].currencyCode}}", "İskonto={{siparis.rows[0].currencyCode}}",
-                                  "KDV={{siparis.rows[0].currencyCode}}"],
-                   "buttons": ["listeyeDonDugmesi", "belgeMalKabulDugmesi"] } },
-      { "id": "durumAdimlari", "type": "steps", "name": "durumAdimlari",
-        "props": { "steps": ["Onay", "Açık", "Kısmen alındı", "Tam alındı"],
-                   "activeWhen": ["siparis.rows[0].id != null",
-                                  "siparis.rows[0].status == 'Open' || siparis.rows[0].status == 'PartiallyReceived' || siparis.rows[0].status == 'Received'",
-                                  "siparis.rows[0].status == 'PartiallyReceived' || siparis.rows[0].status == 'Received'",
-                                  "siparis.rows[0].status == 'Received'"],
-                   "visibleWhen": "siparisSecimi.value != null && siparis.rows[0].status != 'Cancelled' && siparis.rows[0].status != 'Rejected'" } },
-      { "id": "kapaliUyarisi", "type": "alert", "name": "kapaliUyarisi",
-        "props": { "title": "Sipariş kapalı", "variant": "warning", "width": 12,
-                   "text": "Bu sipariş iptal edildi ya da onayda reddedildi; mal kabul yapılamaz.",
-                   "visibleWhen": "siparisSecimi.value != null && (siparis.rows[0].status == 'Cancelled' || siparis.rows[0].status == 'Rejected')" } },
-      { "id": "toplamGostergesi", "type": "metric", "name": "toplamGostergesi",
-        "props": { "title": "Genel toplam", "value": "{{siparis.rows[0].grandTotal}}", "format": "money", "width": 3, "icon": "wallet",
-                   "description": "{{siparis.rows[0].currencyCode}}", "visibleWhen": "siparisSecimi.value != null" } },
-      { "id": "teslimGostergesi", "type": "metric", "name": "teslimGostergesi",
-        "props": { "title": "Teslim alınan %", "value": "{{siparis.rows[0].receivedPercent}}", "format": "number", "width": 3, "icon": "truck",
-                   "description": "{{siparis.rows[0].receivedQuantity}} / {{siparis.rows[0].orderedQuantity}} · {{siparis.rows[0].postedReceiptCount}} kabul",
-                   "visibleWhen": "siparisSecimi.value != null" } },
-      { "id": "faturaGostergesi", "type": "metric", "name": "faturaGostergesi",
-        "props": { "title": "Faturalanan mal kabul", "value": "{{siparis.rows[0].invoicedReceiptCount}}", "format": "number", "width": 3,
-                   "icon": "receipt", "description": "/ {{siparis.rows[0].postedReceiptCount}} kabul", "visibleWhen": "siparisSecimi.value != null" } },
-      { "id": "gecikmeGostergesi", "type": "metric", "name": "gecikmeGostergesi",
-        "props": { "title": "Gecikme", "value": "{{siparis.rows[0].delayDays}}", "format": "number", "width": 3, "icon": "calendar-clock",
-                   "variant": "danger", "description": "gün · beklenen teslim geçti",
-                   "visibleWhen": "siparisSecimi.value != null && siparis.rows[0].isOverdue == true" } },
-      { "id": "belgeSekmeleri", "type": "tabs", "name": "belgeSekmeleri",
-        "props": { "visibleWhen": "siparisSecimi.value != null",
-                   "tabs": ["Satırlar=satirTablosu,siparisNotu", "Kabuller {{malKabuller.satirSayisi}}=kabulTablosu,belgeZinciri",
-                            "Alanlar=alanTablosu"] } },
-      { "id": "satirTablosu", "type": "dataTable", "name": "satirTablosu",
-        "props": { "title": "Sipariş satırları", "query": "satirlar", "width": 12,
-                   "columns": ["stockCode", "stockName", "quantity", "receivedQuantity", "remainingQuantity", "unitPrice", "discountPercent",
-                               "vatPercent", "lineTotal"],
-                   "columnLabels": ["stockCode=Stok kodu", "stockName=Stok adı", "quantity=Sipariş", "receivedQuantity=Alınan",
-                                    "remainingQuantity=Kalan", "unitPrice=Birim fiyat", "discountPercent=İskonto %", "vatPercent=KDV %",
-                                    "lineTotal=Toplam"],
-                   "columnUnits": ["quantity=unitCode", "receivedQuantity=unitCode", "remainingQuantity=unitCode"],
-                   "columnFormats": ["stockCode=code", "quantity=number", "receivedQuantity=number", "remainingQuantity=number", "unitPrice=money",
-                                     "discountPercent=number", "vatPercent=number", "lineTotal=money"],
-                   "totals": ["lineTotal"],
-                   "emptyText": "Sipariş satırı yok." } },
-      { "id": "kabulTablosu", "type": "dataTable", "name": "kabulTablosu",
-        "props": { "title": "Mal kabulleri", "query": "malKabuller", "width": 12,
-                   "columns": ["code", "receiptDate", "warehouseName", "lineCount", "status", "invoice.code", "invoice.paymentState",
-                               "invoice.grandTotal"],
-                   "columnLabels": ["code=Mal kabul", "receiptDate=Tarih", "warehouseName=Depo", "lineCount=Satır", "status=Durum",
-                                    "invoice.code=Alış faturası", "invoice.paymentState=Fatura durumu", "invoice.grandTotal=Fatura tutarı"],
-                   "columnUnits": ["invoice.grandTotal=invoice.currencyCode"],
-                   "columnFormats": ["code=code", "receiptDate=date", "lineCount=number", "status=status", "invoice.code=code",
-                                     "invoice.paymentState=status", "invoice.grandTotal=money"],
-                   "valueLabels": ["status:Posted=Kabul edildi", "status:Voided=İptal", "invoice.paymentState:Posted=İşlendi",
-                                   "invoice.paymentState:Partial=Kısmen ödendi", "invoice.paymentState:Paid=Ödendi",
-                                   "invoice.paymentState:Overdue=Vadesi geçti", "invoice.paymentState:Voided=İptal"],
-                   "toneMap": ["Kabul edildi=success", "Ödendi=success", "Kısmen ödendi=warning", "Vadesi geçti=danger", "İşlendi=info"],
-                   "rowActions": ["kabulAcDugmesi", "faturalaDugmesi"],
-                   "emptyText": "Bu sipariş için mal kabul yok." } },
-      { "id": "kabulAcDugmesi", "type": "button", "name": "kabulAcDugmesi",
-        "props": { "text": "Mal kabulü aç", "actionType": "erpPage", "pageKey": "sales-purchase-receipts", "legacyScreen": true, "target": "newTab",
-                   "params": ["receiptId={{kabulTablosu.seciliSatir.id}}"] } },
-      { "id": "faturalaDugmesi", "type": "button", "name": "faturalaDugmesi",
-        "props": { "text": "Faturala", "actionType": "erpPage", "pageKey": "sales-purchase-invoice-entry", "target": "newTab",
-                   "params": ["receiptId={{kabulTablosu.seciliSatir.id}}"],
-                   "visibleWhen": "kabulTablosu.seciliSatir.status == 'Posted' && kabulTablosu.seciliSatir.invoice.id == null" } },
-      { "id": "belgeZinciri", "type": "text", "name": "belgeZinciri",
-        "props": { "title": "Belge zinciri",
-                   "text": "{{siparis.rows[0].code}} → {{siparis.rows[0].postedReceiptCount}} mal kabul → {{siparis.rows[0].invoicedReceiptCount}} fatura. Kaynak talep bu görünümde gösterilmez." } },
-      { "id": "siparisNotu", "type": "text", "name": "siparisNotu",
-        "props": { "title": "Sipariş notu", "text": "{{siparis.rows[0].notes}}", "visibleWhen": "siparis.rows[0].notes != null" } },
-      { "id": "alanTablosu", "type": "dataTable", "name": "alanTablosu",
-        "props": { "title": "Sipariş özel alanları", "query": "ozelDegerler", "width": 12, "variant": "list",
-                   "columns": ["label", "value"], "columnLabels": ["label=Alan", "value=Değer"],
-                   "emptyText": "Özel alan değeri yok." } },
-
-      { "id": "yeniSiparisDugmesi", "type": "button", "name": "yeniSiparisDugmesi",
-        "props": { "text": "Yeni sipariş", "actionType": "erpPage", "pageKey": "sales-purchase-order-create" } },
-      { "id": "malKabulDugmesi", "type": "button", "name": "malKabulDugmesi",
-        "props": { "text": "Mal kabul oluştur ›", "actionType": "setInput", "assignments": ["siparisSecimi={{liste.seciliSatir.id}}"],
-                   "visibleWhen": "siparisSecimi.value == null",
-                   "disabledWhen": "liste.seciliSatir.status != 'Open' && liste.seciliSatir.status != 'PartiallyReceived'",
-                   "disabledReason": "Mal kabul yalnız açık ya da kısmen alınmış siparişe yapılır." } },
-      { "id": "belgeMalKabulDugmesi", "type": "button", "name": "belgeMalKabulDugmesi",
-        "props": { "text": "Mal kabul oluştur", "actionType": "openDialog", "dialogId": "malKabulPenceresi",
-                   "visibleWhen": "siparis.rows[0].status == 'Open' || siparis.rows[0].status == 'PartiallyReceived'" } },
-
-      { "id": "malKabulPenceresi", "type": "dialog", "name": "malKabulPenceresi",
-        "props": { "presentation": "dialog", "size": "xl", "title": "Mal kabul · {{siparis.rows[0].code}} · {{siparis.rows[0].supplierName}}",
-                   "contains": ["kabulBilgileri", "kabulIstekKimligi", "kabulNotu", "kabulKalemleri", "kabulDurumu", "izlemeliKabulDugmesi"],
-                   "saveQuery": "malKabulOlustur", "saveLabel": "Mal kabulü kaydet", "closeOnSave": true, "resetOnOpen": true,
-                   "refreshQueries": ["siparis", "satirlar", "malKabuller", "kabulKaynak", "siparisler", "sayAcik", "sayKismen", "sayGecikmis"] } },
-      { "id": "kabulBilgileri", "type": "formCard", "name": "kabulBilgileri",
-        "props": { "title": "Mal kabul bilgileri", "columns": 2, "inputs": ["kabulDepo", "kabulTarihi"] } },
-      { "id": "kabulDepo", "type": "input", "name": "kabulDepo",
-        "props": { "inputType": "lookup", "label": "Depo", "required": true, "optionsQuery": "depolar", "optionValueColumn": "id",
-                   "optionLabelColumn": "name", "optionDescriptionColumn": "code", "minChars": 0, "optionsWhen": "satir.isActive == true",
-                   "defaultValue": "{{siparis.rows[0].targetWarehouseId}}", "clearsOnChange": ["kabulKalemleri.storageLocationId"] } },
-      { "id": "kabulTarihi", "type": "input", "name": "kabulTarihi",
-        "props": { "inputType": "date", "label": "Kabul tarihi", "required": true, "defaultValue": "{{bugun}}" } },
-      { "id": "kabulIstekKimligi", "type": "input", "name": "kabulIstekKimligi",
-        "props": { "inputType": "text", "label": "Tekrar deneme kimliği", "hidden": true, "autoId": true } },
-      { "id": "kabulNotu", "type": "text", "name": "kabulNotu",
-        "props": { "text": "Satırlar siparişin kalan miktarı ve fiyatıyla gelir. Kabul edilmeyecek satırın miktarını 0 yapın ya da satırı silin; miktarı 0 olan satır gönderilmez. Fiyat sipariş satırının temel biriminde girilir; bedelsiz satırda fiyat, iskonto ve KDV girilmez. Lot/seri izlemeli stok bu pencereden kabul edilemez (sunucu reddeder): o satırları 0 yapıp eski ekranda kabul edin." } },
-      { "id": "kabulKalemleri", "type": "editableGrid", "name": "kabulKalemleri",
-        "props": { "gridMode": "list", "title": "Kabul satırları", "addLabel": "Satır ekle", "maxRows": 200, "minRows": 1,
-                   "gridColumns": ["orderLineNumber|#|number|readOnly",
-                                   "stockCode|Stok kodu|text|readOnly",
-                                   "stockName|Stok adı|text|readOnly",
-                                   "orderedQuantity|Sipariş|number|readOnly",
-                                   "remainingQuantity|Kalan|number|readOnly",
-                                   "quantity|Kabul miktarı|number|required,min:0,step:0.0001",
-                                   "unitCode|Birim|text|readOnly",
-                                   "storageLocationId|Konum|lookup:kabulKonumlari:id:code:name",
-                                   "trackingMode|İzleme|text|readOnly",
-                                   "isFreeOfCharge|Bedelsiz|checkbox",
-                                   "unitPrice|Birim fiyat|number|min:0,step:0.0001",
-                                   "discountPercent|İsk. %|number|min:0,max:100,step:0.01",
-                                   "vatPercent|KDV %|number|min:0,max:100,step:0.01",
-                                   "lineNetAmount|Tutar|number|readOnly"],
-                   "columnOptionsWhen": ["storageLocationId=satir.isActive == true"],
-                   "fillQuery": "kabulKaynak",
-                   "fillColumns": { "quantity": "remainingQuantity", "orderedQuantity": "quantity" },
-                   "skipWhenZero": "quantity",
-                   "formulas": { "lineNetAmount": "quantity * unitPrice * (1 - discountPercent / 100)" },
-                   "lockColumnsWhen": ["unitPrice,discountPercent,vatPercent,lineNetAmount=satir.isFreeOfCharge == true"] } },
-      { "id": "kabulDurumu", "type": "text", "name": "kabulDurumu",
-        "props": { "text": "Gönderilecek satır: {{kabulKalemleri.satirSayisi}} · Fazla teslim, birim ve izleme türü sunucuda denetlenir." } },
-      { "id": "izlemeliKabulDugmesi", "type": "button", "name": "izlemeliKabulDugmesi",
-        "props": { "text": "Lot/seri izlemeli kabul (eski ekran)", "actionType": "erpPage", "pageKey": "sales-purchasing", "legacyScreen": true,
-                   "params": ["purchaseOrderId={{siparisSecimi.value}}"] } },
-      { "id": "eskiEkranDugmesi", "type": "button", "name": "eskiEkranDugmesi",
-        "props": { "text": "Siparişi eski ekranda aç", "actionType": "erpPage", "pageKey": "sales-purchasing", "legacyScreen": true,
-                   "params": ["purchaseOrderId={{liste.seciliSatir.id}}"],
-                   "visibleWhen": "siparisSecimi.value == null",
-                   "disabledWhen": "liste.seciliSatir.id == null", "disabledReason": "Önce bir kayıt seçin" } }
+          {
+            "id": "ozetPaneli",
+            "type": "contextPanel",
+            "name": "ozetPaneli",
+            "props": {
+              "table": "liste",
+              "width": 12,
+              "fields": [
+                "orderDate=Sipariş tarihi",
+                "expectedReceiptDate=Beklenen teslim",
+                "delayDays=Gecikme (gün)",
+                "lineCount=Satır",
+                "orderedQuantity=Sipariş miktarı",
+                "receivedQuantity=Alınan miktar",
+                "currencyCode=Döviz"
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "yeniSiparisDugmesi",
+        "type": "button",
+        "name": "yeniSiparisDugmesi",
+        "props": {
+          "text": "Yeni sipariş",
+          "actionType": "erpPage",
+          "pageKey": "sales-purchase-order-create",
+          "slot": "actions"
+        }
+      },
+      {
+        "id": "izlemeliKabulDugmesi",
+        "type": "button",
+        "name": "izlemeliKabulDugmesi",
+        "props": {
+          "text": "Lot/seri izlemeli kabul (eski ekran)",
+          "actionType": "erpPage",
+          "pageKey": "sales-purchasing",
+          "legacyScreen": true,
+          "params": [
+            "purchaseOrderId={{liste.seciliSatir.id}}"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "malKabulPenceresi",
+        "type": "dialog",
+        "name": "malKabulPenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "xl",
+          "title": "Mal kabul · {{siparis.rows[0].code}} · {{siparis.rows[0].supplierName}}",
+          "contains": [
+            "kabulKalemleri",
+            "izlemeliKabulDugmesi",
+            "kabulBilgileri",
+            "kabulIstekKimligi",
+            "kabulNotu",
+            "kabulDurumu",
+            "kabulTarihi",
+            "kabulDepo"
+          ],
+          "saveQuery": "malKabulOlustur",
+          "saveLabel": "Mal kabulü kaydet",
+          "closeOnSave": true,
+          "resetOnOpen": true,
+          "refreshQueries": [
+            "siparis",
+            "satirlar",
+            "malKabuller",
+            "kabulKaynak",
+            "siparisler",
+            "sayAcik",
+            "sayKismen",
+            "sayGecikmis"
+          ],
+          "slot": "dialogs"
+        }
+      },
+      {
+        "id": "kabulBilgileri",
+        "type": "formCard",
+        "name": "kabulBilgileri",
+        "props": {
+          "title": "Mal kabul bilgileri",
+          "columns": 2,
+          "inputs": [
+            "kabulDepo",
+            "kabulTarihi"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "kabulIstekKimligi",
+        "type": "input",
+        "name": "kabulIstekKimligi",
+        "props": {
+          "inputType": "text",
+          "label": "Tekrar deneme kimliği",
+          "hidden": true,
+          "autoId": true,
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "kabulNotu",
+        "type": "text",
+        "name": "kabulNotu",
+        "props": {
+          "text": "Satırlar siparişin kalan miktarı ve fiyatıyla gelir. Kabul edilmeyecek satırın miktarını 0 yapın ya da satırı silin; miktarı 0 olan satır gönderilmez. Fiyat sipariş satırının temel biriminde girilir; bedelsiz satırda fiyat, iskonto ve KDV girilmez. Lot/seri izlemeli stok bu pencereden kabul edilemez (sunucu reddeder): o satırları 0 yapıp eski ekranda kabul edin.",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "kabulKalemleri",
+        "type": "editableGrid",
+        "name": "kabulKalemleri",
+        "props": {
+          "gridMode": "list",
+          "title": "Kabul satırları",
+          "addLabel": "Satır ekle",
+          "maxRows": 200,
+          "minRows": 1,
+          "gridColumns": [
+            "orderLineNumber|#|number|readOnly",
+            "stockCode|Stok kodu|text|readOnly",
+            "stockName|Stok adı|text|readOnly",
+            "quantity|Kabul miktarı|number|required,min:0,step:0.0001",
+            "remainingQuantity|Kalan|number|readOnly",
+            "unitCode|Birim|text|readOnly",
+            "storageLocationId|Konum|lookup:kabulKonumlari:id:code:name",
+            "trackingMode|İzleme|text|readOnly"
+          ],
+          "columnOptionsWhen": [
+            "storageLocationId=satir.isActive == true"
+          ],
+          "fillQuery": "kabulKaynak",
+          "fillColumns": {
+            "quantity": "remainingQuantity",
+            "orderedQuantity": "quantity"
+          },
+          "skipWhenZero": "quantity",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "kabulDurumu",
+        "type": "text",
+        "name": "kabulDurumu",
+        "props": {
+          "text": "Gönderilecek satır: {{kabulKalemleri.satirSayisi}} · Fazla teslim, birim ve izleme türü sunucuda denetlenir.",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "siparisDetayPenceresi",
+        "type": "dialog",
+        "name": "siparisDetayPenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "xl",
+          "title": "Sipariş · {{siparis.rows[0].code}}",
+          "contains": [
+            "siparisDetaySekmeleri",
+            "faturalaDugmesi",
+            "kabulAcDugmesi",
+            "siparisDetayBasligi"
+          ],
+          "slot": "dialogs"
+        }
+      },
+      {
+        "id": "siparisDetayBasligi",
+        "type": "recordHeader",
+        "name": "siparisDetayBasligi",
+        "props": {
+          "icon": "shopping-cart",
+          "title": "{{siparis.rows[0].code}}",
+          "subtitle": "{{siparis.rows[0].supplierName}}",
+          "fields": [
+            "Sipariş tarihi={{siparis.rows[0].orderDate}}",
+            "Beklenen teslim={{siparis.rows[0].expectedReceiptDate}}",
+            "Durum={{siparis.rows[0].status}}"
+          ],
+          "fieldFormats": [
+            "Sipariş tarihi=date",
+            "Beklenen teslim=date"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "siparisDetaySekmeleri",
+        "type": "tabs",
+        "name": "siparisDetaySekmeleri",
+        "props": {
+          "tabs": [
+            "Satırlar=satirTablosu",
+            "Mal kabuller=kabulTablosu",
+            "Özel alanlar=alanTablosu"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "satirTablosu",
+        "type": "dataTable",
+        "name": "satirTablosu",
+        "props": {
+          "title": "Sipariş satırları",
+          "query": "satirlar",
+          "columns": [
+            "orderLineNumber",
+            "stockCode",
+            "stockName",
+            "quantity",
+            "receivedQuantity",
+            "remainingQuantity",
+            "unitCode"
+          ],
+          "columnLabels": [
+            "orderLineNumber=#",
+            "stockCode=Stok kodu",
+            "stockName=Stok",
+            "quantity=Sipariş",
+            "receivedQuantity=Alınan",
+            "remainingQuantity=Kalan",
+            "unitCode=Birim"
+          ],
+          "columnFormats": [
+            "orderLineNumber=number",
+            "quantity=number",
+            "receivedQuantity=number",
+            "remainingQuantity=number"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "kabulTablosu",
+        "type": "dataTable",
+        "name": "kabulTablosu",
+        "props": {
+          "title": "Mal kabuller",
+          "query": "malKabuller",
+          "columns": [
+            "code",
+            "receiptDate",
+            "status",
+            "invoiceCode"
+          ],
+          "columnLabels": [
+            "code=Mal kabul",
+            "receiptDate=Tarih",
+            "status=Durum",
+            "invoiceCode=Fatura"
+          ],
+          "columnFormats": [
+            "code=code",
+            "receiptDate=date"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "faturalaDugmesi",
+        "type": "button",
+        "name": "faturalaDugmesi",
+        "props": {
+          "text": "Faturala",
+          "actionType": "page",
+          "pageCode": "@sales-purchase-invoice-entry",
+          "target": "newTab",
+          "params": [
+            "receiptId={{kabulTablosu.seciliSatir.id}}"
+          ],
+          "visibleWhen": "kabulTablosu.seciliSatir.status == 'Posted'",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "kabulAcDugmesi",
+        "type": "button",
+        "name": "kabulAcDugmesi",
+        "props": {
+          "text": "Mal kabulü aç",
+          "actionType": "erpPage",
+          "pageKey": "sales-purchase-receipts",
+          "legacyScreen": true,
+          "target": "newTab",
+          "params": [
+            "receiptId={{kabulTablosu.seciliSatir.id}}"
+          ],
+          "disabledWhen": "kabulTablosu.seciliSatir.id == null",
+          "disabledReason": "Önce bir kayıt seçin",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "kabulTarihi",
+        "type": "input",
+        "name": "kabulTarihi",
+        "props": {
+          "inputType": "date",
+          "label": "Kabul tarihi",
+          "required": true,
+          "defaultValue": "{{bugun}}",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "kabulDepo",
+        "type": "input",
+        "name": "kabulDepo",
+        "props": {
+          "inputType": "lookup",
+          "label": "Depo",
+          "required": true,
+          "optionsQuery": "depolar",
+          "optionValueColumn": "id",
+          "optionLabelColumn": "name",
+          "optionDescriptionColumn": "code",
+          "minChars": 0,
+          "optionsWhen": "satir.isActive == true",
+          "defaultValue": "{{siparis.rows[0].targetWarehouseId}}",
+          "clearsOnChange": [
+            "kabulKalemleri.storageLocationId"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "durumSecimi",
+        "type": "input",
+        "name": "durumSecimi",
+        "props": {
+          "inputType": "select",
+          "label": "Durum",
+          "staticOptions": [
+            "=Tümü",
+            "PendingApproval=Onay bekliyor",
+            "Open=Açık",
+            "PartiallyReceived=Kısmen alındı",
+            "Received=Tam alındı",
+            "Cancelled=İptal",
+            "Rejected=Reddedildi"
+          ],
+          "slot": "above"
+        }
+      },
+      {
+        "id": "gecikmisSecimi",
+        "type": "input",
+        "name": "gecikmisSecimi",
+        "props": {
+          "inputType": "checkbox",
+          "label": "Gecikmiş",
+          "slot": "above"
+        }
+      },
+      {
+        "id": "durumAcik",
+        "type": "input",
+        "name": "durumAcik",
+        "props": {
+          "inputType": "text",
+          "label": "Sayaç durumu",
+          "hidden": true,
+          "defaultValue": "Open",
+          "slot": "above"
+        }
+      },
+      {
+        "id": "durumKismen",
+        "type": "input",
+        "name": "durumKismen",
+        "props": {
+          "inputType": "text",
+          "label": "Sayaç durumu",
+          "hidden": true,
+          "defaultValue": "PartiallyReceived",
+          "slot": "above"
+        }
+      },
+      {
+        "id": "gecikmisSabit",
+        "type": "input",
+        "name": "gecikmisSabit",
+        "props": {
+          "inputType": "text",
+          "label": "Sayaç süzgeci",
+          "hidden": true,
+          "defaultValue": "true",
+          "slot": "above"
+        }
+      },
+      {
+        "id": "sayacSayfaBoyutu",
+        "type": "input",
+        "name": "sayacSayfaBoyutu",
+        "props": {
+          "inputType": "text",
+          "label": "Sayaç sayfa boyutu",
+          "hidden": true,
+          "defaultValue": "1",
+          "slot": "above"
+        }
+      },
+      {
+        "id": "alanTablosu",
+        "type": "dataTable",
+        "name": "alanTablosu",
+        "props": {
+          "title": "Sipariş özel alanları",
+          "query": "ozelDegerler",
+          "width": 12,
+          "variant": "list",
+          "columns": [
+            "label",
+            "value"
+          ],
+          "columnLabels": [
+            "label=Alan",
+            "value=Değer"
+          ],
+          "emptyText": "Özel alan değeri yok.",
+          "slot": "dialog"
+        }
+      }
     ],
     "queries": [
-      { "id": "siparisler", "name": "siparisler", "kind": "read", "operation": "satinalma.siparis.listele", "runOn": "load",
+      {
+        "id": "siparisler",
+        "name": "siparisler",
+        "kind": "read",
+        "operation": "satinalma.siparis.listele",
+        "runOn": "load",
         "parameters": [
-          { "name": "q", "binding": "{{suzgec.q}}", "type": "text" },
-          { "name": "status", "binding": "{{durumSecimi.value}}", "type": "text" },
-          { "name": "overdue", "binding": "{{gecikmisSecimi.value}}", "type": "bool" },
-          { "name": "page", "binding": "{{liste.sayfa}}", "type": "int" },
-          { "name": "pageSize", "binding": "{{liste.sayfaBoyutu}}", "type": "int" } ] },
-      { "id": "sayAcik", "name": "sayAcik", "kind": "read", "operation": "satinalma.siparis.listele", "runOn": "load",
+          {
+            "name": "q",
+            "binding": "{{suzgec.q}}",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "binding": "{{durumSecimi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "overdue",
+            "binding": "{{gecikmisSecimi.value}}",
+            "type": "bool"
+          },
+          {
+            "name": "page",
+            "binding": "{{liste.sayfa}}",
+            "type": "int"
+          },
+          {
+            "name": "pageSize",
+            "binding": "{{liste.sayfaBoyutu}}",
+            "type": "int"
+          }
+        ]
+      },
+      {
+        "id": "ozelDegerler",
+        "name": "ozelDegerler",
+        "kind": "read",
+        "operation": "satinalma.siparis.ozelAlanDegerleri",
+        "runOn": "load",
         "parameters": [
-          { "name": "q", "binding": "{{suzgec.q}}", "type": "text" },
-          { "name": "status", "binding": "{{durumAcik.value}}", "type": "text" },
-          { "name": "pageSize", "binding": "{{sayacSayfaBoyutu.value}}", "type": "int" } ] },
-      { "id": "sayKismen", "name": "sayKismen", "kind": "read", "operation": "satinalma.siparis.listele", "runOn": "load",
+          {
+            "name": "id",
+            "binding": "{{siparisSecimi.value}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "sayAcik",
+        "name": "sayAcik",
+        "kind": "read",
+        "operation": "satinalma.siparis.listele",
+        "runOn": "load",
         "parameters": [
-          { "name": "q", "binding": "{{suzgec.q}}", "type": "text" },
-          { "name": "status", "binding": "{{durumKismen.value}}", "type": "text" },
-          { "name": "pageSize", "binding": "{{sayacSayfaBoyutu.value}}", "type": "int" } ] },
-      { "id": "sayGecikmis", "name": "sayGecikmis", "kind": "read", "operation": "satinalma.siparis.listele", "runOn": "load",
+          {
+            "name": "q",
+            "binding": "{{suzgec.q}}",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "binding": "{{durumAcik.value}}",
+            "type": "text"
+          },
+          {
+            "name": "pageSize",
+            "binding": "{{sayacSayfaBoyutu.value}}",
+            "type": "int"
+          }
+        ]
+      },
+      {
+        "id": "sayKismen",
+        "name": "sayKismen",
+        "kind": "read",
+        "operation": "satinalma.siparis.listele",
+        "runOn": "load",
         "parameters": [
-          { "name": "q", "binding": "{{suzgec.q}}", "type": "text" },
-          { "name": "overdue", "binding": "{{gecikmisSabit.value}}", "type": "bool" },
-          { "name": "pageSize", "binding": "{{sayacSayfaBoyutu.value}}", "type": "int" } ] },
-      { "id": "siparis", "name": "siparis", "kind": "read", "operation": "satinalma.siparis.getir", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{siparisSecimi.value}}", "type": "guid" } ] },
-      { "id": "satirlar", "name": "satirlar", "kind": "read", "operation": "satinalma.siparis.satirlari", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{siparisSecimi.value}}", "type": "guid" } ] },
-      { "id": "malKabuller", "name": "malKabuller", "kind": "read", "operation": "satinalma.siparis.malKabulleri", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{siparisSecimi.value}}", "type": "guid" } ] },
-      { "id": "ozelDegerler", "name": "ozelDegerler", "kind": "read", "operation": "satinalma.siparis.ozelAlanDegerleri", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{siparisSecimi.value}}", "type": "guid" } ] },
-      { "id": "kabulKaynak", "name": "kabulKaynak", "kind": "read", "operation": "satinalma.siparis.satirlari", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{siparisSecimi.value}}", "type": "guid" } ] },
-      { "id": "depolar", "name": "depolar", "kind": "read", "operation": "depo.listele", "runOn": "load", "parameters": [] },
-      { "id": "kabulKonumlari", "name": "kabulKonumlari", "kind": "read", "operation": "depo.konumlari", "runOn": "load",
-        "parameters": [ { "name": "warehouseId", "binding": "{{kabulDepo.value}}", "type": "guid" } ] },
-      { "id": "malKabulOlustur", "name": "malKabulOlustur", "kind": "insert", "operation": "satinalma.malKabul.olustur", "runOn": "manual",
+          {
+            "name": "q",
+            "binding": "{{suzgec.q}}",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "binding": "{{durumKismen.value}}",
+            "type": "text"
+          },
+          {
+            "name": "pageSize",
+            "binding": "{{sayacSayfaBoyutu.value}}",
+            "type": "int"
+          }
+        ]
+      },
+      {
+        "id": "sayGecikmis",
+        "name": "sayGecikmis",
+        "kind": "read",
+        "operation": "satinalma.siparis.listele",
+        "runOn": "load",
         "parameters": [
-          { "name": "id", "binding": "{{siparisSecimi.value}}", "type": "guid" },
-          { "name": "requestId", "binding": "{{kabulIstekKimligi.value}}", "type": "guid" },
-          { "name": "warehouseId", "binding": "{{kabulDepo.value}}", "type": "guid" },
-          { "name": "receiptDate", "binding": "{{kabulTarihi.value}}", "type": "date" },
-          { "name": "lines", "binding": "{{kabulKalemleri.satirlar}}", "type": "list" } ] }
-    ]
+          {
+            "name": "q",
+            "binding": "{{suzgec.q}}",
+            "type": "text"
+          },
+          {
+            "name": "overdue",
+            "binding": "{{gecikmisSabit.value}}",
+            "type": "bool"
+          },
+          {
+            "name": "pageSize",
+            "binding": "{{sayacSayfaBoyutu.value}}",
+            "type": "int"
+          }
+        ]
+      },
+      {
+        "id": "siparis",
+        "name": "siparis",
+        "kind": "read",
+        "operation": "satinalma.siparis.getir",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "satirlar",
+        "name": "satirlar",
+        "kind": "read",
+        "operation": "satinalma.siparis.satirlari",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "malKabuller",
+        "name": "malKabuller",
+        "kind": "read",
+        "operation": "satinalma.siparis.malKabulleri",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "kabulKaynak",
+        "name": "kabulKaynak",
+        "kind": "read",
+        "operation": "satinalma.siparis.satirlari",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "depolar",
+        "name": "depolar",
+        "kind": "read",
+        "operation": "depo.listele",
+        "runOn": "load",
+        "parameters": []
+      },
+      {
+        "id": "kabulKonumlari",
+        "name": "kabulKonumlari",
+        "kind": "read",
+        "operation": "depo.konumlari",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "warehouseId",
+            "binding": "{{kabulDepo.value}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "malKabulOlustur",
+        "name": "malKabulOlustur",
+        "kind": "insert",
+        "operation": "satinalma.malKabul.olustur",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          },
+          {
+            "name": "requestId",
+            "binding": "{{kabulIstekKimligi.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "warehouseId",
+            "binding": "{{kabulDepo.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "receiptDate",
+            "binding": "{{kabulTarihi.value}}",
+            "type": "date"
+          },
+          {
+            "name": "lines",
+            "binding": "{{kabulKalemleri.satirlar}}",
+            "type": "list"
+          }
+        ]
+      }
+    ],
+    "template": {
+      "name": "list"
+    }
   }
 }

@@ -18,7 +18,7 @@ using Xunit;
 namespace AIERP.Api.IntegrationTests;
 
 /// <summary>
-/// Purchasing document system pages, Faz 2 (draft 21, line-document writes): Satınalma İrsaliyeleri v2 (delivery note from the
+/// Purchasing document system pages, Faz 2 (draft 21, line-document writes): Satınalma İrsaliyeleri v3 (delivery note from the
 /// order's remaining lines, link / unlink receipt), Satınalma Faturaları v2 and Satınalma İadeleri v2 (return from the
 /// invoice's returnable lines) and the new Bağımsız fatura taslakları v1 (create / edit with numbered lines, expense account
 /// and receipt-line pickers, chained formulas and totals, Muhasebeleştir). The grids use the generic engine props
@@ -32,9 +32,9 @@ public sealed class PurchasingFaz2DocumentSystemPagesTests
 
     public static TheoryData<string, string, int> Keys => new()
     {
-        { "sales-purchase-delivery-notes", "Satınalma İrsaliyeleri", 2 },
+        { "sales-purchase-delivery-notes", "Satınalma İrsaliyeleri", 3 },
         { "sales-purchase-invoices", "Satınalma Faturaları", 3 },
-        { "sales-purchase-returns", "Satınalma İadeleri", 2 },
+        { "sales-purchase-returns", "Satınalma İadeleri", 3 },
         { "sales-purchase-invoice-drafts", "Satınalma faturası taslakları", 1 },
     };
 
@@ -72,7 +72,7 @@ public sealed class PurchasingFaz2DocumentSystemPagesTests
         Assert.All(Components(definition).Where(x => (string?)x["type"] == "dataTable"),
             table => Assert.InRange(Strings(table["props"]!["columns"]).Length, 1, 12));
         Assert.All(Components(definition).Where(x => (string?)x["type"] == "editableGrid"),
-            grid => Assert.InRange(Strings(grid["props"]!["gridColumns"]).Length, 1, 12));
+            grid => Assert.InRange(Strings(grid["props"]!["gridColumns"]).Length, 1, 8));
         Assert.All(Components(definition), component => Assert.InRange(component["props"]?.AsObject().Count ?? 0, 0, 30));
         if (version == 1) return;
         // The restricted v1 definition still validates and keeps the v1 commands.
@@ -202,54 +202,46 @@ public sealed class PurchasingFaz2DocumentSystemPagesTests
             Assert.Contains(item.Code, Strings(props["gridColumns"]).Select(x => x.Split('|')[0]));
     }
 
-    // ---- Satınalma İrsaliyeleri v2 ----
+    // ---- Satınalma İrsaliyeleri v3 ----
 
     [Fact]
-    public void Delivery_note_is_created_from_the_order_lines_and_linked_or_unlinked_on_the_list_and_the_document()
+    public void Delivery_note_uses_a_list_template_and_keeps_create_and_receipt_link_writes()
     {
         const string key = "sales-purchase-delivery-notes";
         Assert.Equal(("openDialog", "yeniIrsaliyePenceresi"), ((string)Props(key, "yeniIrsaliyeDugmesi")["actionType"]!, (string)Props(key, "yeniIrsaliyeDugmesi")["dialogId"]!));
         Assert.Equal("yeniIrsaliyeDugmesi", (string)Props(key, "komutlar")["newButton"]!);
-        // The order picker offers the statuses the server accepts (not Cancelled, PendingApproval, Rejected).
+        Assert.Equal("list", (string)Definition(key)["template"]!["name"]!);
+        Assert.Equal("openDialog", (string)Props(key, "acDugmesi")["actionType"]!);
+        Assert.Equal("irsaliyeDetayPenceresi", (string)Props(key, "acDugmesi")["dialogId"]!);
+        Assert.Equal("acDugmesi", (string)Props(key, "liste")["rowOpenAction"]!);
+
         var order = Props(key, "irsaliyeSiparisi");
         Assert.Equal(("lookup", "siparisler", true), ((string)order["inputType"]!, (string)order["optionsQuery"]!, (bool)order["required"]!));
         Assert.Equal("satir.status in ['Open', 'PartiallyReceived', 'Received']", (string)order["optionsWhen"]!);
         Assert.Equal(("satinalma.siparis.listele", "{{irsaliyeSiparisi.search}}"), (Operation(key, "siparisler"), Binding(key, "siparisler", "q")));
-        foreach (var query in new[] { "irsaliyeKaynak", "siparisIrsaliyeleri" })
-            Assert.Equal("{{irsaliyeSiparisi.value}}", Binding(key, query, "orderId"));
+        Assert.Equal("{{irsaliyeSiparisi.value}}", Binding(key, "irsaliyeKaynak", "orderId"));
         Assert.Equal(("satinalma.siparis.malKabulleri", "{{irsaliyeSiparisi.value}}"), (Operation(key, "irsaliyeKabulleri"), Binding(key, "irsaliyeKabulleri", "id")));
         Assert.Equal(("satinalma.irsaliye.olustur", "{{irsaliyeSiparisi.value}}", "{{belgeNo.value}}", "{{belgeTarihi.value}}", "{{irsaliyeKabulu.value}}"),
             (Operation(key, "irsaliyeOlustur"), Binding(key, "irsaliyeOlustur", "orderId"), Binding(key, "irsaliyeOlustur", "documentNumber"),
              Binding(key, "irsaliyeOlustur", "documentDate"), Binding(key, "irsaliyeOlustur", "purchaseReceiptId")));
         Assert.Null(Props(key, "irsaliyeKabulu")["required"]);
         Assert.Equal((true, 80), ((bool)Props(key, "belgeNo")["required"]!, (int)Props(key, "belgeNo")["maxLength"]!));
-        // F2-10: the quantity is in the order line's base unit; the grid sends the source unit and offers no other.
-        Assert.Contains("unitCode|Birim|text|readOnly", Strings(Props(key, "irsaliyeSatirlari")["gridColumns"]));
 
-        // Link: one dialog per context (list row, open document); unlink: a confirmed command per context.
-        foreach (var (opener, dialog, select, options, write, recordId, orderId) in new[] {
-                     ("baglantiDugmesi", "baglaPenceresi", "baglaKabulu", "baglaKabulleri", "bagla", "{{liste.seciliSatir.id}}", "{{liste.seciliSatir.purchaseOrderId}}"),
-                     ("belgeBaglantiDugmesi", "belgeBaglaPenceresi", "belgeBaglaKabulu", "belgeBaglaKabulleri", "belgeBagla", "{{irsaliye.rows[0].id}}", "{{irsaliye.rows[0].purchaseOrderId}}") })
-        {
-            Assert.Equal(("openDialog", dialog), ((string)Props(key, opener)["actionType"]!, (string)Props(key, opener)["dialogId"]!));
-            Assert.Equal(write, (string)Props(key, dialog)["saveQuery"]!);
-            Assert.Equal(("satinalma.siparis.malKabulleri", orderId), (Operation(key, options), Binding(key, options, "id")));
-            Assert.Equal("satir.status == 'Posted'", (string)Props(key, select)["optionsWhen"]!);
-            Assert.Equal(("satinalma.irsaliye.malKabulBagla", recordId, $"{{{{{select}.value}}}}"),
-                (Operation(key, write), Binding(key, write, "id"), Binding(key, write, "purchaseReceiptId")));
-        }
-        foreach (var (button, query, recordId) in new[] { ("baglantiKaldirDugmesi", "baglantiKaldir", "{{liste.seciliSatir.id}}"),
-                     ("belgeBaglantiKaldirDugmesi", "belgeBaglantiKaldir", "{{irsaliye.rows[0].id}}") })
-        {
-            var props = Props(key, button);
-            Assert.Equal((query, true), ((string)props["queryId"]!, (bool)props["confirmEnabled"]!));
-            Assert.Null(props["errorMessage"]);
-            Assert.Equal(("satinalma.irsaliye.malKabulBaglantisiKaldir", recordId), (Operation(key, query), Binding(key, query, "id")));
-        }
-        Assert.Equal("liste.seciliSatir.purchaseReceiptId == null", (string)Props(key, "baglantiKaldirDugmesi")["disabledWhen"]!);
-        Assert.Contains("liste.seciliSatir.purchaseReceiptId != null", (string)Props(key, "baglantiDugmesi")["disabledWhen"]!);
-        Assert.Equal(new[] { "listeyeDonDugmesi", "belgeBaglantiDugmesi", "belgeBaglantiKaldirDugmesi" }, Strings(Props(key, "belgeBasligi")["buttons"]));
-        // Only the receipt link stays on the legacy screen (the receipts standard does not read receiptId).
+        var grid = Props(key, "irsaliyeSatirlari");
+        Assert.Equal("list", (string)grid["gridMode"]!);
+        Assert.InRange(Strings(grid["gridColumns"]).Length, 1, 8);
+        Assert.Equal(("irsaliyeKaynak", "remainingQuantity", "quantity"), ((string)grid["fillQuery"]!, (string)grid["fillColumns"]!["quantity"]!, (string)grid["skipWhenZero"]!));
+        Assert.Equal("quantity", (string)grid["skipWhenZero"]!);
+        Assert.Contains("orderLineNumber", Strings(grid["gridColumns"]).Select(x => x.Split('|')[0]));
+        Assert.Contains("unitCode|Birim|text|readOnly", Strings(grid["gridColumns"]));
+
+        Assert.Equal(("openDialog", "baglaPenceresi"), ((string)Props(key, "baglantiDugmesi")["actionType"]!, (string)Props(key, "baglantiDugmesi")["dialogId"]!));
+        Assert.Equal(("satinalma.siparis.malKabulleri", "{{liste.seciliSatir.purchaseOrderId}}"), (Operation(key, "baglaKabulleri"), Binding(key, "baglaKabulleri", "id")));
+        Assert.Equal(("satinalma.irsaliye.malKabulBagla", "{{liste.seciliSatir.id}}", "{{baglaKabulu.value}}"),
+            (Operation(key, "bagla"), Binding(key, "bagla", "id"), Binding(key, "bagla", "purchaseReceiptId")));
+        var unlink = Props(key, "baglantiKaldirDugmesi");
+        Assert.Equal(("baglantiKaldir", true), ((string)unlink["queryId"]!, (bool)unlink["confirmEnabled"]!));
+        Assert.Equal(("satinalma.irsaliye.malKabulBaglantisiKaldir", "{{liste.seciliSatir.id}}"), (Operation(key, "baglantiKaldir"), Binding(key, "baglantiKaldir", "id")));
         var legacy = Components(Definition(key)).Where(x => (bool?)x["props"]?["legacyScreen"] == true).Select(x => (string)x["id"]!).ToArray();
         Assert.Equal(new[] { "malKabuluAcDugmesi" }, legacy);
     }
