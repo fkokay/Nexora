@@ -70,7 +70,8 @@ internal static class SystemPageEndpoints
             var screens = new SortedDictionary<string, SystemPageRuntimeScreen>(StringComparer.Ordinal);
             foreach (var row in published.Where(x => standards.TryGet(x.ScreenKey, out _)))
                 screens[row.ScreenKey] = new SystemPageRuntimeScreen("override", row.Revision);
-            foreach (var key in EnabledStandards(configuration))
+            var enabled = EnabledStandards(configuration);
+            foreach (var key in enabled.Contains(AllStandards) ? standards.All.Select(x => x.ScreenKey) : enabled)
                 if (!screens.ContainsKey(key) && standards.TryGet(key, out var standard))
                     screens[key] = new SystemPageRuntimeScreen("standard", standard.Version);
             // Alias screens (e.g. customer-edit) open their standard's screen while that screen is served as a system page.
@@ -101,7 +102,8 @@ internal static class SystemPageEndpoints
                     await TenantCustomPageEndpoints.RuntimeDefinitionAsync(db, tenant, page.DefinitionJson, ct), forms, RuntimeRights(rights, page.DefinitionJson),
                     standard.ScreenKey, "override", page.StandardVersion));
             }
-            if (!EnabledStandards(configuration).Contains(standard.ScreenKey)) return NotFound();
+            var enabledStandards = EnabledStandards(configuration);
+            if (!enabledStandards.Contains(AllStandards) && !enabledStandards.Contains(standard.ScreenKey)) return NotFound();
             // A standard has no SQL and no access row of its own: every member may view it, and so (RuntimeRights) write
             // through its ERP operations, which the ERP endpoints authorize.
             var isMember = await platformDb.TenantMemberships.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.UserId == userId, ct);
@@ -344,6 +346,9 @@ internal static class SystemPageEndpoints
             if (SystemPageUpdates.TryApply(update, standardDefinition, copy)) applied.Add((update, copy.ToJsonString()));
         return applied;
     }
+
+    /// <summary>"*" in SystemPages:StandardEnabled serves every standard to firms without a published copy.</summary>
+    private const string AllStandards = "*";
 
     private static IReadOnlySet<string> EnabledStandards(IConfiguration configuration) =>
         (configuration.GetSection("SystemPages:StandardEnabled").Get<string[]>() ?? []).ToHashSet(StringComparer.Ordinal);
