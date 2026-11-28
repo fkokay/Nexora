@@ -289,7 +289,7 @@ describe('Satış Siparişleri', () => {
 });
 
 describe('Satış Faturaları', () => {
-  it('Yeni opens the invoice create page and the header buttons are gone', async () => {
+  it('Yeni opens the invoice document page and the header buttons are gone', async () => {
     const onNavigate = vi.fn();
     renderScreen(<SalesInvoicesPage token="t" role="TenantAdmin" onNavigate={onNavigate} />);
     await settle();
@@ -298,7 +298,7 @@ describe('Satış Faturaları', () => {
     expect(screen.queryByRole('button', { name: /Fatura oluştur/ })).toBeNull();
     expect(duplicates()).toEqual([]);
     fireEvent.keyDown(window, { key: 'F2' });
-    expect(onNavigate).toHaveBeenCalledWith('sales-invoice-create');
+    expect(onNavigate).toHaveBeenCalledWith('sales-invoice-document');
   });
 
   it('a posted invoice is cancelled, not deleted; a voided one can be deleted', async () => {

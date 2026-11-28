@@ -519,7 +519,7 @@ public sealed class CustomerSystemPagesTests
         Assert.Equal(("list", "detail", "rowActions"), ((string)props["slot"]!, (string)Props("customers", "detayKarti")["slot"]!, (string)Props("customers", "acDugmesi")["slot"]!));
         Assert.DoesNotContain(Definition("customers")["components"]!.AsArray().Select(x => (string)x!["id"]!), x => x is "faturalarDugmesi" or "adreslerDugmesi" or "detayPaneli");
         foreach (var (button, page) in new[] { ("yeniTeklif", "sales-quote-create"), ("yeniSiparis", "sales-order-document"),
-                     ("yeniIrsaliye", "sales-delivery-create"), ("yeniFatura", "sales-invoice-create") })
+                     ("yeniIrsaliye", "sales-delivery-create"), ("yeniFatura", "sales-invoice-document") })
         {
             var p = Props("customers", button);
             Assert.Equal(("erpPage", page), ((string)p["actionType"]!, (string)p["pageKey"]!));

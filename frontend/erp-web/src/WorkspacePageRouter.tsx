@@ -442,9 +442,9 @@ function LegacyPageRouter({
       openKey="sales-deliveries" openParam="belgeIrsaliyeId" createKey="sales-delivery-create" />;
   if (page === "sales-invoice-document")
     return <LegacyDocumentCard onNavigate={onNavigate} documentKey="sales-invoice-document" noun="Fatura"
-      openKey="sales-invoices" openParam="belgeFaturaId" createKey="sales-invoice-create" />;
+      openKey="sales-invoices" openParam="belgeFaturaId" createKey="sales-invoices" />;
   if (page === "sales-invoice-create")
-    return <SalesInvoicesPage {...salesPageProps} openInvoiceCreate />;
+    return <LegacyCreateRedirect sourceKey="sales-invoice-create" targetKey="sales-invoice-document" noun="Fatura" onNavigate={onNavigate} />;
   if (page === "sales-invoices")
     return <SalesInvoicesPage {...salesPageProps} />;
   if (page === "sales-deliveries")
@@ -515,10 +515,11 @@ function LegacyPageRouter({
         onNavigate={onNavigate}
       />
     );
+  if (page === "finance-journal-vouchers")
+    return <LegacyCreateRedirect sourceKey="finance-journal-vouchers" targetKey="finance-journal-voucher-document" noun="Yevmiye fişi" onNavigate={onNavigate} />;
   if (
     page === "finance-ledger-chart" ||
     page === "finance-ledger-mappings" ||
-    page === "finance-journal-vouchers" ||
     page === "finance-journal-voucher-document" ||
     page === "finance-trial-balance" ||
     page === "finance-balance-sheet" ||
@@ -683,6 +684,19 @@ function LegacyPageRouter({
  * buraya düşer: `orderId` varsa o siparişin, yoksa boş Belge sayfası açılır; bu sekme kapanır. Belge sayfası bu firmada sistem
  * sayfası değilse `LegacyDocumentCard` siparişi eski listede açar, bu yüzden döngü olmaz.
  */
+function LegacyCreateRedirect({ sourceKey, targetKey, noun, onNavigate }: {
+  sourceKey: string; targetKey: string; noun: string; onNavigate: (page: string, label?: string) => void;
+}) {
+  const params = usePageParams(sourceKey);
+  const id = params.id ?? params.invoiceId ?? "";
+  useEffect(() => {
+    setPageParams(targetKey, id ? { id } : {});
+    onNavigate(targetKey);
+    requestClosePage(sourceKey);
+  }, [id, onNavigate, sourceKey, targetKey]);
+  return <div className="panel page-loading" role="status">{noun} belgesi açılıyor…</div>;
+}
+
 function SalesOrderCreateRedirect({ onNavigate }: { onNavigate: (page: string, label?: string) => void }) {
   const params = usePageParams("sales-order-create");
   const orderId = params.orderId ?? "";

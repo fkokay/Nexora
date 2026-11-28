@@ -649,7 +649,7 @@ export default function SalesInvoiceFromDeliveryDialog({
         className={`${fullPage ? "sales-invoice-entry-card" : "modal sales-document-dialog sales-quote-detail-modal"}${mode === "standalone" && !fullPage ? " sales-rf-host" : ""}`}
         role={fullPage ? "region" : "dialog"}
         aria-modal={fullPage ? undefined : "true"}
-        aria-labelledby={mode === "standalone" ? undefined : "sales-invoice-create-title"}
+        aria-labelledby={mode === "standalone" ? undefined : "sales-invoice-dialog-title"}
         aria-label={mode === "standalone" ? "Yeni satış faturası" : undefined}
       >
         {mode !== "standalone" && <>
@@ -657,12 +657,12 @@ export default function SalesInvoiceFromDeliveryDialog({
           <div>
             <p className="eyebrow">SATIŞ · FATURALAMA</p>
             {fullPage ? (
-              <h1 id="sales-invoice-create-title">
+              <h1 id="sales-invoice-dialog-title">
                 {mode === "order"
                   ? "Siparişten irsaliye ve fatura"
                   : "Yeni satış faturası"}
               </h1>
-            ) : <h2 id="sales-invoice-create-title">
+            ) : <h2 id="sales-invoice-dialog-title">
               {mode === "order"
                 ? "Siparişten irsaliye ve fatura"
                 : "Yeni satış faturası"}
