@@ -321,12 +321,14 @@ public static class PlatformPermissionCatalog
         else if (path.StartsWith("/api/document-models/", StringComparison.OrdinalIgnoreCase))
         {
             // Belge modelleri hold no tenant data; "alan değişince" (POST …/fill) only reads stock cards. Read with the documents' own
-            // permission: the model code in the path names it (satis.teklif → quotes; satis.siparis and anything else → orders).
-            // A new model adds its code here.
+            // permission: the model code in the path names it (satis.teklif → quotes; stok.transfer → warehouse transfers; satis.siparis and
+            // anything else → orders). A new model adds its code here.
             var modelPath = path["/api/document-models/".Length..];
-            resource = Resources.First(x => x.ResourceType == (modelPath.StartsWith("satis.teklif", StringComparison.OrdinalIgnoreCase) ? "erp.sales-quotes"
+            resource = Resources.First(x => x.ResourceType == (modelPath.StartsWith("satis.teklif", StringComparison.OrdinalIgnoreCase)
+                ? "erp.sales-quotes"
                 : modelPath.StartsWith("satis.fatura", StringComparison.OrdinalIgnoreCase) ? "erp.sales-invoices"
                 : modelPath.StartsWith("satis.irsaliye", StringComparison.OrdinalIgnoreCase) ? "erp.sales-deliveries"
+                : modelPath.StartsWith("stok.transfer", StringComparison.OrdinalIgnoreCase) ? "erp.inventory-transfers"
                 : modelPath.StartsWith("muhasebe.", StringComparison.OrdinalIgnoreCase) ? "erp.general-ledger"
                 : modelPath.StartsWith("uretim.recete", StringComparison.OrdinalIgnoreCase) ? "erp.manufacturing" : "erp.sales-orders"));
             explicitReadAction = true;

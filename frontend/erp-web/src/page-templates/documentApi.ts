@@ -83,6 +83,7 @@ export type PreviewLineRequest = {
   exchangeRateToQuoteCurrency?: number;
   /** Satış talebinden gelen teklif satırının talep satırı numarası (hücre olarak çizilmez; kayıtta geri gönderilir). */
   salesRequestLineNumber?: number;
+  fromStorageLocationId?: string; toStorageLocationId?: string;
 };
 export type WriteLine = Omit<PreviewLineRequest, "rowKey">;
 export type CustomFieldDefinition = { code: string; label: string; dataType: string; maxLength: number; isRequired: boolean; isActive?: boolean };
@@ -101,18 +102,14 @@ export type HeaderValues = {
  */
 export type DocumentBinding = {
   code: string; noun: string; newTitle: string;
-  /** Yeni belgede kaydetme düğmesinin adı (varsayılan "Kaydet") ve kayıttan sonraki ileti: tek yazmayla kesilen belgelerde (fatura) kayıt taslak değil belgenin kendisidir. */
+  kind?: "sales" | "inventory-transfer";
   saveLabel?: string; savedMessage?: string;
-  /** Kaydın yazıldığı uç kökü (varsayılan `base`): irsaliye belgesi `/api/sales/deliveries` okur, `/api/sales/standalone-deliveries` yazar. */
   writeBase?: string;
-  /** Geçişin uç kökü (varsayılan `base`). */
   transitionBases?: Record<string, string>;
-  /** false ise belgenin özel alanı yoktur (`{base}/custom-fields` okunmaz). */
   customFields?: boolean;
-  /** Satırda fiyat isteğe bağlıdır (bedelsiz ya da fiyatsız satır gönderilir). */
   unpricedLines?: boolean;
   /** Sunucu yanıtındaki kayıt anahtarı. */
-  entity: "order" | "quote" | "invoice" | "delivery";
+  entity: "order" | "quote" | "invoice" | "delivery" | "transfer";
   /** Belgenin uç kökü: `{base}/{id}/document`, `{base}/preview`, `{base}/custom-fields`, kayıt `POST/PUT {base}`. */
   base: string;
   transitionRoutes: Record<string, string>;
@@ -203,7 +200,21 @@ const DELIVERY_BINDING: DocumentBinding = {
 };
 
 /** Bağı olan belge modelleri; bilinmeyen kod için null döner (çağıran hata gösterir, sipariş bağına düşmez). */
-export const DOCUMENT_BINDINGS: Record<string, DocumentBinding> = { [ORDER_BINDING.code]: ORDER_BINDING, [QUOTE_BINDING.code]: QUOTE_BINDING, [INVOICE_BINDING.code]: INVOICE_BINDING, [DELIVERY_BINDING.code]: DELIVERY_BINDING };
+const TRANSFER_BINDING: DocumentBinding = {
+  code: "stok.transfer", noun: "transfer", newTitle: "Yeni depo transferi", entity: "transfer", base: "/api/warehouses/transfers",
+  kind: "inventory-transfer",
+  transitionRoutes: { iptal: "void" }, creationRoutes: {}, pageKey: "inventory-transfer-document", maxLines: 100,
+  dateFields: ["transferDate"], textFields: [], newValues: () => ({ transferDate: today(), fromWarehouseId: "", toWarehouseId: "" }),
+  valuesOf: (e) => ({ transferDate: str(e.transferDate), fromWarehouseId: str(e.fromWarehouseId), toWarehouseId: str(e.toWarehouseId) }),
+  previewBody: () => null,
+  writeBody: (h, lines) => ({ requestId: h.requestId, fromWarehouseId: h.values.fromWarehouseId, toWarehouseId: h.values.toWarehouseId,
+    transferDate: h.values.transferDate, lines: lines.map((line) => ({ stockItemId: line.stockItemId, quantity: line.quantity, unitCode: line.unitCode,
+      fromStorageLocationId: (line as unknown as Record<string, string>).fromStorageLocationId || null,
+      toStorageLocationId: (line as unknown as Record<string, string>).toStorageLocationId || null })) }),
+};
+
+export const DOCUMENT_BINDINGS: Record<string, DocumentBinding> = { [ORDER_BINDING.code]: ORDER_BINDING, [QUOTE_BINDING.code]: QUOTE_BINDING,
+  [INVOICE_BINDING.code]: INVOICE_BINDING, [DELIVERY_BINDING.code]: DELIVERY_BINDING, [TRANSFER_BINDING.code]: TRANSFER_BINDING };
 export const bindingOf = (code: string): DocumentBinding | null => DOCUMENT_BINDINGS[code] ?? null;
 
 type RawLine = Record<string, unknown> & { lineNumber: number };
@@ -211,6 +222,23 @@ type RawLine = Record<string, unknown> & { lineNumber: number };
 /** Sunucunun belge yanıtını ortak biçime çevirir (sipariş: `order`, teklif: `quote`). */
 export function normalizeDocument(binding: DocumentBinding, raw: RawDocument): BelgeDocument {
   const entity = raw[binding.entity] as Record<string, unknown>;
+  if (binding.kind === "inventory-transfer") {
+    const transfer = entity;
+    const totals = raw.totals as Record<string, unknown>;
+    const lines = ((transfer.lines ?? []) as Record<string, unknown>[]).map((line, index): DocLine => ({
+      lineNumber: index + 1, stockItemId: str(line.stockItemId), stockCode: str(line.stockCode), stockName: str(line.stockName),
+      unitCode: str(line.displayUnitCode || line.unitCode), quantity: Number(line.displayQuantity ?? line.quantity ?? 0), unitPrice: 0,
+      discountPercent: 0, vatPercent: 0, lineSubtotal: 0, discountAmount: 0, taxAmount: 0, lineTotal: 0,
+      enteredUnitCode: str(line.enteredUnitCode || line.displayUnitCode),
+      ...(line.fromStorageLocationId ? { fromStorageLocationId: str(line.fromStorageLocationId) } : {}),
+      ...(line.toStorageLocationId ? { toStorageLocationId: str(line.toStorageLocationId) } : {}),
+    }));
+    const total = Number(totals.totalQuantity ?? 0);
+    return { doc: { id: str(transfer.id), code: str(transfer.code), customerId: null, customerName: "", currencyCode: "STK", status: str(transfer.status),
+      salespersonEmployeeId: null, values: binding.valuesOf(transfer), prospectCustomerName: null, customFields: [], lines },
+      amounts: { currencyCode: "STK", subtotal: total, discountTotal: 0, taxTotal: 0, grandTotal: total, vat: [] },
+      allowedTransitions: raw.allowedTransitions, activity: raw.activity, activityStartedLate: raw.activityStartedLate, approval: null, allowedCreations: [] };
+  }
   const lines = ((entity.lines ?? []) as RawLine[]).map((line): DocLine => ({
     ...(line as unknown as DocLine),
     exchangeRate: (line.exchangeRateToOrderCurrency ?? line.exchangeRateToQuoteCurrency) as number | undefined,
@@ -255,13 +283,13 @@ export const previewDocument = (binding: DocumentBinding, body: Record<string, u
   api<OrderPreview>(`${binding.base}/preview`, token, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal });
 
 export const saveDocument = (binding: DocumentBinding, id: string | null, body: Record<string, unknown>, token?: string) =>
-  api<{ id: string }>(id ? `${binding.writeBase ?? binding.base}/${encodeURIComponent(id)}` : binding.writeBase ?? binding.base, token,
-    { method: id ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  id && binding.kind === "inventory-transfer" ? Promise.reject(new Error("Kaydedilmiş transfer salt okunurdur."))
+    : api<{ id: string }>(id ? `${binding.writeBase ?? binding.base}/${encodeURIComponent(id)}` : binding.writeBase ?? binding.base, token,
+      { method: id ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 export const runTransition = (binding: DocumentBinding, id: string, code: string, reason: string | null, token?: string) =>
   api<unknown>(`${binding.transitionBases?.[code] ?? binding.base}/${encodeURIComponent(id)}/${binding.transitionRoutes[code] ?? code}`, token,
-    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId: crypto.randomUUID(), reason }) });
-
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId: crypto.randomUUID(), reason, ...(binding.kind === "inventory-transfer" ? { confirmation: true } : {}) }) });
 /** Belgeden belge: modelin eylemini çağırır (var olan ERP işlemi); yaratılan belgenin kimliğini döner. */
 export const runCreation = (binding: DocumentBinding, id: string, code: string, token?: string) =>
   api<{ id: string }>(`${binding.base}/${encodeURIComponent(id)}/${binding.creationRoutes[code] ?? code}`, token,

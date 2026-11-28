@@ -45,6 +45,8 @@ depo.ozelAlanDegerleri
 depo.ozelAlanKaydet
 depo.ozelAlanTanimlari
 depo.pasifeAl
+depo.transfer.belge
+depo.transfer.doldur
 depo.transfer.iptal
 depo.transfer.kalemleri
 depo.transfer.listele

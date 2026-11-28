@@ -31,6 +31,21 @@ internal static class DocumentModelEndpoints
         models.MapPost("/" + SalesDeliveryDocumentModel.Code + "/fill", SalesDocumentModelParts.FillAsync);
         models.MapPost("/" + SalesOrderDocumentModel.Code + "/fill", SalesDocumentModelParts.FillAsync);
         models.MapPost("/" + SalesQuoteDocumentModel.Code + "/fill", SalesDocumentModelParts.FillAsync);
+        models.MapGet("/" + InventoryTransferDocumentModel.Code + "/sample",
+            (string? state) => Sample(state, InventoryTransferStatus.Posted, InventoryTransferDocumentModel.Sample));
+        models.MapPost("/" + InventoryTransferDocumentModel.Code + "/fill", InventoryTransferDocumentModel.FillAsync);
+
+        app.MapGroup("/api/warehouses/transfers").WithTags("Depo Transferleri").RequireAuthorization()
+            .MapGet("/{transferId:guid}/document", async (Guid transferId, ClaimsPrincipal principal, TenantDbContext db, IPlatformPermissionAuthorizer authorizer,
+                CancellationToken ct) =>
+            {
+                if (!Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tenantId)) return Results.Forbid();
+                if (await InventoryTransferReads.ViewAsync(db, tenantId, transferId, ct) is not { } detail) return Results.NotFound();
+                var activity = await DocumentActivityLog.ReadAsync(db, tenantId, InventoryTransferDocumentModel.Code, transferId, ct);
+                var allowed = await DocumentModelPermissions.ExecutableAsync(authorizer, principal, tenantId, "erp.inventory-transfers", transferId,
+                    detail.Transfer.Status.ToString(), null, InventoryTransferDocumentModel.Candidates(detail.Transfer.Status), ct);
+                return Results.Ok(InventoryTransferDocumentModel.View(detail, allowed, activity));
+            });
 
         app.MapGet("/api/manufacturing/boms/{id:guid}/document", async (Guid id, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {

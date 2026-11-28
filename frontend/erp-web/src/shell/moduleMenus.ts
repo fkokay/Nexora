@@ -22,6 +22,7 @@ export const SUBROUTE_PARENTS: Record<string, string> = {
   "sales-order-document": "sales-orders",
   "finance-journal-voucher-document": "finance-journal-vouchers",
   "sales-quote-document": "sales-quotes",
+  "inventory-transfer-document": "inventory-transfers",
   "sales-invoice-document": "sales-invoices",
   "sales-delivery-document": "sales-deliveries",
   "sales-invoice-create": "sales-invoices",
@@ -62,7 +63,7 @@ export const STANDALONE_PAGES: string[] = [
   "screen-views",
 ];
 
-const warehousePages = ["inventory-warehouses", "inventory-transfers", "inventory-locations"];
+const warehousePages = ["inventory-warehouses", "inventory-transfers", "inventory-transfer-document", "inventory-locations"];
 
 export const moduleMenus: ModuleMenu[] = [
   {
