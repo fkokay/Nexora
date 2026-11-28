@@ -14,6 +14,7 @@ internal static class DocumentModelEndpoints
 {
     internal static void MapDocumentModelEndpoints(this WebApplication app)
     {
+        app.MapJournalVoucherDocumentEndpoints();
         var models = app.MapGroup("/api/document-models").WithTags("Belge modelleri").RequireAuthorization();
         models.MapGet("/{code}", (string code) =>
             DocumentModelRegistry.Find(code) is { } model ? Results.Ok(model) : Results.NotFound());

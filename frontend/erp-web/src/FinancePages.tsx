@@ -84,6 +84,7 @@ function FinancePage({
       "Alt defter kaynaklarını muhasebe hesaplarıyla eşleştirin.",
     "finance-journal-vouchers":
       "Manuel yevmiye fişi oluşturun; borç ve alacak toplamları kayıtta doğrulanır.",
+    "finance-journal-voucher-document": "Yevmiye fi\u015fini Belge ekran\u0131nda a\u00e7\u0131n.",
     "finance-trial-balance":
       "Dönem açılışlarını, borç/alacak hareketlerini ve kapanış bakiyelerini karşılaştırın.",
     "finance-balance-sheet":

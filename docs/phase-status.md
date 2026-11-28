@@ -1,4 +1,9 @@
 # Master Prompt Phase Status
+### 2026-11-28 Genel muhasebe yevmiye fişi Belge modeli
+
+- `muhasebe.fis` (`finance-journal-voucher-document`) uses the existing manual journal POST and reversal endpoint; stored vouchers are read-only, with debit/credit balance enforced by the existing write validation. The journal list opens a voucher in the Belge screen, and New opens its blank draft.
+- Added model/standard and ERP template coverage. ERP Vitest passed (3 files, 11 tests); Development Studio `npm run build` passed. ERP `npm run build` stalled at `tsc -b` without output and was stopped. SQL Server/browser flows remain unverified; `dotnet test` was not run as requested.
+
 ### 2026-11-27 Finance wave 1 - four standards moved to List templates
 
 - `finance-accounts`, `finance-banks`, `finance-journal-ledger`, and `finance-trial-balance` are v2 List-template pages. Cash/bank use a selected-account summary card and statement dialog; the hidden account selector, step bar, and page-only statement totals were removed. Journal reversal actions moved to the selected row and voucher details open in a dialog; the page-only reversal metric and separate filter card were removed. Trial-balance parameters sit above the list and Muavin opens in a dialog; quick date buttons and the invalid-range alert were removed.
@@ -1801,3 +1806,9 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
 - **Atlanan:** Mal kabullerde siparişsiz mal kabul penceresi ve lot/seri dağıtım satır tablosu eklenmedi. Mevcut oluşturma API’si siparişe bağlı; takip tahsisleri iç içe yapıda olduğundan düz kalıp satır tablosuna eşlenemedi.
 - **Doğrulanan:** Değiştirilen ERP Vitest dosyaları (5) ve Studio Vitest dosyası geçti.
 - **Doğrulanmayan:** .NET test/build istek gereği çalıştırılmadı; tarayıcıda canlı görsel deneme yapılmadı.
+### Ekranlar 3. dalga (2026-11-28)
+- `finance-account-create`, `hr-employee-create`, `fixed-asset-card` Kayıt kartı kalıbına taşındı (v2); duran varlık kartı salt okunur, edinim penceresi var.
+- `sales-order-create` kaldırıldı; `customers` (v4) ve `sales-orders` (v7) yeni siparişi `sales-order-document` Belge ekranında açar. Eski anahtar Belge'ye yönlenir.
+- Bilinen kayıp: cariden açılan yeni siparişte müşteri ön dolumu yok (Belge kalıbında ön dolum yok).
+- Studio: girdi alanlarında `readOnly` seçeneği.
+- Doğrulama: ilgili erp-web (44) ve Studio (95) vitest dosyaları yerelde geçti; .NET testleri CI'da.

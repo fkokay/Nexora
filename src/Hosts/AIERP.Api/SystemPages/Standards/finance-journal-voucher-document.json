@@ -1,0 +1,70 @@
+{
+  "screenKey": "finance-journal-voucher-document",
+  "title": "Yevmiye fi\u015fi (belge)",
+  "description": "Belge kal\u0131b\u0131yla genel muhasebe yevmiye fi\u015fi. Kay\u0131tl\u0131 fi\u015fler salt okunur; d\u00fczeltmeler mevcut ters kay\u0131t i\u015flemiyle yeni fi\u015f olu\u015fturur.",
+  "module": "Genel Muhasebe",
+  "version": 1,
+  "stage": "preview",
+  "items": {
+    "component:baslik": {
+      "since": 1,
+      "label": "Fi\u015f ba\u015fl\u0131k alanlar\u0131 (numara, tarih, muhasebe standard\u0131, a\u00e7\u0131klama)"
+    },
+    "component:satirlar": {
+      "since": 1,
+      "label": "Fi\u015f sat\u0131rlar\u0131 (hesap, bor\u00e7, alacak, a\u00e7\u0131klama)"
+    },
+    "component:toplamlar": {
+      "since": 1,
+      "label": "Bor\u00e7/alacak toplamlar\u0131 ve i\u015flem g\u00fcnl\u00fc\u011f\u00fc"
+    }
+  },
+  "definition": {
+    "schemaVersion": 2,
+    "template": {
+      "name": "belge",
+      "document": "muhasebe.fis"
+    },
+    "queries": [],
+    "components": [
+      {
+        "id": "baslik",
+        "type": "documentFields",
+        "props": {
+          "slot": "fields",
+          "fields": [
+            "code",
+            "entryDate",
+            "accountingBasis",
+            "description"
+          ],
+          "labels": {}
+        }
+      },
+      {
+        "id": "satirlar",
+        "type": "documentLines",
+        "props": {
+          "slot": "lines",
+          "columns": [
+            "accountId",
+            "debit",
+            "credit",
+            "description"
+          ],
+          "labels": {},
+          "density": "normal"
+        }
+      },
+      {
+        "id": "toplamlar",
+        "type": "documentSummary",
+        "props": {
+          "slot": "summary",
+          "vatBreakdown": true,
+          "activity": true
+        }
+      }
+    ]
+  }
+}
