@@ -239,7 +239,7 @@ export function SalesPage({
     : createQuotePage
       ? "sales-quote-create"
       : createInvoicePage
-        ? "sales-invoice-create"
+        ? "sales-invoice-document"
         : createDeliveryPage
           ? "sales-delivery-create"
           : "";
@@ -2493,7 +2493,7 @@ export function SalesPage({
               }
             }}
             onChanged={() => load()}
-            onNew={() => onNavigate("sales-invoice-create")}
+            onNew={() => onNavigate("sales-invoice-document")}
             commandsSuspended={!!invoiceId || !!orderDetail}
           />
         ) : activeTab === "quotes" ? (
@@ -3864,7 +3864,7 @@ export function SalesPage({
           initialTab={invoiceInitialTab}
           onClose={() => { setInvoiceId(null); setInvoiceInitialTab("information"); }}
           onSaved={load}
-          newCommand={activeTab === "invoices" && !createInvoicePage ? { run: () => onNavigate("sales-invoice-create") } : detailNewCommand}
+          newCommand={activeTab === "invoices" && !createInvoicePage ? { run: () => onNavigate("sales-invoice-document") } : detailNewCommand}
         />
       )}
     </div>
