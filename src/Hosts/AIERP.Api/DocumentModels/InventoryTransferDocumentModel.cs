@@ -32,10 +32,8 @@ internal static class InventoryTransferDocumentModel
         ],
         [
             new("stockItemId", "Stok", "lookup", true, false, "stok.kart.listele"),
-            new("unitCode", "Birim", "lookup", false, false, "stok.kart.birimleri"),
-            new("quantity", "Miktar", "number", true, false, null),
-            new("fromStorageLocationId", "Kaynak konum", "lookup", false, false, "depo.konumlari"),
-            new("toStorageLocationId", "Hedef konum", "lookup", false, false, "depo.konumlari")
+            new("unitCode", "Birim", "text", false, false, null),
+            new("quantity", "Miktar", "number", true, false, null)
         ],
         // Kaydedildi closes the chain; İptal edildi sits beside it.
         [new(nameof(InventoryTransferStatus.Posted), Label(InventoryTransferStatus.Posted), false),

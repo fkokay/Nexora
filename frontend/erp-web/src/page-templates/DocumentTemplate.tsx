@@ -75,6 +75,8 @@ function lineRequest(draft: GridDraft): PreviewLineRequest | null {
     isVatIncluded: draft.cells.isVatIncluded === true,
     ...(num(draft.cells.exchangeRate) > 0 ? { exchangeRateToQuoteCurrency: num(draft.cells.exchangeRate) } : {}),
     ...(num(draft.cells.salesRequestLineNumber) > 0 ? { salesRequestLineNumber: num(draft.cells.salesRequestLineNumber) } : {}),
+    ...(draft.cells.fromStorageLocationId ? { fromStorageLocationId: String(draft.cells.fromStorageLocationId) } : {}),
+    ...(draft.cells.toStorageLocationId ? { toStorageLocationId: String(draft.cells.toStorageLocationId) } : {}),
   };
 }
 
@@ -117,6 +119,7 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
   const [definitionsFailed, setDefinitionsFailed] = useState(false);
   // Satır anahtarı → son istenen stok: geç gelen doldurma yanıtı yeni seçimin üstüne yazmaz.
   const fillFor = useRef<Record<string, string>>({});
+  const transferRequestId = useRef(crypto.randomUUID());
   // Kaydedilmiş belge açılınca tutarlar kayıttan gelir; kullanıcı bir şey değiştirince sunucu yeniden hesaplar.
   const [dirty, setDirty] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -134,10 +137,11 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
     let alive = true;
     if (!known) { setLoadError(`Bilinmeyen belge modeli: ${documentCode}`); setLoading(false); return () => { alive = false; }; }
     setLoading(true); setLoadError("");
-    const documentLoad = sample ? loadSampleDocument(binding, previewState!, token)
+    const sampleState = binding.kind === "inventory-transfer" ? previewState === "Voided" ? "Voided" : "Posted" : previewState!;
+    const documentLoad = sample ? loadSampleDocument(binding, sampleState, token)
       : orderId ? loadDocument(binding, orderId, token) : Promise.resolve(null);
     let failedDefinitions = false;
-    const definitionsLoad = sample ? Promise.resolve([] as CustomFieldDefinition[])
+    const definitionsLoad = sample || binding.kind === "inventory-transfer" ? Promise.resolve([] as CustomFieldDefinition[])
       : loadCustomFieldDefinitions(binding, token).catch(() => { failedDefinitions = true; return [] as CustomFieldDefinition[]; });
     Promise.all([loadDocumentModel(documentCode, token), documentLoad, definitionsLoad])
       .then(([loadedModel, loadedDoc, loadedDefinitions]) => {
@@ -156,13 +160,13 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
   }, [binding, documentCode, known, orderId, previewState, sample, token, reload]);
 
   const status = doc?.doc.status ?? "Draft";
-  const editable = isEditable(status) && !loading && !busy;
+  const editable = (binding.kind === "inventory-transfer" ? !doc : isEditable(status)) && !loading && !busy;
   const dispatch = useCallback((action: GridAction) => setGrid((state) => gridReducer(state, action, gridOptions)), [gridOptions]);
 
   const lines = useMemo(() => grid.rows.map(lineRequest), [grid.rows]);
   const headerValues = { code: header.code, customerId: header.customerId, salespersonEmployeeId: header.salespersonEmployeeId,
     currencyCode: header.currencyCode, values: header.values, prospectCustomerName: header.prospectCustomerName };
-  const calculationInput = lines.some(Boolean) ? binding.previewBody(headerValues, lines.filter((x): x is PreviewLineRequest => !!x)) : null;
+  const calculationInput = binding.kind === "inventory-transfer" ? null : lines.some(Boolean) ? binding.previewBody(headerValues, lines.filter((x): x is PreviewLineRequest => !!x)) : null;
   const calculation = useDocumentCalculation(binding, calculationInput, token, editable && dirty && !sample);
   const preview: OrderPreview | null = dirty ? calculation.result : null;
   // Değişiklik yoksa tutarlar kayıttan, değişiklik varsa yalnız sunucu hesabından gelir (hesap gelene kadar "—").
@@ -239,18 +243,21 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
   const save = async () => {
     if (isPreview) { setMessage({ tone: "info", text: PREVIEW_WRITE_BLOCKED }); return; }
     const sent = lines.filter((x): x is PreviewLineRequest => !!x);
-    if (!header.customerId && !header.prospectCustomerName) { setMessage({ tone: "error", text: "Müşteri seçin." }); return; }
+    if (binding.kind !== "inventory-transfer" && !header.customerId && !header.prospectCustomerName) { setMessage({ tone: "error", text: "Müşteri seçin." }); return; }
+    if (binding.kind === "inventory-transfer" && (!header.values.fromWarehouseId || !header.values.toWarehouseId || header.values.fromWarehouseId === header.values.toWarehouseId)) {
+      setMessage({ tone: "error", text: "Farklı bir kaynak ve hedef depo seçin." }); return;
+    }
     if (sent.length === 0) { setMessage({ tone: "error", text: `${binding.noun[0].toLocaleUpperCase("tr-TR")}${binding.noun.slice(1)} 1–${binding.maxLines} stok satırı içermelidir.` }); return; }
     if (definitionsFailed) { setMessage({ tone: "error", text: "Özel alanlar okunamadı; değerleri silinmesin diye kaydedilmedi. Sayfayı yenileyip yeniden deneyin." }); return; }
     setBusy(true); setMessage(null);
     try {
-      const saved = await saveDocument(binding, doc?.doc.id ?? null, binding.writeBody({ ...headerValues, currencyCode: header.currencyCode || currency },
+      const saved = await saveDocument(binding, doc?.doc.id ?? null, binding.writeBody({ ...headerValues, requestId: transferRequestId.current, currencyCode: header.currencyCode || currency },
         sent.map(({ rowKey: _rowKey, ...line }) => line),
         // Tanımı pasif olsa da kayıtlı değer korunur: sunucu gönderilmeyen değeri siler.
         Object.fromEntries([...new Set([...definitions.map((d) => d.code), ...(doc?.doc.customFields ?? []).map((f) => f.code)])]
           .map((code) => [code, header.customFields[code] || null]))), token);
       setDirty(false);
-      setMessage({ tone: "info", text: "Taslak kaydedildi." });
+      setMessage({ tone: "info", text: binding.kind === "inventory-transfer" ? "Transfer kaydedildi." : "Taslak kaydedildi." });
       if (!doc && saved?.id) onSaved?.(saved.id); else setReload((n) => n + 1);
     } catch (failure) {
       setMessage({ tone: "error", text: failure instanceof Error ? failure.message : "Belge kaydedilemedi." });
@@ -322,9 +329,9 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
   if (loading && !model) return <div className="tenant-custom-page-state" role="status">Belge yükleniyor…</div>;
   if (loadError || !model) return <div className="tenant-custom-page-state tenant-custom-page-error" role="alert">{loadError || "Belge yüklenemedi."}</div>;
 
-  const stateLabel = (code: string) => model.states.find((s) => s.code === code)?.label ?? code;
+  const stateLabel = (code: string) => binding.kind === "inventory-transfer" && code === "Draft" ? "Taslak" : model.states.find((s) => s.code === code)?.label ?? code;
   const actions: ShellAction[] = [];
-  if (isEditable(status)) actions.push({ id: "kaydet", label: "Kaydet", kind: "primary", disabled: busy, run: () => void save() });
+  if (binding.kind === "inventory-transfer" ? !doc : isEditable(status)) actions.push({ id: "kaydet", label: "Kaydet", kind: "primary", disabled: busy, run: () => void save() });
   if (doc?.approval?.canDecide) {
     actions.push({ id: "karar-onayla", label: "Onayla", kind: "primary", disabled: busy, run: () => void decide("Approved") });
     actions.push({ id: "karar-reddet", label: "Reddet", kind: "normal", disabled: busy, run: () => void decide("Rejected") });
@@ -371,15 +378,17 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
         onChange={(e) => set({ values: { ...header.values, [code]: e.target.value } })} />;
     } else if (definition.type === "lookup" && definition.optionsOperation) {
       const isCustomer = code === "customerId";
-      const value = isCustomer ? header.customerId : header.salespersonEmployeeId;
-      const shown = isCustomer ? header.customerLabel : header.salespersonLabel;
+      const isSalesperson = code === "salespersonEmployeeId";
+      const value = isCustomer ? header.customerId : isSalesperson ? header.salespersonEmployeeId : header.values[code] ?? "";
+      const shown = isCustomer ? header.customerLabel : isSalesperson ? header.salespersonLabel : value;
       const picker = pickers[code] ?? { options: [], loading: false };
       control = <LookupInput inputId={id} label={label} raw={value} options={picker.options} loading={picker.loading} error={picker.error}
         allowClear={!definition.required} disabled={!canEdit} placeholder="Ara…" selected={value ? { value, label: shown || value } : null}
         onSearch={(text) => search(code, definition.optionsOperation!, text)}
         onChange={(next, row, nextLabel) => set(isCustomer
           ? { customerId: next, customerLabel: nextLabel, currencyCode: typeof row?.currencyCode === "string" ? row.currencyCode : "" }
-          : { salespersonEmployeeId: next, salespersonLabel: nextLabel })} />;
+          : isSalesperson ? { salespersonEmployeeId: next, salespersonLabel: nextLabel }
+            : { values: { ...header.values, [code]: next } })} />;
     } else control = <input id={id} value={String((header as unknown as Record<string, unknown>)[code] ?? "")} disabled={!canEdit} readOnly />;
     return <div className="belge-field" key={code}><label htmlFor={id}>{label}{definition.required && canEdit ? " *" : ""}</label>{control}</div>;
   };
@@ -400,7 +409,7 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
         })}
       </section>}
       <Mark id={layout.ids.lines} />
-      <EditableGrid id="belge-satirlar" title="Satırlar" mode="list" columns={gridColumns} state={grid} sourceRows={[]} rowKey="lineNumber"
+        <EditableGrid id="belge-satirlar" title="Satırlar" mode="list" columns={gridColumns} state={grid} sourceRows={[]} rowKey="lineNumber"
         dispatch={(action) => { if (action.type !== "add") setDirty(true); dispatch(action); }} errors={{}} fixedRowLabel="" addLabel="Satır ekle"
         maxRows={editable ? maxLines : grid.rows.length} disabled={!editable} disabledReason={isEditable(status) ? "" : `${stateLabel(status)} belgenin satırları değişmez.`}
         loading={false} error={calculation.error || undefined} style={{}} pickerFor={pickerFor}
@@ -414,14 +423,17 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
         </section>}
         <Mark id={layout.ids.summary} />
         <section className="belge-totals" aria-label="Toplamlar" aria-busy={calculation.pending || undefined}><h3>Toplamlar</h3>
-          <dl>
+          {binding.kind === "inventory-transfer" ? <dl>
+            <div><dt>Satır sayısı</dt><dd>{doc?.doc.lines.length ?? grid.rows.filter((row) => row.cells.stockItemId).length}</dd></div>
+            <div className="is-grand"><dt>Toplam miktar</dt><dd>{(doc?.amounts.grandTotal ?? grid.rows.reduce((sum, row) => sum + (Number(String(row.cells.quantity ?? "0").replace(",", ".")) || 0), 0)).toLocaleString("tr-TR")}</dd></div>
+          </dl> : <dl>
             <div><dt>Ara toplam</dt><dd data-testid="belge-ara-toplam">{money(totals?.subtotal, currency)}</dd></div>
             <div><dt>İskonto</dt><dd>{money(totals?.discountTotal, currency)}</dd></div>
             {layout.vatBreakdown
               ? (totals?.vat ?? []).map((v) => <div key={v.rate} className="is-vat"><dt>KDV %{v.rate} (matrah {money(v.taxableAmount, currency)})</dt><dd>{money(v.amount, currency)}</dd></div>)
               : <div className="is-vat"><dt>KDV</dt><dd>{money(totals?.taxTotal, currency)}</dd></div>}
             <div className="is-grand"><dt>Genel toplam</dt><dd data-testid="belge-genel-toplam">{money(totals?.grandTotal, currency)}</dd></div>
-          </dl>
+          </dl>}
         </section>
       </div>
       {renderExtra && layout.below.length > 0 && renderExtra(layout.below)}

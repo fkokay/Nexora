@@ -8,9 +8,8 @@ using AIERP.Platform.Application;
 using Xunit;
 
 /// <summary>
-/// "Depolar arası transferler" standard (inventory-transfers): a server-paged transfer list with a lines dialog, a new
-/// transfer dialog whose line grid has picker cells (row-scoped unit options) and a page-made request id, and a void with
-/// a reason. The list follows the "Görünümü düzenle" view <c>inventory-transfers</c>.
+/// "Depolar arası transferler" list standard routes New and Open to the inventory transfer Belge page. The list still owns
+/// transfer cancellation and follows the "Görünümü düzenle" view <c>inventory-transfers</c>.
 /// </summary>
 public sealed class InventoryTransfersStandardTests
 {
@@ -22,12 +21,14 @@ public sealed class InventoryTransfersStandardTests
     public void Header_is_preview_version_1_on_the_standard_menu()
     {
         var standard = SystemPageStandards.All[Key];
-        Assert.Equal((1, "preview"), (standard.Version, standard.Stage));
+        Assert.Equal((2, "preview"), (standard.Version, standard.Stage));
         Assert.Equal("Depolar arası transferler", standard.Title);
         Assert.Equal("Stok & Depo", standard.Module);
         Assert.Contains(Key, StandardMenuEndpoints.PageKeys);
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
         Assert.All(standard.Items, x => Assert.True(x.Since == 1 && x.Label.Length is > 0 and <= 80, x.Key));
+        Assert.Single(standard.Updates, x => x.Id == "belge");
+        Assert.True(TenantCustomPageSchema.Validate(SystemPageStandards.Restrict(standard, 1), out var oldVersion), oldVersion);
     }
 
     [Fact]
@@ -58,8 +59,8 @@ public sealed class InventoryTransfersStandardTests
         // CSV is on by default (Studio stores only false), so the standard leaves it out.
         Assert.False(bar.ContainsKey("exportCsv"));
         Assert.Equal(("liste", "suzgec"), ((string)bar["exportTable"]!, (string)bar["focusInput"]!));
-        Assert.Equal(("openDialog", "yeniTransferPenceresi"), ((string)Props("yeniTransferDugmesi")["actionType"]!, (string)Props("yeniTransferDugmesi")["dialogId"]!));
-        Assert.Equal(("openDialog", "kalemlerPenceresi"), ((string)Props("kalemlerDugmesi")["actionType"]!, (string)Props("kalemlerDugmesi")["dialogId"]!));
+        Assert.Equal(("page", "@inventory-transfer-document"), ((string)Props("yeniTransferDugmesi")["actionType"]!, (string)Props("yeniTransferDugmesi")["pageCode"]!));
+        Assert.Equal(("page", "@inventory-transfer-document"), ((string)Props("kalemlerDugmesi")["actionType"]!, (string)Props("kalemlerDugmesi")["pageCode"]!));
 
         var filter = Props("suzgec");
         Assert.Equal(new[] { "code", "fromWarehouseName", "toWarehouseName" }, Strings(filter["searchColumns"]));
