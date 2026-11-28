@@ -591,6 +591,7 @@ public static class ManufacturingEndpoints
                 { TenantId = tenantId, WorkCenterId = id, IsPreferred = id == x.WorkCenterId }).ToList() }).ToList();
             db.BillOfMaterials.Add(bom);
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "manufacturing.bom.created", Resource = code! });
+            AIERP.Api.DocumentActivityLog.Add(db, tenantId, AIERP.Api.DocumentActivityLog.ManufacturingRecipe, bom.Id, "kaydet", "Oluşturuldu", "core", "done", null, userId);
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/manufacturing/boms/{bom.Id}", await ReadBomAsync(db, tenantId, bom.Id, ct));
         });
@@ -646,6 +647,7 @@ public static class ManufacturingEndpoints
                 EligibleWorkCenters = GetEligibleWorkCenterIds(x).Select(workCenterId => new BillOfMaterialOperationWorkCenterOption
                 { TenantId = tenantId, WorkCenterId = workCenterId, IsPreferred = workCenterId == x.WorkCenterId }).ToList() }).ToList();
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "manufacturing.bom.updated", Resource = code! });
+            AIERP.Api.DocumentActivityLog.Add(db, tenantId, AIERP.Api.DocumentActivityLog.ManufacturingRecipe, bom.Id, "kaydet", "Güncellendi", "core", "done", null, userId);
             try { await db.SaveChangesAsync(ct); }
             catch (DbUpdateConcurrencyException) { return Results.Conflict(new { error = "Reçete başka bir kullanıcı tarafından değiştirildi; listeyi yenileyip tekrar düzenleyin." }); }
             return Results.Ok(await ReadBomAsync(db, tenantId, bom.Id, ct));
@@ -686,6 +688,7 @@ public static class ManufacturingEndpoints
             if (bom.IsActive) return Results.NoContent();
             bom.IsActive = true;
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "manufacturing.bom.activated", Resource = bom.Code });
+            AIERP.Api.DocumentActivityLog.Add(db, tenantId, AIERP.Api.DocumentActivityLog.ManufacturingRecipe, id, "etkinlestir", "Etkinleştirildi", "core", "done", null, userId);
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         });
@@ -701,6 +704,7 @@ public static class ManufacturingEndpoints
             if (!bom.IsActive) return Results.NoContent();
             bom.IsActive = false;
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "manufacturing.bom.deactivated", Resource = bom.Code });
+            AIERP.Api.DocumentActivityLog.Add(db, tenantId, AIERP.Api.DocumentActivityLog.ManufacturingRecipe, id, "pasifeAl", "Pasife alındı", "core", "done", null, userId);
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         });
@@ -1605,6 +1609,8 @@ public static class ManufacturingEndpoints
 
     private sealed record SetupTransitionRuleSnapshot(Guid WorkCenterId, string FromSetupFamilyCode, string ToSetupFamilyCode,
         decimal SetupMinutes, bool IsTransitionAllowed);
+
+    internal static Task<BomView?> ReadBomForDocumentAsync(TenantDbContext db, Guid tenantId, Guid id, CancellationToken ct) => ReadBomAsync(db, tenantId, id, ct);
 
     private static async Task<BomView?> ReadBomAsync(TenantDbContext db, Guid tenantId, Guid id, CancellationToken ct) =>
         await db.BillOfMaterials.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)

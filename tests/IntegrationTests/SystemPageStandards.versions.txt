@@ -32,6 +32,7 @@ inventory-warehouses=4
 manufacturing-cost-variance=2
 manufacturing-order-create=2
 manufacturing-orders=2
+manufacturing-recipe-document=1
 manufacturing-recipes=2
 purchase-invoice-document=1
 purchase-order-document=1
