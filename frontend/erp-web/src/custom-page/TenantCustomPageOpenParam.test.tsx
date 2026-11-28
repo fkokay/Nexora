@@ -16,12 +16,12 @@ const KEY = 'custom-page:p';
 const listQuery = { id: 'qr', name: 'kargolar', kind: 'read', runOn: 'load', parameters: [] };
 let listRuns = 0;
 
-function setup(tableProps: Record<string, unknown>) {
+function setup(tableProps: Record<string, unknown>, dialogTitle = 'Ayrıntı', headingText = 'Kimlik {{liste.seciliSatir.id}} · {{liste.seciliSatir.takipNo}}') {
   const components = [
     { id: 't1', type: 'dataTable', name: 'liste', props: { query: 'qr', columns: ['takipNo'], ...tableProps } },
     { id: 'bd', type: 'button', props: { text: 'Pencere', actionType: 'openDialog', dialogId: 'd1' } },
-    { id: 'd1', type: 'dialog', props: { title: 'Ayrıntı', contains: ['h1'] } },
-    { id: 'h1', type: 'heading', props: { text: 'Kimlik {{liste.seciliSatir.id}} · {{liste.seciliSatir.takipNo}}' } },
+    { id: 'd1', type: 'dialog', props: { title: dialogTitle, contains: ['h1'] } },
+    { id: 'h1', type: 'heading', props: { text: headingText } },
   ];
   api.mockImplementation(async (endpoint: string) => {
     if (!endpoint.includes('/queries/') && endpoint.includes('/published')) {
@@ -52,7 +52,7 @@ describe('dataTable openParam', { timeout: 30000 }, () => {
     setup({ rowOpenAction: 'bd', openParam: 'no' });
     const dialog = await screen.findByRole('dialog', { name: 'Ayrıntı' }, T);
     expect(dialog.textContent).toContain('Kimlik r2 · B-2');
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Kapat' }));
+    fireEvent.click(dialog.querySelector('.tenant-page-dialog-footer button')!);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
     expect(screen.queryByRole('dialog')).toBeNull();
@@ -66,10 +66,17 @@ describe('dataTable openParam', { timeout: 30000 }, () => {
     expect(dialog.textContent).not.toContain('A-1');
   });
 
+  it('hides the lone inner heading when it repeats the dialog title prefix', async () => {
+    setPageParams(KEY, { no: 'r2' });
+    setup({ rowOpenAction: 'bd', openParam: 'no' }, 'Rota · {{liste.seciliSatir.takipNo}}', 'Rota');
+    const dialog = await screen.findByRole('dialog', { name: 'Rota · B-2' }, T);
+    expect(within(dialog).queryByRole('heading', { name: 'Rota' })).toBeNull();
+  });
+
   it('navigating to the open tab with the same params reopens the record without rebuilding the page', async () => {
     setPageParams(KEY, { no: 'r1' });
     setup({ rowOpenAction: 'bd', openParam: 'no' });
-    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Ayrıntı' }, T)).getByRole('button', { name: 'Kapat' }));
+    fireEvent.click((await screen.findByRole('dialog', { name: 'Ayrıntı' }, T)).querySelector('.tenant-page-dialog-footer button')!);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     const runs = listRuns;
     act(() => openWorkspacePage({ page: KEY, params: { no: 'r1' }, replace: false }));

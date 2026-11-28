@@ -286,11 +286,10 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     const cells = Array.from(listRow('Kalem').querySelectorAll('td:not(.advanced-grid-select-cell)')).map((td) => td.textContent);
     expect(cells).toEqual(['KLM', 'Kalem', 'Kırtasiye', '5 ADET', '1 ADET', '4 ADET', '10', '25,00 TRY', '0 ADET', 'Minimum altı']);
 
-    // Kart grubu hep sağda: seçim yokken boş durum, seçilince kart.
-    expect(detail().closest('.list-template-detail')).not.toBeNull();
-    expect(within(detail()).getByText('Bir stok kartı seçin; ayrıntıları burada görün.')).toBeTruthy();
+    // Kart grubu seçim yokken çizilmez, seçilen kartla birlikte açılır.
+    expect(container.querySelector('.list-template-detail')).toBeNull();
     await selectCard();
-    expect(within(detail()).queryByText('Bir stok kartı seçin; ayrıntıları burada görün.')).toBeNull();
+    expect(detail().closest('.list-template-detail')).not.toBeNull();
     expect(detail().querySelector('.tenant-page-detail-top .nx-code')?.textContent).toBe('KLM');
     expect(within(detail()).getByRole('heading', { level: 3, name: 'Kalem' })).toBeTruthy();
     expect(within(detail()).queryAllByRole('tab')).toEqual([]);

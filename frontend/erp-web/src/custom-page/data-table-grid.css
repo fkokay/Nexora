@@ -1,6 +1,7 @@
 /* Sayfa tasarımcısı dataTable: gelişmiş ızgara (AdvancedDataGrid) çevresi. */
 .tenant-page-data-grid { min-width: 0; }
 .tenant-page-data-grid-wrap { max-width: 100%; }
+#root .tenant-page-data-grid .advanced-grid-scroll > table.advanced-grid-table > tbody > tr:hover > td { background: color-mix(in srgb, var(--nx-primary) 6%, var(--nx-surface)); }
 .tenant-page-data-grid td.tenant-page-row-actions, .tenant-page-data-grid th.tenant-page-row-actions { white-space: nowrap; text-align: right; }
 .tenant-page-data-grid td.code { font-family: var(--nx-font-mono); font-size: 12px; white-space: nowrap; }
 .tenant-page-data-grid .tenant-page-row-selectable { cursor: pointer; }

@@ -1,6 +1,5 @@
-import { useContext, useRef, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { Search } from "lucide-react";
-import { CanvasAnchorContext } from "../designer-canvas/anchorContext";
 import { PageShell, type ShellAction, type ShellCommandsProps } from "./PageShell";
 import { ListModeContext, ShellSearchContext, useListMode } from "./listResponsive";
 import { drawsSomething, templateLevel, type Component, type ListLayout } from "./listTemplateModel";
@@ -22,10 +21,9 @@ export function ShellSearch({ inputId, placeholder, hint, value, onSearch }: {
 /**
  * Liste kalıbı: ortak kabuk içinde `above` → göstergeler → süzgeçler → [liste | detay paneli] → `below`. Bileşenleri
  * çizen `render` sayfanın kendi çizicisidir (tuval işaretleri onunla gelir); burada yalnız yerleşim kurulur.
- * Detay paneli satır seçilince sağda açılır; tuvalde seçilebilsin diye orada her zaman görünür. Kalıbın kendi genişliği
+ * Detay paneli yalnız satır seçilince sağda açılır. Kalıbın kendi genişliği
  * 720 px'in altındaysa (liste kutusu değil, panelle birlikte ölçülen `.list-template-main`) panel listenin altına iner.
- * Detay yeri kart grubu da olabilir (aynı yerde çizilir); kart, eski `detayKarti` gibi seçim olmadan da görünür (boş durum metnini
- * çocuğu `visibleWhen` ile kendi gösterir). Yalnız gizli girişler taşıyan `above` / `below` sarmalayıcı çizmez (girişler yine
+ * Detay yeri kart grubu da olabilir (aynı yerde çizilir). Yalnız gizli girişler taşıyan `above` / `below` sarmalayıcı çizmez (girişler yine
  * kapsamda kalsın diye çizicisinden geçer). Pencereler gövdenin sonunda çizilir; kapalı pencere bir şey çizmez.
  */
 export function ListTemplate<C extends Component>({ layout, render, title, count, actions, search, detailOpen, notices, commands }: {
@@ -34,12 +32,11 @@ export function ListTemplate<C extends Component>({ layout, render, title, count
   /** Sayfanın komut çubuğu varken kabuğun "⋯" menüsü (bkz. `ShellCommandsProps`). */
   commands?: ShellCommandsProps;
 }) {
-  const canvas = useContext(CanvasAnchorContext);
   const listRef = useRef<HTMLDivElement>(null);
   const mode = useListMode(listRef);
   const mainRef = useRef<HTMLDivElement>(null);
   const stacked = useListMode(mainRef) !== "full";
-  const showDetail = !!layout.detail && (layout.detail.type === "card" || detailOpen || canvas);
+  const showDetail = !!layout.detail && detailOpen;
   const striped = layout.list.props?.striped === true;
   // `hideOnMobile`: kart kipinde (dar kutu) bileşen çizilmez.
   const visible = <T extends Component>(items: T[]) => (mode === "cards" ? items.filter((item) => item.props?.hideOnMobile !== true) : items);
@@ -55,7 +52,7 @@ export function ListTemplate<C extends Component>({ layout, render, title, count
       {indicators.length > 0 && <div className="list-template-indicators">{indicators.map(render)}</div>}
       {filters && <div className="list-template-filters">{render(filters)}</div>}
       <div ref={mainRef} className={`list-template-main${showDetail && detail ? " has-detail" : ""}${stacked ? " is-stacked" : ""}`}>
-        <div ref={listRef} data-list-mode={mode} className={`list-template-list${striped ? " is-striped" : ""}`}><ShellSearchContext.Provider value={search != null}><ListModeContext.Provider value={mode}>{render(layout.list)}</ListModeContext.Provider></ShellSearchContext.Provider></div>
+        <div ref={listRef} data-list-mode={mode} className={`list-template-list${!showDetail || !detail ? " is-full-width" : ""}${striped ? " is-striped" : ""}`}><ShellSearchContext.Provider value={search != null}><ListModeContext.Provider value={mode}>{render(layout.list)}</ListModeContext.Provider></ShellSearchContext.Provider></div>
         {showDetail && detail && <div className="list-template-detail">{render(detail)}</div>}
       </div>
       {drawsSomething(below) ? <div className="list-template-below">{below.map(render)}</div> : below.map(render)}

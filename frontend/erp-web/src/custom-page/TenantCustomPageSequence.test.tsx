@@ -232,7 +232,7 @@ describe('Pencere', () => {
     ctrlS();
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(writes()).toHaveLength(0);
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Kapat' }));
+    fireEvent.click(screen.getByRole('dialog').querySelector('.tenant-page-dialog-footer button')!);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     ctrlS();
     await waitFor(() => expect(writes()).toHaveLength(1));

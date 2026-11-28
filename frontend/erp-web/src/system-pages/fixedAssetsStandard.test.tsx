@@ -257,7 +257,7 @@ describe('Duran Varlıklar standart tanımı', { timeout: 30000 }, () => {
   it('kart grubu: empty state, then monthly depreciation, current assignee and linked invoice of the selected asset', async () => {
     setup();
     await cell('CNC tezgâhı');
-    expect(within(detail()).getByText('Bir kıymet seçin; ayrıntıları burada görün.')).toBeTruthy();
+    expect(document.querySelector('.list-template-detail')).toBeNull();
     await select('CNC tezgâhı');
     const text = () => document.body.textContent ?? '';
     await waitFor(() => expect(text()).toContain('P-001 · Ayşe Yılmaz'), T);

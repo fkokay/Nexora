@@ -156,21 +156,23 @@ describe('Liste kalıbının detay kartı ve gizli girişleri', () => {
     await screen.findByText('S-1', { selector: 'td, td *' }, T);
     return view.container;
   }
-  // inventory-tracking biçimi: kart seçimsiz de görünür; boş durum metni seçim yokken, seçili satırın alanı seçilince.
+  // Kart grubu detay alanında yalnız seçili satır varken görünür.
   const card = { id: 'detayKarti', type: 'card', props: { slot: 'detail', variant: 'panel', title: '{{liste.seciliSatir.code}}' }, children: [
     { id: 'detayBos', type: 'text', props: { text: 'Bir lot veya seri seçin; ayrıntıları burada görün.', visibleWhen: 'liste.seciliSatir.code == null' } },
     { id: 'detayKod', type: 'text', props: { text: 'Seçili: {{liste.seciliSatir.code}}', visibleWhen: 'liste.seciliSatir.code != null' } },
   ] };
 
-  it('a detail card is shown without a row selection (its empty state child too)', async () => {
+  it('a detail card is absent without a row selection and opens for the selected row', async () => {
     const container = await show(listOnly([card]));
     const detail = () => container.querySelector<HTMLElement>('.list-template-detail');
-    await waitFor(() => expect(detail()).not.toBeNull(), T);
-    expect(within(detail()!).getByText('Bir lot veya seri seçin; ayrıntıları burada görün.')).toBeTruthy();
-    expect(container.querySelector('.list-template-main')!.classList.contains('has-detail')).toBe(true);
+    expect(detail()).toBeNull();
+    expect(container.querySelector('.list-template-list')!.classList.contains('is-full-width')).toBe(true);
     fireEvent.click(screen.getByText('S-1', { selector: 'td, td *' }).closest('tr')!);
+    await waitFor(() => expect(detail()).not.toBeNull(), T);
     await waitFor(() => expect(within(detail()!).getByText('Seçili: S-1')).toBeTruthy(), T);
-    expect(within(detail()!).queryByText('Bir lot veya seri seçin; ayrıntıları burada görün.')).toBeNull();
+    expect(container.querySelector('.list-template-list')!.classList.contains('is-full-width')).toBe(false);
+    fireEvent.click(screen.getByText('S-1', { selector: 'td, td *' }).closest('tr')!);
+    await waitFor(() => expect(detail()).toBeNull(), T);
   });
 
   it('a detail panel still opens only with a row selection', async () => {

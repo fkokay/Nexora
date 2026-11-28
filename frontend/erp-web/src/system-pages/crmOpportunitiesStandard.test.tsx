@@ -251,9 +251,9 @@ describe('CRM Fırsatları standart tanımı', { timeout: 30000 }, () => {
   it('detail card: key values, local follow-up time, stage path for open and a note for lost opportunities', async () => {
     setup();
     await cell('Depo otomasyonu');
-    // Liste kalıbı: detay kartı seçim olmadan da yerinde (boş durum metniyle); panel düğmesi yok.
+    // Liste kalıbı: seçim yokken detay çizilmez; panel düğmesi yok.
     expect(screen.queryByRole('button', { name: 'Detay paneli' })).toBeNull();
-    expect(document.body.textContent).toContain('Bir fırsat seçin; ayrıntıları burada görün.');
+    expect(document.querySelector('.list-template-detail')).toBeNull();
     await select('Depo otomasyonu');
     await waitFor(() => expect(document.body.textContent).toContain('Kazanma olasılığı'), T);
     const text = () => document.body.textContent ?? '';

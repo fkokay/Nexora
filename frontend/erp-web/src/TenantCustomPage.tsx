@@ -1503,7 +1503,16 @@ function renderComponentBody(component: ComponentDefinition, forms: EmbeddedForm
         const owned = runtime.topLevelById[id];
         // Pencere yalnız üst düzey bileşen sahiplenir; pencere içinde pencere ve İşlem Çubuğu çizilmez.
         if (!owned || owned.type === "dialog" || owned.type === "actionBar") return null;
-        return renderComponent(owned, forms, token, pageCode, inner);
+        const boundProps = bindProps(owned.props ?? {}, runtime.scope);
+        const boundTitle = owned.type === "heading"
+          ? textValue(boundProps.title) || textValue(boundProps.text)
+          : textValue(boundProps.title);
+        const repeatsDialogTitle = boundTitle === title || title.startsWith(`${boundTitle} ·`);
+        if (ids.length === 1 && boundTitle.length > 0 && repeatsDialogTitle && owned.type === "heading") return null;
+        const withoutRepeatedTitle = ids.length === 1 && boundTitle.length > 0 && repeatsDialogTitle
+          ? { ...owned, props: { ...owned.props, title: "" } }
+          : owned;
+        return renderComponent(withoutRepeatedTitle, forms, token, pageCode, inner);
       };
       // Kalıplı sayfa: sabit iskelet (özet üstte, sekmeler sonda, pencerenin düğmeleri alt satırda Kaydet'in solunda).
       const parts = runtime.unplaced ? orderDialogParts(ids, (id) => runtime.topLevelById[id]?.type) : null;

@@ -4,7 +4,7 @@
    Kart 8px, kontrol 6px yarıçap; gri başlık bandı ve iç içe kutu yok. Renkler yalnızca --nx-* token'ları. */
 .record-form {
   /* --rf-* names stay for module stylesheets that use them; the values are design tokens. */
-  --rf-border: color-mix(in srgb, var(--nx-line) 82%, var(--nx-muted));
+  --rf-border: color-mix(in srgb, var(--nx-line) 40%, var(--nx-text));
   --rf-border-soft: var(--nx-line);
   --rf-surface: var(--nx-surface);
   --rf-band: var(--nx-canvas);
@@ -199,9 +199,9 @@
   padding: 0;
   border: 0;
   background: none;
-  /* The app-wide heading scale is set with !important; a card title is 13px/650. */
+  /* The app-wide heading scale is set with !important; a card title is 14px/650. */
   color: var(--nx-text) !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
   font-weight: 650 !important;
   letter-spacing: 0 !important;
   line-height: 1.35 !important;
@@ -237,7 +237,7 @@
   min-width: 0;
   margin: 0;
   color: var(--rf-label);
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 500;
   line-height: 1.35;
 }
@@ -259,7 +259,7 @@
   box-shadow: none;
 }
 .record-form .rf-form textarea:not([type="checkbox"], [type="radio"]) { height: 64px; padding: 6px 9px; resize: vertical; }
-.record-form .rf-form :is(input, select, textarea)::placeholder { color: var(--nx-muted); opacity: 1; }
+.record-form .rf-form :is(input, select, textarea)::placeholder { color: color-mix(in srgb, var(--nx-text) 35%, var(--nx-muted)); opacity: 1; font-style: normal; }
 .record-form .rf-form :is(input, select, textarea):not([type="checkbox"], [type="radio"]):focus {
   border-color: var(--nx-primary);
   outline: none;
@@ -501,7 +501,7 @@
    the control selector is (0,6,2), one element above global-components' `.app-shell :is(input:not(…)×5, …)`
    (0,6,1), so module rules that name their own field (e.g. crm-opportunities' `.crm-opp-currency` tint, (0,7,1))
    still win. State rules (focus, readonly, invalid, changed) add one class. */
-.app-shell .record-form .rf-form label { color: var(--rf-label) !important; font-size: 11.5px !important; font-weight: 500 !important; }
+.app-shell .record-form .rf-form label { color: var(--rf-label) !important; font-size: 12px !important; font-weight: 500 !important; }
 .app-shell .record-form .rf-form label.rf-check { color: var(--nx-text) !important; font-size: 12.5px !important; font-weight: 400 !important; }
 .app-shell .record-form form.rf-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):where(:not([type="range"], [type="color"])), select, textarea) {
   min-height: var(--nx-control-h);
@@ -509,7 +509,7 @@
   border-radius: var(--nx-radius-control) !important;
   background-color: var(--nx-surface) !important;
   color: var(--nx-text) !important;
-  font-size: 12.5px !important;
+  font-size: 13px !important;
 }
 .app-shell .record-form form.rf-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):where(:not([type="range"], [type="color"])), select) { padding: 0 9px; }
 .app-shell .record-form form.rf-form textarea:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) { padding: 6px 9px; }

@@ -90,7 +90,7 @@ const input = (id: string) => document.getElementById(`page-input-${id}`) as HTM
 const listRow = (code: string) => screen.getByText(code, { selector: '.tenant-page-data-grid td' }).closest('tr') as HTMLElement;
 const filters = () => screen.getByRole('region', { name: 'Süzgeçler' });
 const detail = () => document.querySelector('.tenant-page-detail') as HTMLElement;
-const tags = () => Array.from(detail().querySelectorAll('.tenant-page-detail-labels .tenant-page-badge')).map((tag) => tag.textContent);
+const tags = () => Array.from(document.querySelectorAll('.tenant-page-detail-labels .tenant-page-badge')).map((tag) => tag.textContent);
 const ready = () => screen.findByText('LOT-ESKI', { selector: '.tenant-page-data-grid td' }, T);
 const pick = async (code: string) => {
   fireEvent.click(listRow(code).querySelector('td:not(.advanced-grid-select-cell)') as HTMLElement);
@@ -158,15 +158,12 @@ describe('Lot / Seri İzleme standart tanımı', { timeout: 30000 }, () => {
     expect(screen.getByText('Bakiye yalnız iz kodu bulunan stok hareketlerinden hesaplanır.')).toBeTruthy();
   });
 
-  it('detail panel: empty state until a row is picked, then the selected lot / serial', async () => {
+  it('detail panel appears for the selected lot / serial', async () => {
     setup();
     await ready();
-    expect(detail().closest('.list-template-detail')).not.toBeNull();
-    expect(detail().closest('.list-template-main')?.classList.contains('has-detail')).toBe(true);
-    expect(within(detail()).getByText('Bir lot veya seri seçin; ayrıntıları burada görün.')).toBeTruthy();
-    expect(detail().querySelector('h3')).toBeNull();
+    expect(document.querySelector('.list-template-detail')).toBeNull();
     await pick('SN-1');
-    expect(within(detail()).queryByText('Bir lot veya seri seçin; ayrıntıları burada görün.')).toBeNull();
+    expect(detail().closest('.list-template-detail')).not.toBeNull();
     expect(detail().querySelector('.tenant-page-detail-top .nx-code')?.textContent).toBe('TEL');
     expect(tags()).toEqual(['Seri']);
     const panel = detail().querySelector('.tenant-page-context') as HTMLElement;
@@ -205,7 +202,7 @@ describe('Lot / Seri İzleme standart tanımı', { timeout: 30000 }, () => {
     for (const write of ['new', 'save', 'delete']) expect(enabled).not.toContain(write);
   });
 
-  it('a filter that drops the selected row returns the detail panel to its empty state', async () => {
+  it('a filter that drops the selected row closes the detail panel', async () => {
     setup();
     await ready();
     await pick('LOT-YAKIN');
@@ -219,7 +216,7 @@ describe('Lot / Seri İzleme standart tanımı', { timeout: 30000 }, () => {
     });
     fireEvent.change(within(filters()).getByLabelText('İz türü'), { target: { value: 'Serial' } });
     await waitFor(() => expect(screen.queryByText('LOT-YAKIN', { selector: '.tenant-page-data-grid td' })).toBeNull(), T);
-    await waitFor(() => expect(within(detail()).getByText('Bir lot veya seri seçin; ayrıntıları burada görün.')).toBeTruthy(), T);
+    await waitFor(() => expect(document.querySelector('.list-template-detail')).toBeNull(), T);
     expect(tags()).toEqual([]);
   });
 

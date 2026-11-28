@@ -153,9 +153,9 @@ describe('Raf ve Konumlar standart tanımı', { timeout: 30000 }, () => {
 
   it('the card group asks for a selection, then shows the picked location', async () => {
     await openOn();
-    expect(within(detail()).getByText('Bir konum seçin; ayrıntıları burada görün.')).toBeTruthy();
+    expect(document.querySelector('.list-template-detail')).toBeNull();
     await selectLocation();
-    expect(within(detail()).queryByText('Bir konum seçin; ayrıntıları burada görün.')).toBeNull();
+    expect(document.querySelector('.list-template-detail')).not.toBeNull();
     const panel = detail().querySelector('.tenant-page-context') as HTMLElement;
     expect(Array.from(panel.querySelectorAll('dt')).map((dt) => dt.textContent)).toEqual(['Konum kodu', 'Konum adı', 'Durum']);
   });

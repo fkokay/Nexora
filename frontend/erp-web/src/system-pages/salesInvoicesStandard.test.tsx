@@ -119,7 +119,7 @@ describe('Satış Faturaları standart tanımı', { timeout: 30000 }, () => {
     await h.confirm('“IADE-1” iadesi iptal edilsin mi?');
     await h.waitWrites(2);
     expect(h.writes()[1]).toMatchObject({ method: 'POST', url: `/api/sales/returns/${R1}/void` });
-    fireEvent.click(within(opened).getByRole('button', { name: 'Kapat' }));
+    fireEvent.click(opened.querySelector('.tenant-page-dialog-footer button')!);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), T);
     fireEvent.click(await h.menuItem(/İptal et/));
     await h.confirm('“F-1” iptal edilecek ve cari hareketi ters kayıtla kapatılacak.');

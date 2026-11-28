@@ -415,10 +415,11 @@ describe('Dış Ticaret Dosyaları standart tanımı', { timeout: 30000 }, () =>
     expect(JSON.parse(writes()[0].body!)).toEqual({ status: 'Cancelled' });
   });
 
-  it('detail card: placeholder until a row is selected, then stage badge, details, cancelled note, legal note', async () => {
+  it('detail card: hidden until a row is selected, then stage badge, details, cancelled note, legal note', async () => {
     setup();
     await cell('EXP-001');
-    expect(text()).toContain('Bir dosya seçin; özetini burada görün.');
+    // Detay kartı seçim yokken çizilmez (liste tam genişlik).
+    expect(text()).not.toContain('Bir dosya seçin; özetini burada görün.');
     await select('IMP-005', 5);
     await waitFor(() => expect(text()).toContain('Sevkte · sıradaki: Gümrükte'), T);
     expect(text()).not.toContain('Bir dosya seçin; özetini burada görün.');

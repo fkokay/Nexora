@@ -216,12 +216,12 @@ describe('Cari Hesaplar standart tanımı', { timeout: 30000 }, () => {
     expect(Object.keys(body).filter((key) => key.includes('.'))).toEqual([]);
   });
 
-  it('detail card (always beside the list): empty hint, then badges, balance with its B/A side, risk limit usage, tax no, term and the default address', async () => {
+  it('detail card opens for a selected row: badges, balance with its B/A side, risk limit usage, tax no, term and the default address', async () => {
     setup();
     await screen.findByText('FATİH KOKAY', { selector: '.tenant-page-data-grid td' }, T);
-    // Liste kalıbı: detay kartı seçim olmadan da yerinde; panel düğmesi yok.
+    // Liste kalıbı: seçim yokken detay çizilmez; panel düğmesi yok.
     expect(screen.queryByRole('button', { name: 'Detay paneli' })).toBeNull();
-    expect(document.querySelector('.list-template-detail')?.textContent).toContain('Bir cari seçin; ayrıntıları burada görün.');
+    expect(document.querySelector('.list-template-detail')).toBeNull();
     await select('FATİH KOKAY', C1);
     await waitFor(() => expect(gets(`/api/customers/${C1}/balance`).length).toBeGreaterThan(0), T);
     const info = () => document.querySelector('.list-template-detail')?.textContent ?? '';

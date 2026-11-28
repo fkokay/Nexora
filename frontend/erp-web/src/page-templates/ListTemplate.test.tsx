@@ -92,6 +92,7 @@ describe('liste kalıbı', () => {
     const { container } = render(<TenantCustomPage code="p" token="t" />);
     const cell = await screen.findByText('C001', undefined, T);
     expect(container.querySelector('.list-template-detail')).toBeNull();
+    expect(container.querySelector('.list-template-list')!.classList.contains('is-full-width')).toBe(true);
     fireEvent.click(cell.closest('tr')!);
     const main = container.querySelector('.list-template-main')!;
     await waitFor(() => expect(main.querySelector('.list-template-detail')).toBeTruthy());
@@ -99,6 +100,10 @@ describe('liste kalıbı', () => {
     const detail = main.querySelector('.list-template-detail') as HTMLElement;
     expect(within(detail).getByRole('heading', { name: 'Cari detayı' })).toBeTruthy();
     expect(within(detail).getByText('Ayşe Ltd')).toBeTruthy();
+    expect(container.querySelector('.list-template-list')!.classList.contains('is-full-width')).toBe(false);
+    fireEvent.click(cell.closest('tr')!);
+    await waitFor(() => expect(main.querySelector('.list-template-detail')).toBeNull());
+    expect(container.querySelector('.list-template-list')!.classList.contains('is-full-width')).toBe(true);
   });
 
   it('catalog error shows in the list area while indicators still render', async () => {
@@ -129,11 +134,11 @@ describe('liste kalıbı', () => {
     } finally { window.removeEventListener('nexora:open-page', opened); }
   });
 
-  it('anchors are emitted for every slotted component', async () => {
+  it('anchors are emitted for every rendered slotted component', async () => {
     const { container } = render(<CanvasAnchorContext.Provider value={true}><TenantCustomPage code="p" token="t" /></CanvasAnchorContext.Provider>);
     await screen.findByText('C001', undefined, T);
     const anchors = [...container.querySelectorAll('template[data-cp-anchor]')].map((anchor) => anchor.getAttribute('data-cp-anchor'));
-    expect(new Set(anchors)).toEqual(new Set(['sil', 'm1', 'f1', 't1', 'yeni', 'yenile', 'd1']));
+    expect(new Set(anchors)).toEqual(new Set(['sil', 'm1', 'f1', 't1', 'yeni', 'yenile']));
     // Her işaret çizilen öğesinin hemen önündedir (tuval `nextElementSibling`'i ölçer).
     for (const anchor of container.querySelectorAll('template[data-cp-anchor]')) expect(anchor.nextElementSibling).toBeTruthy();
     const yeni = container.querySelector('template[data-cp-anchor="yeni"]')!;
