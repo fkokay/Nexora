@@ -668,7 +668,6 @@ function AppContent() {
       "fixed-asset-card": "Kıymet kartı",
       "manufacturing-recipe-document": "Üretim Reçetesi",
       "manufacturing-recipes": "Tanımlı Reçeteler",
-      "manufacturing-recipe-create": "Reçete Oluştur",
       "manufacturing-work-centers": "İş Merkezleri",
       "manufacturing-work-center-create": "İş Merkezi Tanımla",
       "manufacturing-orders": "Üretim Emirleri",

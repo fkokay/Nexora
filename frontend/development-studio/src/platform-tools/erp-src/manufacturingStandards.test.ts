@@ -89,14 +89,14 @@ for (const [key, standard] of standards) describe(`${key} standardı tasarımcı
   });
 });
 
-// Testin boşuna geçmemesi için: reçete listesinin Yeni/Aç düğmeleri eski reçete ekranına (legacyScreen) gider.
-describe("üretim standartlarında eski ekran gezinmesi", () => {
-  it("legacyScreen yalnız ERP ekranı düğmesinde ve reçete listesinde kullanılır", () => {
-    const legacy = standards.flatMap(([key, standard]) => flatten(standard.definition.components).filter((component) => "legacyScreen" in component.props).map((component) => [key, component] as const));
-    expect(legacy.some(([key]) => key === "manufacturing-recipes")).toBe(true);
-    for (const [key, component] of legacy) {
-      expect(component.props.actionType, `${key}.${component.id}`).toBe("erpPage");
-      expect(component.props.legacyScreen, `${key}.${component.id}`).toBe(true);
-    }
+describe("reçete listesi Belge gezinmesi", () => {
+  it("Yeni ve Aç reçete Belgesine gider; Aç seçili kimliği id olarak taşır", () => {
+    const recipe = standards.find(([key]) => key === "manufacturing-recipes")![1].definition.components;
+    const open = recipe.find((component) => component.id === "acDugmesi")!.props;
+    const create = recipe.find((component) => component.id === "yeniDugmesi")!.props;
+    expect(create).toMatchObject({ actionType: "erpPage", pageKey: "manufacturing-recipe-document" });
+    expect(create).not.toHaveProperty("legacyScreen");
+    expect(open).toMatchObject({ actionType: "erpPage", pageKey: "manufacturing-recipe-document", params: ["id={{liste.seciliSatir.id}}"] });
+    expect(open).not.toHaveProperty("legacyScreen");
   });
 });

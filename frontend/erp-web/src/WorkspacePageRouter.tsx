@@ -36,9 +36,6 @@ const CrmOpportunitiesPage = lazy(() => import("./CrmOpportunitiesPage"));
 const ManufacturingRecipesPage = lazy(
   () => import("./ManufacturingRecipesPage"),
 );
-const ManufacturingRecipeCreatePage = lazy(
-  () => import("./ManufacturingRecipeCreatePage"),
-);
 const ManufacturingWorkCentersPage = lazy(
   () => import("./ManufacturingWorkCentersPage"),
 );
@@ -358,7 +355,7 @@ function LegacyPageRouter({
   if (page === "manufacturing-recipes")
     return <ManufacturingRecipesPage {...manufacturingPageProps} />;
   if (page === "manufacturing-recipe-create")
-    return <ManufacturingRecipeCreatePage {...manufacturingPageProps} />;
+    return <LegacyCreateRedirect sourceKey="manufacturing-recipe-create" targetKey="manufacturing-recipe-document" noun="Reçete" onNavigate={onNavigate} />;
   if (page === "manufacturing-recipe-document")
     return <LegacyDocumentCard onNavigate={onNavigate} documentKey="manufacturing-recipe-document" noun="Reçete" openKey="manufacturing-recipes" openParam="id" createKey="manufacturing-recipe-document" />;
   if (page === "manufacturing-work-centers")
@@ -693,7 +690,7 @@ function LegacyCreateRedirect({ sourceKey, targetKey, noun, onNavigate }: {
   sourceKey: string; targetKey: string; noun: string; onNavigate: (page: string, label?: string) => void;
 }) {
   const params = usePageParams(sourceKey);
-  const id = params.id ?? params.invoiceId ?? "";
+  const id = params.id ?? params.invoiceId ?? params.bomId ?? "";
   useEffect(() => {
     setPageParams(targetKey, id ? { id } : {});
     onNavigate(targetKey);

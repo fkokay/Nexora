@@ -35,7 +35,7 @@ export const SUBROUTE_PARENTS: Record<string, string> = {
   "finance-credit-movement-create": "finance-credit-facilities",
   "finance-credit-repayment-create": "finance-credit-facilities",
   "finance-credit-security-create": "finance-credit-facilities",
-  "manufacturing-recipe-create": "manufacturing-recipes", "manufacturing-recipe-document": "manufacturing-recipes",
+  "manufacturing-recipe-document": "manufacturing-recipes",
   "manufacturing-work-center-create": "manufacturing-work-centers",
   "manufacturing-order-create": "manufacturing-orders",
   "fixed-asset-create": "fixed-assets",
@@ -47,6 +47,7 @@ export const STANDALONE_PAGES: string[] = [
   // Eski oluşturma sayfaları: Belge ekranına yönlendirir, menüde yer almaz.
   "sales-invoice-create",
   "finance-journal-vouchers",
+  "manufacturing-recipe-create",
   "launcher",
   "dashboard",
   "erp-assistant",

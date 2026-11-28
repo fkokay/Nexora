@@ -10,8 +10,7 @@ import TenantCustomPage from '../TenantCustomPage';
 import { OPEN_PAGE_EVENT, type WorkspaceOpenRequest } from '../pageNavigation';
 import catalog from './manufacturingRecipesOperations.fixture.json';
 
-// "Tanımlı reçeteler" standart tanımı (manufacturing-recipes.json): reçete kartı eski ekranda kalır (Yeni / Aç `legacyScreen`,
-// Aç `bomId` ile); silme, etkinleştirme ve pasife alma sistem sayfasındadır. API sahte yanıtlar döner.
+// "Tanımlı reçeteler" standart tanımı: Yeni/Aç Belge ekranına gider; silme, etkinleştirme ve pasife alma listede kalır.
 
 const { api } = vi.hoisted(() => ({ api: vi.fn() }));
 vi.mock('../erpApi', () => ({ api }));
@@ -138,16 +137,16 @@ describe('Tanımlı reçeteler standart tanımı', { timeout: 30000 }, () => {
     expect(await cell('Eski sos reçetesi')).toBeTruthy();
   });
 
-  it('Aç opens the legacy recipe card with bomId; Yeni opens it empty', async () => {
+  it('Aç opens the document with id; Yeni opens a blank document', async () => {
     setup();
     await select('Ketçap reçetesi');
     await ready('open');
     fireEvent.click(command('open'));
     await waitFor(() => expect(navigations).toHaveLength(1), T);
-    expect(navigations[0]).toMatchObject({ page: 'manufacturing-recipe-create', params: { bomId: B2 }, legacy: true });
+    expect(navigations[0]).toMatchObject({ page: 'manufacturing-recipe-document', params: { id: B2 } });
     fireEvent.click(command('new'));
     await waitFor(() => expect(navigations).toHaveLength(2), T);
-    expect(navigations[1]).toMatchObject({ page: 'manufacturing-recipe-create', legacy: true });
+    expect(navigations[1]).toMatchObject({ page: 'manufacturing-recipe-document' });
     expect(navigations[1].params).toEqual({});
   });
 

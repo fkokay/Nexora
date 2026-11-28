@@ -1,9 +1,9 @@
 {
   "screenKey": "manufacturing-recipes",
   "title": "Tanımlı reçeteler",
-  "description": "Ürün reçetelerini (bileşen ve rota) listeleyin; reçete kartı bugünkü ekranda açılır.",
+  "description": "Ürün reçetelerini (bileşen ve rota) listeleyin; yeni reçete oluşturun veya seçili reçeteyi Belge ekranında açın.",
   "module": "Üretim",
-  "version": 2,
+  "version": 3,
   "stage": "preview",
   "items": {
     "component:komutlar": {
@@ -22,12 +22,12 @@
     },
     "component:yeniDugmesi": {
       "since": 1,
-      "label": "Yeni reçete komutu (eski kart)",
+      "label": "Yeni reçete komutu (Belge)",
       "requires": []
     },
     "component:acDugmesi": {
       "since": 1,
-      "label": "Reçeteyi aç komutu (eski kart)",
+      "label": "Reçeteyi aç komutu (Belge)",
       "requires": [
         "component:liste"
       ]
@@ -123,6 +123,20 @@
       }
     }
   ],
+  "updates": [
+    {
+      "id": "belge",
+      "label": "Yeni ve Aç komutları reçete Belge sayfasına gider",
+      "below": 2,
+      "set": [
+        { "component": "yeniDugmesi", "prop": "pageKey", "from": ["manufacturing-recipe-create"] },
+        { "component": "yeniDugmesi", "prop": "legacyScreen", "from": [true] },
+        { "component": "acDugmesi", "prop": "pageKey", "from": ["manufacturing-recipe-create"] },
+        { "component": "acDugmesi", "prop": "legacyScreen", "from": [true] },
+        { "component": "acDugmesi", "prop": "params", "from": [["bomId={{liste.seciliSatir.id}}"]] }
+      ]
+    }
+  ],
   "definition": {
     "schemaVersion": 2,
     "components": [
@@ -156,9 +170,8 @@
         "props": {
           "text": "Yeni reçete",
           "actionType": "erpPage",
-          "pageKey": "manufacturing-recipe-create",
+          "pageKey": "manufacturing-recipe-document",
           "target": "newTab",
-          "legacyScreen": true,
           "slot": "actions"
         }
       },
@@ -170,11 +183,10 @@
           "text": "Aç",
           "icon": "open",
           "actionType": "erpPage",
-          "pageKey": "manufacturing-recipe-create",
+          "pageKey": "manufacturing-recipe-document",
           "target": "newTab",
-          "legacyScreen": true,
           "params": [
-            "bomId={{liste.seciliSatir.id}}"
+            "id={{liste.seciliSatir.id}}"
           ],
           "disabledWhen": "liste.seciliSatir.id == null",
           "disabledReason": "Önce bir kayıt seçin",
