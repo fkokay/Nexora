@@ -33,7 +33,7 @@ public sealed class PurchasingFaz2DocumentSystemPagesTests
     public static TheoryData<string, string, int> Keys => new()
     {
         { "sales-purchase-delivery-notes", "Satınalma İrsaliyeleri", 2 },
-        { "sales-purchase-invoices", "Satınalma Faturaları", 2 },
+        { "sales-purchase-invoices", "Satınalma Faturaları", 3 },
         { "sales-purchase-returns", "Satınalma İadeleri", 2 },
         { "sales-purchase-invoice-drafts", "Satınalma faturası taslakları", 1 },
     };
@@ -42,7 +42,6 @@ public sealed class PurchasingFaz2DocumentSystemPagesTests
     public static TheoryData<string, string, string, string, string> FillGrids => new()
     {
         { "sales-purchase-delivery-notes", "irsaliyeSatirlari", "irsaliyeKaynak", "satinalma.irsaliye.siparisSatirlari", "yeniIrsaliyePenceresi" },
-        { "sales-purchase-invoices", "iadeKalemleri", "iadeKaynak", "satinalma.fatura.iadeEdilebilirSatirlar", "iadePenceresi" },
         { "sales-purchase-returns", "iadeKalemleri", "iadeKaynak", "satinalma.fatura.iadeEdilebilirSatirlar", "iadePenceresi" },
     };
 
@@ -258,7 +257,6 @@ public sealed class PurchasingFaz2DocumentSystemPagesTests
     // ---- Satınalma Faturaları v2 / Satınalma İadeleri v2 ----
 
     [Theory]
-    [InlineData("sales-purchase-invoices", "iadeDugmesi", "{{liste.seciliSatir.id}}")]
     [InlineData("sales-purchase-returns", "yeniIadeDugmesi", "{{iadeFatura.value}}")]
     public void Return_is_created_from_the_returnable_invoice_lines(string key, string opener, string invoiceId)
     {
@@ -280,7 +278,17 @@ public sealed class PurchasingFaz2DocumentSystemPagesTests
             Assert.Equal(("faturalar", "satir.status == 'Posted'", true), ((string)invoice["optionsQuery"]!, (string)invoice["optionsWhen"]!, (bool)invoice["required"]!));
             Assert.Equal(("satinalma.fatura.listele", "{{iadeFatura.search}}"), (Operation(key, "faturalar"), Binding(key, "faturalar", "q")));
         }
-        else Assert.Equal("liste.seciliSatir.id == null || liste.seciliSatir.status != 'Posted'", (string)Props(key, opener)["disabledWhen"]!);
+    }
+
+    [Fact]
+    public void Invoices_Iade_olustur_opens_the_returns_page_until_the_window_has_a_line_grid()
+    {
+        // satın alma 1. dalga: the invoices Liste template has no editable line grid in its windows; the return is made on its own page.
+        var props = Props("sales-purchase-invoices", "iadeDugmesi");
+        Assert.Equal(("erpPage", "sales-purchase-returns"), ((string)props["actionType"]!, (string)props["pageKey"]!));
+        Assert.Null(props["legacyScreen"]);
+        Assert.Equal("liste.seciliSatir.id == null || liste.seciliSatir.status != 'Posted'", (string)props["disabledWhen"]!);
+        Assert.DoesNotContain(Queries(Definition("sales-purchase-invoices")), x => (string)x["operation"]! is "satinalma.iade.olustur" or "depo.listele");
     }
 
     // ---- Satınalma faturası taslakları v1 ----

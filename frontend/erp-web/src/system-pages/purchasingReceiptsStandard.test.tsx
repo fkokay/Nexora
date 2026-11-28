@@ -1,11 +1,13 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import catalog from './purchasingReceiptsOperations.fixture.json';
-import { T, createHarness, page } from './purchasingStandardHarness';
+import { T, page, query, salesHarness } from './salesStandardHarness';
 
-// "Mal kabulleri" standart tanımı (sales-purchase-receipts.json): sayfalı liste, panel, onaylı iptal ve Faturala gezinmesi.
+// "Mal kabulleri" standart tanımı (sales-purchase-receipts.json, Liste kalıbı): sayfalı liste, detay paneli, Aç penceresi,
+// onaylı iptal ve Faturala gezinmesi. Siparişsiz / izlemeli kabul bu ekranda yok (kalıba pencere satır tablosu gelince eklenecek).
 
-vi.mock('../erpApi', () => ({ api: vi.fn() }));
+const { api } = vi.hoisted(() => ({ api: vi.fn() }));
+vi.mock('../erpApi', () => ({ api }));
 
 const KEY = 'sales-purchase-receipts';
 const R1 = '66666666-0000-0000-0000-000000000001';
@@ -20,7 +22,8 @@ const rows = () => [
 ];
 let voidFailure: { status: number; message: string } | null = null;
 
-function respond(path: string, method: string): unknown {
+function respond(url: string, method: string): unknown {
+  const [path] = url.split('?');
   if (method === 'GET') {
     if (path === '/api/purchasing/receipts') return page(rows());
     const one = /^\/api\/purchasing\/receipts\/([^/]+)$/.exec(path);
@@ -37,61 +40,66 @@ function respond(path: string, method: string): unknown {
     }
     return {};
   }
-  return undefined;
+  throw new Error(`unexpected ${method} ${url}`);
 }
 
-const h = createHarness(KEY, catalog);
-beforeEach(() => { h.before(); voidFailure = null; });
-afterEach(() => h.after(['sales-purchase-invoice-entry', 'sales-purchase-invoices']));
+const h = salesHarness(KEY, api, catalog, respond);
+beforeEach(() => { api.mockReset(); localStorage.clear(); voidFailure = null; h.listen(); });
+afterEach(() => { h.reset(); cleanup(); });
 
 describe('Mal kabulleri standart tanımı', { timeout: 30000 }, () => {
-  it('uses only operations from the catalog fixture', () => h.usesOnlyCatalog());
+  it('is a v2 preview Liste standard that uses only operations from the catalog fixture', () => {
+    expect(h.standard).toMatchObject({ screenKey: KEY, version: 2, stage: 'preview' });
+    const names = new Set(catalog.operations.map((operation) => operation.name));
+    expect(h.standard.definition.queries.filter((item) => !names.has(item.operation))).toEqual([]);
+    expect((h.standard.definition as unknown as { template: unknown }).template).toEqual({ name: 'list' });
+  });
 
-  it('lists the first page with status labels; a selected row loads the receipt and its lines', async () => {
-    h.setup(respond);
-    await h.cell('MK-0001');
-    const list = h.gets('/api/purchasing/receipts')[0];
-    expect(new URLSearchParams(list.url.split('?')[1]).get('pageSize')).toBe('25');
+  it('lists the first page with status labels; a selected row loads the receipt', async () => {
+    h.setup();
+    await h.selectRow('MK-0001');
+    expect(query(h.gets('/api/purchasing/receipts')[0].url).get('pageSize')).toBe('25');
     expect(screen.getAllByText('Kabul edildi').length).toBeGreaterThan(0);
-    // Taslak 20: Tutar and the pricing state of the receipt.
     expect(screen.getAllByText('Kısmen bedelsiz').length).toBeGreaterThan(0);
-    await h.select('MK-0001');
     await waitFor(() => expect(h.gets(`/api/purchasing/receipts/${R1}`).length).toBeGreaterThan(0), T);
   });
 
+  it('Aç opens the receipt window with its lines', async () => {
+    h.setup();
+    await h.selectRow('MK-0001');
+    await waitFor(() => expect(h.command('open').getAttribute('aria-disabled')).not.toBe('true'), T);
+    fireEvent.click(h.command('open'));
+    const opened = await h.dialog(/Mal kabul · MK-0001/);
+    await waitFor(() => expect(opened.textContent).toContain('AMB-1'), T);
+  });
+
   it('İptal et asks first and posts the void of the selected receipt', async () => {
-    h.setup(respond);
-    await h.select('MK-0001');
+    h.setup();
+    await h.selectRow('MK-0001');
     await waitFor(() => expect(h.gets(`/api/purchasing/receipts/${R1}`).length).toBeGreaterThan(0), T);
     fireEvent.click(await h.menuItem(/^İptal et/));
-    const dialog = await screen.findByRole('alertdialog', {}, T);
-    expect(dialog.textContent).toContain('MK-0001 mal kabulü iptal edilsin mi?');
-    expect(h.writes()).toEqual([]);
-    await h.answer('Onayla');
-    await waitFor(() => expect(h.writes()).toHaveLength(1), T);
+    await h.confirm('MK-0001 mal kabulü iptal edilsin mi?');
+    await h.waitWrites(1);
     expect(h.writes()[0]).toMatchObject({ method: 'POST', url: `/api/purchasing/receipts/${R1}/void` });
   });
 
   it('a 409 on cancel shows the configured text with the server reason', async () => {
-    h.setup(respond);
-    await h.select('MK-0001');
+    h.setup();
+    await h.selectRow('MK-0001');
     await waitFor(() => expect(h.gets(`/api/purchasing/receipts/${R1}`).length).toBeGreaterThan(0), T);
     voidFailure = { status: 409, message: 'Bağlı alış faturası önce iptal edilmeli.' };
     fireEvent.click(await h.menuItem(/^İptal et/));
-    await h.answer('Onayla');
+    await h.confirm();
     expect(await screen.findByText(/Mal kabul iptal edilemedi\. \(Bağlı alış faturası önce iptal edilmeli\.\)/, {}, T)).toBeTruthy();
   });
 
-  it('Faturala opens invoice entry with receiptId; Siparişsiz mal kabul opens the legacy screen', async () => {
-    h.setup(respond);
-    await h.select('MK-0001');
+  it('Faturala opens invoice entry with receiptId; there is no Siparişsiz mal kabul / Eski ekranda aç command', async () => {
+    h.setup();
+    await h.selectRow('MK-0001');
     await waitFor(() => expect(h.gets(`/api/purchasing/receipts/${R1}`).length).toBeGreaterThan(0), T);
     fireEvent.click(await h.menuItem(/^Faturala/));
     await waitFor(() => expect(h.state.navigations).toHaveLength(1), T);
     expect(h.state.navigations[0]).toMatchObject({ page: 'sales-purchase-invoice-entry', params: { receiptId: R1 } });
-    await h.ready('new');
-    fireEvent.click(h.command('new'));
-    await waitFor(() => expect(h.state.navigations).toHaveLength(2), T);
-    expect(h.state.navigations[1]).toMatchObject({ page: KEY, legacy: true });
+    expect(h.menuItems().some((item) => /Siparişsiz|Eski ekran/.test(item))).toBe(false);
   });
 });

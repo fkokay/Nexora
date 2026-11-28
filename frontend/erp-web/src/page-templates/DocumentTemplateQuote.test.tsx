@@ -52,6 +52,7 @@ const model = {
     { code: "reddet", label: "Reddet", from: ["Sent"], to: "Rejected", operation: "satis.teklif.reddet", requiresReason: false },
   ],
   fills: { stockItemId: ["unitCode", "unitPrice", "vatPercent", "discountPercent", "currencyCode", "availableQuantity"] },
+  creations: [{ code: "siparisOlustur", label: "Siparişe dönüştür", from: ["Accepted"], operation: "satis.teklif.siparisOlustur", target: "satis.siparis" }],
 };
 
 const quoteDocument = (status: string, transitions: string[], over: Record<string, unknown> = {}) => ({
@@ -84,6 +85,7 @@ beforeEach(() => {
     if (url === "/api/sales/quotes/preview") return { currencyCode: "TRY", subtotal: 1, discountTotal: 0, taxTotal: 0, grandTotal: 1, lines: [], taxes: [] };
     if (url === `/api/sales/quotes/${QUOTE}` && method === "PUT") return { id: QUOTE };
     if (url === "/api/sales/quotes" && method === "POST") return { id: QUOTE };
+    if (url === `/api/sales/quotes/${QUOTE}/convert-to-order`) return { id: "oooooooo-oooo-oooo-oooo-oooooooooooo" };
     if (/\/api\/sales\/quotes\/.+\/(send|accept|reject)$/.test(url)) { current = quoteDocument("Sent", ["kabulEt", "reddet"]); return {}; }
     throw Object.assign(new Error(`beklenmeyen istek ${method} ${url}`), { status: 404 });
   }) as never);
@@ -166,5 +168,21 @@ describe("Belge kalıbı · satış teklifi", () => {
     const from = (screen.getByLabelText("Teklif tarihi *") as HTMLInputElement).value;
     const until = (screen.getByLabelText("Geçerlilik *") as HTMLInputElement).value;
     expect((new Date(until).getTime() - new Date(from).getTime()) / 86400000).toBe(30);
+  });
+
+  it("belgeden belge: kabul edilmiş teklifte eylem görünür, var olan işlemi çağırır ve yeni belgeyi sipariş sayfasında açtırır", async () => {
+    current = { ...quoteDocument("Accepted", []), allowedCreations: ["siparisOlustur"] } as never;
+    const open = vi.fn();
+    show({ onOpenDocument: open });
+    await screen.findByText("TKL-7", undefined, T);
+    fireEvent.click(screen.getByRole("button", { name: "Siparişe dönüştür" }));
+    await waitFor(() => expect(open).toHaveBeenCalledWith("sales-order-document", "oooooooo-oooo-oooo-oooo-oooooooooooo"), T);
+    expect(calls.find((c) => c.url.endsWith("/convert-to-order"))!.method).toBe("POST");
+  });
+
+  it("belgeden belge: şartı olmayan belgede eylem görünmez", async () => {
+    show();
+    await screen.findByText("TKL-7", undefined, T);
+    expect(screen.queryByRole("button", { name: "Siparişe dönüştür" })).toBeNull();
   });
 });

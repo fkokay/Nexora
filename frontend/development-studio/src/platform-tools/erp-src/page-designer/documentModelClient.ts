@@ -8,6 +8,8 @@ export type DocumentModel = {
   states: { code: string; label: string; terminal: boolean }[];
   transitions: { code: string; label: string }[];
   fills: Record<string, string[]>;
+  /** "Belgeden belge" eylemleri (sonraki belgeyi yaratıp açar); modelden gelir, ayar yoktur. */
+  creations: { code: string; label: string; target: string }[];
 };
 
 /** Okuma izni yoksa "forbidden", model yoksa null; öteki hatalar fırlatılır. */
@@ -36,6 +38,7 @@ export function parseDocumentModel(raw: unknown): DocumentModel | null {
     states: arr(body.states).map((s) => ({ code: str(s.code), label: str(s.label), terminal: s.terminal === true })),
     transitions: arr(body.transitions).map((t) => ({ code: str(t.code), label: str(t.label) })),
     fills,
+    creations: arr(body.creations).map((c) => ({ code: str(c.code), label: str(c.label), target: str(c.target) })),
   };
 }
 

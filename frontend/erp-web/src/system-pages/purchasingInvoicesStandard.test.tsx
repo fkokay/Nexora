@@ -1,27 +1,20 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { setPageParams } from '../pageNavigation';
 import catalog from './purchasingInvoicesOperations.fixture.json';
-import { T, createHarness, page } from './purchasingStandardHarness';
+import { T, page, query, salesHarness } from './salesStandardHarness';
 
-// "Alış faturaları" standart tanımı (sales-purchase-invoices.json, v2): ödeme durumu, supplierId süzgeci, ödeme penceresi
-// (autoId requestId), ödeme iptali, fatura iptali ve iade edilebilir satırlardan iade (fill + skipWhenZero, autoId requestId).
+// "Alış faturaları" standart tanımı (sales-purchase-invoices.json, v3, Liste kalıbı): ödeme durumu, supplierId süzgeci, ödeme penceresi
+// (autoId requestId), ödeme iptali, fatura iptali; iade oluşturma İade ekranına gezinmedir (pencere satır tablosu gelince pencereye döner).
 
-vi.mock('../erpApi', () => ({ api: vi.fn() }));
+const { api } = vi.hoisted(() => ({ api: vi.fn() }));
+vi.mock('../erpApi', () => ({ api }));
 
 const KEY = 'sales-purchase-invoices';
 const I1 = '88888888-0000-0000-0000-000000000001';
 const I2 = '88888888-0000-0000-0000-000000000002';
 const PAY = '99999999-0000-0000-0000-000000000001';
-const W1 = 'aaaaaaaa-0000-0000-0000-000000000001';
-const L1 = 'bbbbbbbb-0000-0000-0000-000000000001';
-const IL1 = 'dddddddd-0000-0000-0000-000000000001';
-const IL2 = 'dddddddd-0000-0000-0000-000000000002';
-const IL3 = 'dddddddd-0000-0000-0000-000000000003';
-const today = () => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; };
-const returnable = (id: string, n: number, code: string, name: string, unitCode: string, invoiced: number, returned: number) => ({
-  purchaseInvoiceLineId: id, orderLineNumber: n, stockItemId: `st${n}`, stockCode: code, stockName: name, unitCode, invoicedQuantity: invoiced,
-  returnedQuantity: returned, remainingQuantity: invoiced - returned, unitPrice: 250, discountPercent: 0, vatPercent: 20,
-});
+const bodyOf = (call: { body?: string }) => JSON.parse(call.body ?? 'null') as Record<string, unknown>;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const invoice = (id: string, code: string, extra: Record<string, unknown>) => ({
   id, code, purchaseReceiptId: 'r1', receiptCode: 'MK-0001', purchaseOrderId: 'po1', purchaseOrderCode: 'SA-0001', supplierId: 's1', supplierName: 'Ege Ambalaj',
@@ -39,57 +32,58 @@ const detail = (id: string) => ({
   returns: [],
 });
 
-function respond(path: string, method: string): unknown {
+function respond(url: string, method: string): unknown {
+  const [path] = url.split('?');
   if (method === 'GET') {
     if (path === '/api/purchasing/invoices') return page(rows());
     const one = /^\/api\/purchasing\/invoices\/([^/]+)$/.exec(path);
     if (one) return detail(one[1]);
-    if (path === `/api/purchasing/invoices/${I2}/returnable-lines`) {
-      return [returnable(IL1, 1, 'AMB-1', 'Koli 40x30', 'ADET', 4, 1), returnable(IL2, 2, 'AMB-2', 'Bant', 'ADET', 2, 2), returnable(IL3, 3, 'AMB-3', 'Streç', 'RULO', 5, 0)];
-    }
-    if (path === '/api/warehouses') return [{ id: W1, code: 'D1', name: 'Ana depo', isActive: true, rowVersion: 'rv' }];
-    if (path === `/api/warehouses/${W1}/locations`) return [{ id: L1, warehouseId: W1, code: 'A-01', name: 'Raf 1', parentLocationId: null, isActive: true, rowVersion: 'rv' }];
     if (path === '/api/finance/accounts') return [{ id: 'fa1', code: 'K-1', name: 'Merkez kasa', type: 'Cash', currencyCode: 'TRY', isActive: true }];
   }
   if (method === 'POST') {
     if (path === `/api/purchasing/invoices/${I1}/payments`) return { id: 'p9', code: 'OD-0009' };
-    if (path === `/api/purchasing/invoices/${I2}/returns`) return { id: 'ret9', code: 'AI-0009', purchaseInvoiceId: I2, status: 'Posted' };
     if (/^\/api\/purchasing\/(invoices|payments)\/[^/]+\/void$/.test(path)) return {};
   }
-  return undefined;
+  throw new Error(`unexpected ${method} ${url}`);
 }
 
-const h = createHarness(KEY, catalog);
-beforeEach(h.before);
-afterEach(() => h.after(['sales-purchase-invoice-entry', 'sales-purchase-invoice-drafts']));
+const h = salesHarness(KEY, api, catalog, respond);
+beforeEach(() => { api.mockReset(); localStorage.clear(); h.listen(); });
+afterEach(() => { h.reset(); cleanup(); setPageParams(KEY, {}); });
 const openDocument = async () => {
-  await h.select('AF-0001');
+  await h.selectRow('AF-0001');
   await waitFor(() => expect(h.gets(`/api/purchasing/invoices/${I1}`).length).toBeGreaterThan(0), T);
-  await h.ready('open');
+  await waitFor(() => expect(h.command('open').getAttribute('aria-disabled')).not.toBe('true'), T);
   fireEvent.click(h.command('open'));
   return screen.findByRole('dialog', { name: /Alış faturası · AF-0001/ }, T);
 };
 
 describe('Alış faturaları standart tanımı', { timeout: 60000 }, () => {
-  it('uses only operations from the catalog fixture', () => h.usesOnlyCatalog());
+  it('is a v3 preview Liste standard that uses only operations from the catalog fixture', () => {
+    expect(h.standard).toMatchObject({ screenKey: KEY, version: 3, stage: 'preview' });
+    const names = new Set(catalog.operations.map((operation) => operation.name));
+    expect(h.standard.definition.queries.filter((item) => !names.has(item.operation))).toEqual([]);
+    expect((h.standard.definition as unknown as { template: unknown }).template).toEqual({ name: 'list' });
+  });
 
   it('shows the derived payment state and remaining amount', async () => {
-    h.setup(respond);
-    await h.cell('AF-0001');
+    h.setup();
+    await screen.findByText('AF-0001', { selector: '.tenant-page-data-grid td, .tenant-page-data-grid td *' }, T);
     expect(screen.getAllByText('Kısmen ödendi').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Vadesi geçti').length).toBeGreaterThan(0);
-    expect(new URLSearchParams(h.gets('/api/purchasing/invoices')[0].url.split('?')[1]).get('supplierId')).toBeNull();
+    expect(query(h.gets('/api/purchasing/invoices')[0].url).get('supplierId')).toBeNull();
   });
 
   it('the supplierId page param filters the list', async () => {
-    h.setup(respond, { params: { supplierId: '11111111-0000-0000-0000-000000000001' } });
-    await h.cell('AF-0001');
-    expect(new URLSearchParams(h.gets('/api/purchasing/invoices')[0].url.split('?')[1]).get('supplierId')).toBe('11111111-0000-0000-0000-000000000001');
+    setPageParams(KEY, { supplierId: '11111111-0000-0000-0000-000000000001' });
+    h.setup();
+    await screen.findByText('AF-0001', { selector: '.tenant-page-data-grid td, .tenant-page-data-grid td *' }, T);
+    expect(query(h.gets('/api/purchasing/invoices')[0].url).get('supplierId')).toBe('11111111-0000-0000-0000-000000000001');
   });
 
   it('Ödeme ekle posts the payment with an autoId requestId; a second payment gets a new one', async () => {
-    h.setup(respond);
-    await h.select('AF-0001');
+    h.setup();
+    await h.selectRow('AF-0001');
     await waitFor(() => expect(h.gets(`/api/purchasing/invoices/${I1}`).length).toBeGreaterThan(0), T);
     const pay = async (amount: string, reference: string) => {
       fireEvent.click(await h.menuItem(/^Ödeme ekle/));
@@ -103,75 +97,48 @@ describe('Alış faturaları standart tanımı', { timeout: 60000 }, () => {
     await pay('250', 'DK-1');
     const posts = () => h.writes().filter((call) => call.url === `/api/purchasing/invoices/${I1}/payments`);
     expect(posts()).toHaveLength(1);
-    const body = h.bodyOf(posts()[0]);
+    const body = bodyOf(posts()[0]);
     expect(body).toMatchObject({ amount: 250, paymentMethod: 'Card', reference: 'DK-1' });
     expect(String(body.requestId)).toMatch(UUID);
     expect(String(body.paymentDate)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     await pay('100', 'DK-2');
     expect(posts()).toHaveLength(2);
-    expect(h.bodyOf(posts()[1]).requestId).not.toBe(body.requestId);
+    expect(bodyOf(posts()[1]).requestId).not.toBe(body.requestId);
   });
 
   it('a payment row of the document is cancelled after a confirm', async () => {
-    h.setup(respond);
+    h.setup();
     const dialog = await openDocument();
     fireEvent.click(within(dialog).getByRole('tab', { name: /Ödemeler/ }));
     fireEvent.click(await within(dialog).findByText('OD-0001', { selector: 'td, td *' }, T));
     fireEvent.click(await within(dialog).findByRole('button', { name: 'Ödemeyi iptal et' }, T));
-    const confirm = await screen.findByRole('alertdialog', {}, T);
-    expect(confirm.textContent).toContain('OD-0001 ödemesi iptal edilsin mi?');
-    await h.answer('Onayla');
-    await waitFor(() => expect(h.writes()).toHaveLength(1), T);
+    await h.confirm('OD-0001 ödemesi iptal edilsin mi?');
+    await h.waitWrites(1);
     expect(h.writes()[0]).toMatchObject({ method: 'POST', url: `/api/purchasing/payments/${PAY}/void` });
   });
 
   it('İptal et asks first and voids an unpaid invoice', async () => {
-    h.setup(respond);
-    await h.select('AF-0002');
+    h.setup();
+    await h.selectRow('AF-0002');
     await waitFor(() => expect(h.gets(`/api/purchasing/invoices/${I2}`).length).toBeGreaterThan(0), T);
     fireEvent.click(await h.menuItem(/^İptal et \(ters kayıt\)/));
-    expect((await screen.findByRole('alertdialog', {}, T)).textContent).toContain('AF-0002 alış faturası iptal edilsin mi?');
-    await h.answer('Onayla');
-    await waitFor(() => expect(h.writes()).toHaveLength(1), T);
+    await h.confirm('AF-0002 alış faturası iptal edilsin mi?');
+    await h.waitWrites(1);
     expect(h.writes()[0]).toMatchObject({ method: 'POST', url: `/api/purchasing/invoices/${I2}/void` });
   });
 
-  it('İade oluştur fills the returnable lines; skipWhenZero and an edit shape the posted return with a requestId', async () => {
-    h.setup(respond);
-    await h.select('AF-0002');
-    fireEvent.click(await h.menuItem(/^İade oluştur/));
-    const dialog = await screen.findByRole('dialog', { name: /Alış iadesi · AF-0002 · Ege Ambalaj/ }, T);
-    await waitFor(() => expect(h.gridCell('iadeKalemleri', 'dolu-1', 'quantity')?.value).toBe('3'), T);
-    // Salt okunur fatura satırı seçimi metin olarak çizilir: kaynak sorgunun seçenek etiketi.
-    expect(h.gridCell('iadeKalemleri', 'dolu-1', 'quantity')!.closest('tr')!.textContent).toContain('AMB-1');
-    expect(h.gridCell('iadeKalemleri', 'dolu-2', 'quantity')!.value).toBe('0');
-    expect(h.gridCell('iadeKalemleri', 'dolu-3', 'quantity')!.value).toBe('5');
-    expect(await within(dialog).findByText(/Gönderilecek satır: 2\./, {}, T)).toBeTruthy();
-    await h.pick(h.input('iadeDepo'), 'Ana depo');
-    h.type(h.gridCell('iadeKalemleri', 'dolu-3', 'quantity')!, '1.5');
-    await h.pick(h.gridCell('iadeKalemleri', 'dolu-1', 'storageLocationId')!, 'A-01');
-    fireEvent.click(within(dialog).getByRole('button', { name: 'İadeyi kaydet' }));
-    const url = `/api/purchasing/invoices/${I2}/returns`;
-    await waitFor(() => expect(h.sent(url)).toHaveLength(1), T);
-    expect(h.bodyOf(h.sent(url)[0])).toEqual({
-      requestId: expect.stringMatching(UUID), warehouseId: W1, returnDate: today(),
-      lines: [
-        { purchaseInvoiceLineId: IL1, quantity: 3, unitCode: 'ADET', storageLocationId: L1 },
-        { purchaseInvoiceLineId: IL3, quantity: 1.5, unitCode: 'RULO' },
-      ],
-    });
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: /Alış iadesi · AF-0002/ })).toBeNull(), T);
-  });
-
-  it('Mal kabulsüz fatura opens the invoice drafts system page; Eski ekranda aç carries the invoice', async () => {
-    h.setup(respond);
-    await h.select('AF-0002');
+  it('Mal kabulsüz fatura opens the drafts system page, İade oluştur the returns page; no Eski ekranda aç', async () => {
+    h.setup();
+    await h.selectRow('AF-0002');
+    await waitFor(() => expect(h.gets(`/api/purchasing/invoices/${I2}`).length).toBeGreaterThan(0), T);
     fireEvent.click(await h.menuItem(/^Mal kabulsüz fatura/));
     await waitFor(() => expect(h.state.navigations).toHaveLength(1), T);
     expect(h.state.navigations[0]).toMatchObject({ page: 'sales-purchase-invoice-drafts' });
     expect(h.state.navigations[0].legacy).toBeFalsy();
-    fireEvent.click(await h.menuItem(/^Eski ekranda aç/));
+    fireEvent.click(await h.menuItem(/^İade oluştur/));
     await waitFor(() => expect(h.state.navigations).toHaveLength(2), T);
-    expect(h.state.navigations[1]).toMatchObject({ page: KEY, params: { purchaseInvoiceId: I2 }, legacy: true });
+    expect(h.state.navigations[1]).toMatchObject({ page: 'sales-purchase-returns' });
+    expect(h.state.navigations[1].legacy).toBeFalsy();
+    expect(h.menuItems().some((item) => /Eski ekran/.test(item))).toBe(false);
   });
 });
