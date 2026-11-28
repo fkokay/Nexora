@@ -88,7 +88,7 @@ export function useCustomerListScreen(o: Options) {
   if (current) {
     const salesReason = SALES_PARTY_TYPES.includes(current.type) ? undefined : SALES_ONLY_REASON;
     more.push(
-      { id: "customer-sales-order", label: "Yeni sipariş", disabledReason: salesReason, run: () => o.onSalesAction("sales-order-create") },
+      { id: "customer-sales-order", label: "Yeni sipariş", disabledReason: salesReason, run: () => o.onSalesAction("sales-order-document") },
       { id: "customer-sales-quote", label: "Yeni teklif", disabledReason: salesReason, run: () => o.onSalesAction("sales-quote-create") },
       { id: "customer-sales-delivery", label: "Yeni irsaliye", disabledReason: salesReason, run: () => o.onSalesAction("sales-delivery-create") },
       { id: "customer-sales-invoice", label: "Yeni fatura", disabledReason: salesReason, run: () => o.onSalesAction("sales-invoice-create") },

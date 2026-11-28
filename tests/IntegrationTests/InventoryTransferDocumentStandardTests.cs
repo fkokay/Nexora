@@ -32,7 +32,6 @@ public sealed class InventoryTransferDocumentStandardTests
         var bar = components["komutlar"]["props"]!;
         Assert.Equal(("page", "@inventory-transfer-document", "page", "@inventory-transfer-document"),
             ((string)bar["newAction"]!, (string)bar["newPageCode"]!, (string)bar["openAction"]!, (string)bar["openPageCode"]!));
-        Assert.Equal("@inventory-transfer-document", (string)components["yeniTransferDugmesi"]["props"]!["pageCode"]!);
         Assert.Equal("@inventory-transfer-document", (string)components["kalemlerDugmesi"]["props"]!["pageCode"]!);
     }
 }

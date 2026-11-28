@@ -12,17 +12,9 @@
       "requires": [
         "component:suzgec",
         "component:liste",
-        "component:yeniTransferDugmesi",
         "component:kalemlerDugmesi",
         "component:iptalMenuDugmesi",
         "query:transferler"
-      ]
-    },
-    "component:yeniTransferDugmesi": {
-      "since": 1,
-      "label": "Yeni transfer komutu",
-      "requires": [
-        "component:yeniTransferPenceresi"
       ]
     },
     "component:suzgec": {
@@ -250,7 +242,6 @@
         "type": "actionBar",
         "name": "komutlar",
         "props": {
-          "newButton": "yeniTransferDugmesi",
           "openButton": "kalemlerDugmesi",
           "moreButtons": [
             "iptalMenuDugmesi"
@@ -273,16 +264,6 @@
           "openParams": [
             "id={{liste.seciliSatir.id}}"
           ]
-        }
-      },
-      {
-        "id": "yeniTransferDugmesi",
-        "type": "button",
-        "name": "yeniTransferDugmesi",
-        "props": {
-          "actionType": "page",
-          "pageCode": "@inventory-transfer-document",
-          "target": "newTab"
         }
       },
       {
@@ -853,27 +834,6 @@
         {
           "component": "komutlar",
           "prop": "openParams",
-          "from": [
-            null
-          ]
-        },
-        {
-          "component": "yeniTransferDugmesi",
-          "prop": "actionType",
-          "from": [
-            "openDialog"
-          ]
-        },
-        {
-          "component": "yeniTransferDugmesi",
-          "prop": "pageCode",
-          "from": [
-            null
-          ]
-        },
-        {
-          "component": "yeniTransferDugmesi",
-          "prop": "target",
           "from": [
             null
           ]

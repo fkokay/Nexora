@@ -52,14 +52,15 @@ public sealed class InventoryTransfersStandardTests
     public void Action_bar_opens_dialogs_and_voids_from_the_menu()
     {
         var bar = Props("komutlar");
-        Assert.Equal(("yeniTransferDugmesi", "kalemlerDugmesi", "{{transferler.meta.totalCount}}"),
-            ((string)bar["newButton"]!, (string)bar["openButton"]!, (string)bar["titleCount"]!));
+        Assert.Equal(("kalemlerDugmesi", "{{transferler.meta.totalCount}}"),
+            ((string)bar["openButton"]!, (string)bar["titleCount"]!));
+        Assert.False(bar.ContainsKey("newButton"));
         Assert.Equal(new[] { "iptalMenuDugmesi" }, Strings(bar["moreButtons"]));
         Assert.Equal(new[] { "save", "delete", "print" }, Strings(bar["hiddenCommands"]));
         // CSV is on by default (Studio stores only false), so the standard leaves it out.
         Assert.False(bar.ContainsKey("exportCsv"));
         Assert.Equal(("liste", "suzgec"), ((string)bar["exportTable"]!, (string)bar["focusInput"]!));
-        Assert.Equal(("page", "@inventory-transfer-document"), ((string)Props("yeniTransferDugmesi")["actionType"]!, (string)Props("yeniTransferDugmesi")["pageCode"]!));
+        Assert.Equal(("page", "@inventory-transfer-document"), ((string)bar["newAction"]!, (string)bar["newPageCode"]!));
         Assert.Equal(("page", "@inventory-transfer-document"), ((string)Props("kalemlerDugmesi")["actionType"]!, (string)Props("kalemlerDugmesi")["pageCode"]!));
 
         var filter = Props("suzgec");

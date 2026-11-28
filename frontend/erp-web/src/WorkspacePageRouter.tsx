@@ -429,10 +429,10 @@ function LegacyPageRouter({
     return <PurchaseSupplierQuotesScreenPage {...salesPageProps} />;
   if (page === "sales-orders") return <SalesOrdersPage {...salesPageProps} />;
   if (page === "sales-order-create")
-    return <SalesOrdersPage {...salesPageProps} createOrderPage />;
+    return <SalesOrderCreateRedirect onNavigate={onNavigate} />;
   if (page === "sales-order-document")
     return <LegacyDocumentCard onNavigate={onNavigate} documentKey="sales-order-document" noun="Sipariş"
-      openKey="sales-orders" openParam="orderId" createKey="sales-order-create" />;
+      openKey="sales-orders" openParam="orderId" createKey="sales-orders" />;
   if (page === "sales-quote-document")
     return <LegacyDocumentCard onNavigate={onNavigate} documentKey="sales-quote-document" noun="Teklif"
       openKey="sales-quote-create" openParam="quoteId" createKey="sales-quote-create" />;
@@ -674,6 +674,22 @@ function LegacyPageRouter({
       </div>
     </>
   );
+}
+
+/**
+ * Eski "Yeni sipariş" ekranı kaldırıldı (Belge sayfası `sales-order-document` onun yerine geçti). Eski bağlantılar ve sekmeler
+ * buraya düşer: `orderId` varsa o siparişin, yoksa boş Belge sayfası açılır; bu sekme kapanır. Belge sayfası bu firmada sistem
+ * sayfası değilse `LegacyDocumentCard` siparişi eski listede açar, bu yüzden döngü olmaz.
+ */
+function SalesOrderCreateRedirect({ onNavigate }: { onNavigate: (page: string, label?: string) => void }) {
+  const params = usePageParams("sales-order-create");
+  const orderId = params.orderId ?? "";
+  useEffect(() => {
+    setPageParams("sales-order-document", orderId ? { id: orderId } : {});
+    onNavigate("sales-order-document");
+    requestClosePage("sales-order-create");
+  }, [orderId, onNavigate]);
+  return <div className="panel page-loading" role="status">Sipariş belgesi açılıyor…</div>;
 }
 
 /**

@@ -301,8 +301,8 @@ public sealed class HrSystemPagesTests
     public void Standard_is_preview_and_uses_hr_operations(string key, string title)
     {
         var standard = SystemPageStandards.All[key];
-        // Liste kalıbına taşınan dört ekran (2. sürüm); kalan ekranlar henüz kalıpsız (1. sürüm).
-        var version = key is "hr-employees" or "hr-attendance" or "hr-period-summary" or "hr-leave-requests" ? 2 : 1;
+        // Kalıba taşınan ekranlar (2. sürüm); kalan ekranlar henüz kalıpsız (1. sürüm).
+        var version = key is "hr-employees" or "hr-employee-create" or "hr-attendance" or "hr-period-summary" or "hr-leave-requests" ? 2 : 1;
         Assert.Equal((version, "preview", title, "İnsan Kaynakları"), (standard.Version, standard.Stage, standard.Title, standard.Module));
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
         Assert.All(standard.Items, x => Assert.True(x.Since == 1 && x.Label.Length is > 0 and <= 80, x.Key));
@@ -347,8 +347,9 @@ public sealed class HrSystemPagesTests
 
         const string card = "hr-employee-create";
         Assert.Equal("{{sayfa.parametre.employeeId}}", Binding(card, "kart", "id"));
-        Assert.Equal("{{bugun}}", (string)Props(card, "iseGirisYeni")["defaultValue"]!);
-        Assert.Equal(("{{iseGirisYeni.value}}", "{{iseGiris.value}}"), (Binding(card, "olustur", "hireDate"), Binding(card, "guncelle", "hireDate")));
+        Assert.Equal("{{bugun}}", (string)Props(card, "iseGiris")["emptyDefault"]!);
+        Assert.Equal("record", (string)Definition(card)["template"]!["name"]!);
+        Assert.Equal(("{{iseGiris.value}}", "{{iseGiris.value}}"), (Binding(card, "olustur", "hireDate"), Binding(card, "guncelle", "hireDate")));
         Assert.Null(Binding(card, "olustur", "terminationDate"));
         Assert.Null(Binding(card, "guncelle", "userId"));
         Assert.Null(Binding(card, "guncelle", "rowVersion"));
