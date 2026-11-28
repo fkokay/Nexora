@@ -26,9 +26,5 @@ public sealed class JournalVoucherDocumentStandardTests
         Assert.Equal("page", (string)rowOpen["actionType"]!);
         Assert.Equal("@finance-journal-voucher-document", (string)rowOpen["pageCode"]!);
 
-        var create = Definition("finance-journal-vouchers")["components"]!.AsArray().OfType<JsonObject>().Single(x => (string)x["id"]! == "komutlar")["props"]!.AsObject();
-        Assert.Equal(2, SystemPageStandards.All["finance-journal-vouchers"].Version);
-        Assert.NotEmpty(SystemPageStandards.All["finance-journal-vouchers"].Updates);
-        Assert.Equal("@finance-journal-voucher-document", (string)create["newPageCode"]!);
     }
 }

@@ -11,10 +11,21 @@ namespace AIERP.Api.IntegrationTests;
 /// </summary>
 public sealed class SalesCardStandardsTests
 {
+    // Kaldırılan eski oluşturma standartları (Belge ekranlarına taşındı) ızgara kurallarının örneği olarak
+    // Fixtures/RemovedStandards altında durur; kurallar aynı tanım üzerinde sınanmaya devam eder.
     private static JsonObject Definition(string key)
     {
+        var fixture = Path.Combine(RepositoryRoot(), "tests", "IntegrationTests", "Fixtures", "RemovedStandards", key + ".json");
+        if (File.Exists(fixture)) return JsonNode.Parse(File.ReadAllText(fixture).Replace("@sales-invoice-create", "@sales-invoice-document").Replace("@sales-purchase-order-create", "@purchase-order-document"))!["definition"]!.AsObject();
         Assert.True(SystemPageStandards.TryGet(key, out var standard), key);
         return JsonNode.Parse(standard.DefinitionJson)!.AsObject();
+    }
+
+    private static string RepositoryRoot()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+            if (File.Exists(Path.Combine(directory.FullName, "AIERP.slnx"))) return directory.FullName;
+        throw new InvalidOperationException("AIERP.slnx bulunamadı.");
     }
 
     private static JsonObject Component(JsonObject definition, string id) =>

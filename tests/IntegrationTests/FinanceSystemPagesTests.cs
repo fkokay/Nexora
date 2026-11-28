@@ -34,7 +34,7 @@ public sealed class FinanceSystemPagesTests
 
     internal static readonly string[] Keys =
         ["finance-accounts", "finance-banks", "finance-account-create", "finance-trial-balance", "finance-ledger-chart",
-         "finance-journal-ledger", "finance-journal-vouchers"];
+         "finance-journal-ledger"];
 
     // ---- Catalog ----
 
@@ -463,12 +463,11 @@ public sealed class FinanceSystemPagesTests
     [InlineData("finance-account-create", "Kasa/Banka kartı", "Finans")]
     [InlineData("finance-trial-balance", "Mizan", "Finans")]
     [InlineData("finance-journal-ledger", "Yevmiye Defterleri", "Genel Muhasebe")]
-    [InlineData("finance-journal-voucher-document", "Yevmiye fi\u015fi (belge)", "Genel Muhasebe")]
-    [InlineData("finance-journal-vouchers", "Yevmiye Fişi", "Genel Muhasebe")]
+    [InlineData("finance-journal-voucher-document", "Yevmiye fişi (belge)", "Genel Muhasebe")]
     public void Standard_is_preview_version_1_and_uses_finance_operations(string key, string title, string module)
     {
         var standard = SystemPageStandards.All[key];
-        var expectedVersion = key is "finance-accounts" or "finance-banks" or "finance-trial-balance" or "finance-journal-vouchers" or "finance-account-create" ? 2 : key == "finance-journal-ledger" ? 3 : 1;
+        var expectedVersion = key is "finance-accounts" or "finance-banks" or "finance-trial-balance" or "finance-account-create" ? 2 : key == "finance-journal-ledger" ? 3 : 1;
         Assert.Equal((expectedVersion, "preview", title, module), (standard.Version, standard.Stage, standard.Title, standard.Module));
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
         Assert.All(standard.Items, x => Assert.True(x.Since <= standard.Version && x.Label.Length is > 0 and <= 80, x.Key));
@@ -544,9 +543,6 @@ public sealed class FinanceSystemPagesTests
         Assert.Equal("{{tersKayitSourced.yanit}}", Binding("finance-journal-ledger", "tersKayitKaynakli", "reason"));
         Assert.Contains("canReverse", (string)Props("finance-journal-ledger", "tersKayitSourced")["visibleWhen"]!);
         Assert.Contains("kendi ekranından iptal edin", (string)Props("finance-journal-ledger", "tersKayitSourced")["promptText"]!);
-        Assert.Equal("{{fisSatirlari.satirlar}}", Binding("finance-journal-vouchers", "fisKaydet", "lines"));
-        Assert.Equal(new[] { "debit", "credit" }, Strings(Props("finance-journal-vouchers", "fisSatirlari")["totals"]));
-        Assert.Contains("fisSatirlari.toplam.debit == fisSatirlari.toplam.credit", (string)Props("finance-journal-vouchers", "dengeliEtiketi")["visibleWhen"]!);
         Assert.Equal("{{liste.seciliSatir.accountId}}", Binding("finance-trial-balance", "muavin", "accountId"));
         Assert.Equal("{{duzey.value}}", Binding("finance-trial-balance", "mizan", "level"));
     }

@@ -331,15 +331,6 @@ function AppContent() {
         description: "Cari",
       },
       {
-        page: "sales-invoice-create",
-        parentPage: "sales-invoices",
-        label:
-          locale === "en"
-            ? "New sales invoice"
-            : "Yeni satış faturası",
-        description: tx("sales"),
-      },
-      {
         page: "finance-account-create",
         label: locale === "en" ? "New cash register" : "Yeni Kasa Tanımla",
         description: tx("finance"),
@@ -385,7 +376,6 @@ function AppContent() {
                   "finance-ledger": "General ledger",
                   "finance-ledger-chart": "Chart of accounts",
                   "finance-ledger-mappings": "Account mappings",
-                  "finance-journal-vouchers": "Journal voucher",
                   "finance-journal-voucher-document": "Journal voucher document",
                   "finance-trial-balance": "Trial balance",
                   "finance-balance-sheet": "Balance sheet",
@@ -404,7 +394,6 @@ function AppContent() {
           "finance-ledger",
           "finance-ledger-chart",
           "finance-ledger-mappings",
-          "finance-journal-vouchers",
           "finance-balance-sheet",
           "finance-journal-ledger",
           "finance-transfer-sources",
@@ -698,7 +687,6 @@ function AppContent() {
       "sales-delivery-document": "İrsaliye Belgesi",
       "sales-purchase-order-create": "Yeni satınalma siparişi",
       "sales-invoices": "Satış Faturaları",
-      "sales-invoice-create": "Yeni Fatura",
       "sales-deliveries": "Satış İrsaliyeleri",
       "sales-delivery-create": "Yeni İrsaliye",
       "sales-purchase-invoices": "Satınalma Faturaları",
@@ -708,7 +696,6 @@ function AppContent() {
       "finance-ledger": "Genel Muhasebe",
       "finance-ledger-chart": "Hesap Planı",
       "finance-ledger-mappings": "Hesap Eşleştirmeleri",
-      "finance-journal-vouchers": "Yevmiye Fişi",
       "finance-journal-voucher-document": "Yevmiye Fişi Belgesi",
       "finance-trial-balance": "Mizan",
       "finance-balance-sheet": "Bilanço",

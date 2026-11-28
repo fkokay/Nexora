@@ -1843,3 +1843,8 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
 # Üretim reçetesi Belgesi
 
 `uretim.recete` için Belge standardı eklendi; bileşenler ve adlandırılmış `rota` satır grubu mevcut reçete uçlarının POST/PUT/activate/deactivate işlemlerini kullanır. Liste Yeni/Aç komutları yeni Belge sayfasına gider; eski `manufacturing-recipe-create` standardı korunmuştur. İki grup kaydetme Vitest'i ve Studio varsayılan grup testi geçti. .NET build/test bu değişiklik için çalıştırılmadı; gerçek API ve tarayıcı akışı doğrulanmadı.
+
+### Eski oluşturma standartları kaldırıldı (2026-11-28)
+- `sales-invoice-create` ve `finance-journal-vouchers` standartları kaldırıldı; yeni fatura ve yevmiye fişi akışları Belge ekranlarına yönlendirildi.
+- `finance-journal-ledger` yevmiye listesi korundu.
+- Kalan eski anahtar referansları yalnızca eski rota yönlendirmesi ve arşiv/test kanıtı içindir.

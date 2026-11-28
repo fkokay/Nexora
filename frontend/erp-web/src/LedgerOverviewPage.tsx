@@ -161,7 +161,7 @@ function LedgerOverview({
             <span>Aktar</span>
             {isReady(sources) && <span>({sourceRows.length.toLocaleString("tr-TR")})</span>}
           </button>
-          <button type="button" className="primary" onClick={() => go("finance-journal-vouchers")}>
+          <button type="button" className="primary" onClick={() => go("finance-journal-voucher-document")}>
             Yeni yevmiye fişi
           </button>
         </div>
