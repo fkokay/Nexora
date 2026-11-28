@@ -336,7 +336,8 @@
           "inputType": "text",
           "label": "Reçete seçici durumu",
           "hidden": true,
-          "defaultValue": "true"
+          "defaultValue": "true",
+          "slot": "field"
         }
       },
       {
