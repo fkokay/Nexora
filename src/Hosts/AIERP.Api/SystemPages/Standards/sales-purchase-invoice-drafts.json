@@ -225,7 +225,7 @@
           ],
           "rowOpenAction": "duzenleDugmesi",
           "emptyText": "Fatura taslağı yok.",
-          "slot": "table"
+          "slot": "list"
         }
       }
     ],

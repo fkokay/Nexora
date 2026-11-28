@@ -54,6 +54,7 @@ public sealed class PurchasingSystemPagesTests
         ["sales-purchase-delivery-notes"] = ["purchaseOrderId"],
         // Faz 2: the new order form reads no page param (it opens the created order in sales-purchasing).
         ["purchase-order-document"] = [],
+        ["purchase-invoice-document"] = ["receiptId"],
     };
 
     /// <summary>Every "→ eski ekran" command per standard: button id → (pageKey, params).</summary>
