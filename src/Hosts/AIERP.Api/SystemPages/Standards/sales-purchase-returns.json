@@ -445,7 +445,6 @@
             "name": "ozetPaneli",
             "props": {
               "table": "liste",
-              "width": 12,
               "fields": [
                 "returnDate=İade tarihi",
                 "warehouseName=Depo",
@@ -624,10 +623,7 @@
           "title": "Yeni alış iadesi",
           "contains": [
             "iadeKimligi",
-            "iadeFatura",
             "iadeNotu",
-            "iadeTarihi",
-            "iadeDepo",
             "iadeKalemleri",
             "iadeBilgileri"
           ],
@@ -684,7 +680,7 @@
             "invoicedQuantity|Faturalanan|number|readOnly",
             "returnedQuantity|İade edilen|number|readOnly",
             "remainingQuantity|Kalan|number|readOnly",
-            "quantity|İade miktarı|number|min:0,step:0.0001",
+            "quantity|İade miktarı|number|min:0",
             "unitCode|Birim|text|readOnly",
             "unitPrice|Birim fiyat|number|readOnly",
             "storageLocationId|Konum|lookup:iadeKonumlar:id:code:name"

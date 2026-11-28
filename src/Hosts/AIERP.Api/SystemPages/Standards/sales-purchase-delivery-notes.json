@@ -317,7 +317,6 @@
           "variant": "warning",
           "icon": "alert",
           "description": "bu sayfa · mal kabule bağlanmamış",
-          "width": 3,
           "slot": "indicators"
         }
       },
@@ -327,7 +326,6 @@
         "name": "suzgec",
         "props": {
           "table": "liste",
-          "width": 12,
           "search": true,
           "searchPlaceholder": "İrsaliye no, sipariş, tedarikçi veya mal kabul ara",
           "searchParam": "q",
@@ -536,7 +534,6 @@
         "props": {
           "title": "Satırlar",
           "query": "satirlar",
-          "width": 12,
           "showGridSearch": false,
           "showColumnFilters": false,
           "showColumnChooser": false,
@@ -595,11 +592,11 @@
             "orderLineNumber|#|number|readOnly",
             "stockCode|Stok kodu|text|readOnly",
             "stockName|Stok adı|text|readOnly",
-            "quantity|İrsaliye miktarı|number|min:0,step:0.0001",
+            "quantity|İrsaliye miktarı|number|min:0",
             "unitCode|Birim|text|readOnly",
-            "unitPrice|Birim fiyat|number|min:0,step:0.0001",
-            "discountPercent|İskonto %|number|min:0,max:100,step:0.01",
-            "vatPercent|KDV %|number|min:0,max:100,step:0.01"
+            "unitPrice|Birim fiyat|number|min:0",
+            "discountPercent|İskonto %|number|min:0,max:100",
+            "vatPercent|KDV %|number|min:0,max:100"
           ],
           "fillQuery": "irsaliyeKaynak",
           "fillColumns": {

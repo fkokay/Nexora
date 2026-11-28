@@ -994,7 +994,6 @@
             "name": "ozetPaneli",
             "props": {
               "table": "liste",
-              "width": 12,
               "fields": [
                 "requestDate=Talep tarihi",
                 "neededByDate=İhtiyaç tarihi",
@@ -1102,13 +1101,9 @@
           "size": "lg",
           "title": "Yeni satınalma talebi",
           "contains": [
-            "talepTarihi",
             "talepKalemleri",
-            "ihtiyacTarihi",
             "talepNotu",
-            "talepAciklamasi",
-            "talepBilgileri",
-            "talepNo"
+            "talepBilgileri"
           ],
           "saveQuery": "talepOlustur",
           "saveLabel": "Talebi gönder",
@@ -1150,7 +1145,7 @@
           "gridColumns": [
             "stockItemId|Stok kartı|lookup:stoklar:id:code:name|required",
             "unitCode|Birim|text|required",
-            "quantity|Miktar|number|required,min:0.0001,step:0.0001"
+            "quantity|Miktar|number|required,min:0.0001"
           ],
           "columnOptionsWhen": [
             "stockItemId=satir.isActive == true"
@@ -1176,14 +1171,9 @@
           "size": "xl",
           "title": "Tedarikçi teklifi · {{liste.seciliSatir.code}}",
           "contains": [
-            "teklifTarihi",
-            "teklifNo",
             "teklifKalemleri",
             "teklifToplami",
-            "teklifBilgileri",
-            "teklifNotlari",
-            "teklifTedarikci",
-            "teklifGecerlilik"
+            "teklifBilgileri"
           ],
           "saveQuery": "teklifKaydet",
           "saveLabel": "Teklifi kaydet",
@@ -1230,9 +1220,9 @@
             "stockName|Stok adı|text|readOnly",
             "quantity|Miktar|number|readOnly",
             "unitCode|Birim|text|readOnly",
-            "unitPrice|Birim fiyat|number|required,min:0,step:0.0001",
-            "discountPercent|İskonto %|number|required,min:0,max:100,step:0.01",
-            "vatPercent|KDV %|number|min:0,max:100,step:0.01"
+            "unitPrice|Birim fiyat|number|required,min:0",
+            "discountPercent|İskonto %|number|required,min:0,max:100",
+            "vatPercent|KDV %|number|min:0,max:100"
           ],
           "fillQuery": "kalemler",
           "fillColumns": {
@@ -1259,15 +1249,9 @@
           "size": "xl",
           "title": "Talepten sipariş · {{liste.seciliSatir.code}}",
           "contains": [
-            "siparisDepo",
-            "siparisTedarikci",
             "siparisToplami",
-            "siparisTeslimTarihi",
             "siparisBilgileri",
-            "siparisNotlari",
-            "siparisTarihi",
-            "siparisKalemleri",
-            "siparisNo"
+            "siparisKalemleri"
           ],
           "saveQuery": "siparisOlustur",
           "saveLabel": "Siparişi oluştur",
@@ -1317,9 +1301,9 @@
             "stockName|Stok adı|text|readOnly",
             "quantity|Miktar|number|readOnly",
             "unitCode|Birim|text|readOnly",
-            "unitPrice|Birim fiyat|number|required,min:0,step:0.0001",
-            "discountPercent|İskonto %|number|required,min:0,max:100,step:0.01",
-            "vatPercent|KDV %|number|min:0,max:100,step:0.01"
+            "unitPrice|Birim fiyat|number|required,min:0",
+            "discountPercent|İskonto %|number|required,min:0,max:100",
+            "vatPercent|KDV %|number|min:0,max:100"
           ],
           "fillQuery": "kalemler",
           "slot": "dialog"
@@ -1343,13 +1327,8 @@
           "size": "xl",
           "title": "Tekliften sipariş · {{teklifTablosu.seciliSatir.code}} · {{teklifTablosu.seciliSatir.supplierName}}",
           "contains": [
-            "tsDepo",
-            "tsSiparisTarihi",
-            "tsTeslimTarihi",
             "teklifSiparisBilgileri",
-            "tsNotlari",
             "teklifSiparisKalemleri",
-            "tsSiparisNo",
             "teklifSiparisToplami"
           ],
           "saveQuery": "teklifliSiparisOlustur",
@@ -1428,10 +1407,8 @@
           "size": "xl",
           "title": "Talep · {{talepler.rows[0].code}}",
           "contains": [
-            "kalemTablosu",
             "talepDetayBasligi",
             "talepDetaySekmeleri",
-            "teklifTablosu",
             "tekliftenSiparisDugmesi"
           ],
           "slot": "dialogs"
@@ -1810,7 +1787,6 @@
         "props": {
           "title": "Talep özel alanları",
           "query": "ozelDegerler",
-          "width": 12,
           "variant": "list",
           "columns": [
             "label",

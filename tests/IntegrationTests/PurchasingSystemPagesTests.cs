@@ -282,7 +282,7 @@ public sealed class PurchasingSystemPagesTests
         Assert.Equal("openDialog", (string)Props(key, "acDugmesi")["actionType"]!);
         Assert.Equal(dialog, (string)Props(key, "acDugmesi")["dialogId"]!);
         Assert.Equal("acDugmesi", (string)Props(key, "liste")["rowOpenAction"]!);
-        Assert.Contains(dialog, Components(Definition(key)).Where(x => (string)x["type"]! == "dialog").Select(x => (string)x["id"]!));
+        Assert.Contains(dialog, AllComponents(Definition(key)).Where(x => (string)x["type"]! == "dialog").Select(x => (string)x["id"]!));
         Assert.True(TenantCustomPageSchema.Validate(Mine[key].DefinitionJson, out var error), error);
     }
 
