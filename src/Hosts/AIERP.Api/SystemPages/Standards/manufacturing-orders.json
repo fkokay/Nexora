@@ -539,7 +539,6 @@
           "title": "Açık emir",
           "value": "{{emirler.meta.openOrderCount}}",
           "format": "number",
-          "width": 3,
           "icon": "clock",
           "description": "tüm kayıtlar · Planlandı + Serbest bırakıldı",
           "slot": "indicators"
@@ -553,7 +552,6 @@
           "title": "Planlanan maliyet",
           "value": "{{emirler.meta.openPlannedCostBase}}",
           "format": "money",
-          "width": 3,
           "icon": "wallet",
           "description": "tüm kayıtlar · açık emirler · baz para",
           "slot": "indicators"
@@ -567,7 +565,6 @@
           "title": "Çizelgelenmemiş",
           "value": "{{emirler.meta.unscheduledOrderCount}}",
           "format": "number",
-          "width": 3,
           "icon": "alert",
           "variant": "warning",
           "description": "tüm kayıtlar · rotası takvimsiz",
@@ -582,7 +579,6 @@
           "title": "Tamamlanan",
           "value": "{{emirler.meta.completedOrderCount}}",
           "format": "number",
-          "width": 3,
           "icon": "check",
           "variant": "success",
           "description": "tüm kayıtlar",
@@ -1012,7 +1008,6 @@
         "props": {
           "title": "Stok hareketi",
           "variant": "info",
-          "width": 12,
           "text": "Bileşenler {{emir.rows[0].warehouseName}} deposundan, son kullanma tarihi en yakın lottan başlanarak (FEFO) otomatik düşülür. Hareket tarihi bugündür; muhasebe fişi yazılmaz. Tamamlanan üretim geri alınamaz. Lotlu mamulde tek satır (SKT zorunlu), serili mamulde her seri için bir satır (miktar 1) girin.",
           "slot": "dialog"
         }
@@ -1024,7 +1019,6 @@
         "props": {
           "title": "Rota",
           "query": "operasyonlar",
-          "width": 12,
           "showGridSearch": false,
           "showColumnFilters": false,
           "showColumnChooser": false,
