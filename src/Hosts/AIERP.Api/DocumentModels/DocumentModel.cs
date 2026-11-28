@@ -92,3 +92,10 @@ public sealed record SalesDeliveryDocumentView(SalesDeliveryDocumentRecord Deliv
 
 /// <summary>A held order's pending approval (belge kuralı Onay iste): the current step's deciders and whether this user may decide.</summary>
 public sealed record DocumentApprovalView(Guid InstanceId, string Step, IReadOnlyList<string> Approvers, bool CanDecide);
+
+/// <summary>The totals a transfer's Belge page shows instead of money: the line count and the quantity moved (in the cards' base units).</summary>
+public sealed record InventoryTransferTotals(int LineCount, decimal TotalQuantity);
+
+/// <summary>A warehouse transfer as its Belge page needs it: the transfer and its lines, totals, what this user may do now and the işlem günlüğü.</summary>
+public sealed record InventoryTransferDocumentView(AIERP.Platform.Application.InventoryTransferDetailView Transfer, InventoryTransferTotals Totals,
+    IReadOnlyList<string> AllowedTransitions, IReadOnlyList<AIERP.Platform.Application.DocumentActivityView> Activity, bool ActivityStartedLate);
