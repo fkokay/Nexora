@@ -16,12 +16,12 @@ public sealed class InventoryStockCreateStandardTests
     public void Header_is_preview_version_1()
     {
         var standard = SystemPageStandards.All[Key];
-        Assert.Equal(1, standard.Version);
+        Assert.Equal(2, standard.Version);
         Assert.Equal("preview", standard.Stage);
         Assert.Equal("Stok & Depo", standard.Module);
         Assert.Empty(standard.ScreenViews);
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
-        Assert.All(standard.Items, x => Assert.True(x.Since == 1 && x.Label.Length is > 0 and <= 80, x.Key));
+        Assert.All(standard.Items, x => Assert.True(x.Since <= standard.Version && x.Label.Length is > 0 and <= 80, x.Key));
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public sealed class InventoryStockCreateStandardTests
         var components = AllComponents().ToArray();
         var queries = Definition()["queries"]!.AsArray().OfType<JsonObject>().ToArray();
         Assert.Equal(54, components.Length);
-        Assert.Equal(14, queries.Length);
+        Assert.Equal(13, queries.Length);
         var size = Encoding.UTF8.GetByteCount(standard.DefinitionJson);
         Assert.True(size <= 100 * 1024, $"Tanım boyutu {size} bayt > 100 KiB");
         foreach (var component in components)
@@ -114,8 +114,7 @@ public sealed class InventoryStockCreateStandardTests
             Assert.Equal("input", (string)Component(field.Input)["type"]!);
         }
         Assert.Equal("{{ozelAlanlar.degerler}}", Binding("olustur", "customFields"));
-        Assert.Equal("{{varyantMatrisi.satirlar}}", Binding("olustur", "variants"));
-        Assert.Equal(35, Query("olustur")["parameters"]!.AsArray().Count);
+        Assert.Equal(34, Query("olustur")["parameters"]!.AsArray().Count);
         Assert.Equal("stok.kart.olustur", (string)Query("olustur")["operation"]!);
         Assert.Equal("insert", (string)Query("olustur")["kind"]!);
     }
@@ -228,21 +227,14 @@ public sealed class InventoryStockCreateStandardTests
     {
         Assert.Equal(new[]
         {
-            "Genel=kimlikKarti,stokKarti,negatifStokYasak,negatifStokIzinli,negatifStokBilinmiyor",
+            "Genel=kimlikKarti,stokKarti",
             "Fiyat ve vergi=fiyatKarti,vergiKarti",
-            "Lojistik ve muhasebe=lojistikKarti,muhasebeKarti",
-            "Görsel=gorselKarti,gorselOnizleme",
-            "Birimler=birimIzgarasi",
-            "Özel alanlar=ozelAlanlar",
-            "Varyantlar=varyantMatrisi,varyantListesi",
-            "Reçeteler=receteListesi"
+            "Lojistik ve muhasebe=lojistikKarti,muhasebeKarti,gorselKarti",
+            "Birimler=birimIzgarasi,birimEkleDugmesi",
+            "Varyantlar ve re\u00e7eteler=varyantListesi,receteListesi",
+            "\u00d6zel alanlar=ozelAlanlar"
         }, Strings(Props("kartSekmeleri")["tabs"]));
         Assert.Equal("tabs", (string)Component("kartSekmeleri")["type"]!);
-        var image = Props("gorselOnizleme");
-        Assert.Equal("{{gorsel.value}}", (string)image["value"]!);
-        Assert.Equal("Ürün görseli", (string)image["title"]!);
-        Assert.Equal(160, (int)image["height"]!);
-        Assert.Equal("contain", (string)image["fit"]!);
     }
 
     [Fact]
@@ -250,20 +242,18 @@ public sealed class InventoryStockCreateStandardTests
     {
         var props = Props("komutlar");
         Assert.Equal("actionBar", (string)Component("komutlar")["type"]!);
-        Assert.Equal(new[] { "olustur", "guncelle", "birimEkleYeni", "birimEkle", "birimSil", "ozelKaydet" }, Strings(props["saveSequence"]));
+        Assert.Equal(new[] { "olustur", "guncelle", "ozelKaydet" }, Strings(props["saveSequence"]));
         Assert.Equal(new[]
         {
             "olustur=kart.rows[0].id == null && olustur.sonuc.id == null",
             "guncelle=kart.rows[0].id != null",
-            "birimEkleYeni=kart.rows[0].id == null",
-            "birimEkle=kart.rows[0].id != null",
             "ozelKaydet=kart.rows[0].id != null"
         }, Strings(props["sequenceWhen"]));
         Assert.True((bool)props["stopOnError"]!);
         Assert.Null(props["saveQuery"]);
         Assert.Null(props["formDialog"]);
-        // No dialog: the card is the page itself.
-        Assert.DoesNotContain(AllComponents(), x => (string)x["type"]! == "dialog");
+        Assert.Equal("record", (string)Definition()["template"]!["name"]!);
+        Assert.Contains(AllComponents(), x => (string)x["id"]! == "birimEklePenceresi");
     }
 
     [Fact]
@@ -271,11 +261,12 @@ public sealed class InventoryStockCreateStandardTests
     {
         Assert.Equal("stok.kart.getir", (string)Query("kart")["operation"]!);
         Assert.Equal("{{sayfa.parametre.id}}", Binding("kart", "id"));
-        var created = Props("yeniBaslik");
-        Assert.Equal(("Yeni stok kartı", true, "kart.rows[0].id == null"), ((string)created["text"]!, (bool)created["pageTitle"]!, (string)created["visibleWhen"]!));
-        var edited = Props("kartBasligi");
-        Assert.Equal(("Stok kartı {{kart.rows[0].code}}", true, "kart.rows[0].id != null"), ((string)edited["text"]!, (bool)edited["pageTitle"]!, (string)edited["visibleWhen"]!));
-        Assert.Equal("Yeni stok kartı", SystemPageStandards.All[Key].Title);
+        var summary = Props("kartOzeti");
+        Assert.Equal("recordHeader", (string)Component("kartOzeti")["type"]!);
+        Assert.Equal("summary", (string)summary["slot"]!);
+        Assert.Equal("{{kart.rows[0].name}}", (string)summary["title"]!);
+        Assert.Equal("{{kart.rows[0].code}}", (string)summary["subtitle"]!);
+        Assert.Equal("Stok kart\u0131", SystemPageStandards.All[Key].Title);
     }
 
     [Fact]
@@ -288,45 +279,31 @@ public sealed class InventoryStockCreateStandardTests
         Assert.Equal(("page", "@inventory-stock", "sameTab", true),
             ((string)props["afterSaveAction"]!, (string)props["afterSavePageCode"]!, (string)props["afterSaveTarget"]!, (bool)props["afterSaveRefresh"]!));
         Assert.DoesNotContain(AllComponents(), x => (string)x["id"]! == "listeyeDon");
-        Assert.Equal("yeniKartDugmesi", (string)props["newButton"]!);
+        Assert.Equal("page", (string)props["newAction"]!);
         Assert.Null(props["openButton"]);
-        var fresh = Props("yeniKartDugmesi");
-        Assert.Equal(("page", "@inventory-stock-create", "sameTab"), ((string)fresh["actionType"]!, (string)fresh["pageCode"]!, (string)fresh["target"]!));
-        Assert.Null(fresh["params"]);
+        Assert.Equal(("@inventory-stock-create", "sameTab"), ((string)props["newPageCode"]!, (string)props["newTarget"]!));
         var requires = SystemPageStandards.All[Key].Items.Single(x => x.Key == "component:komutlar").Requires;
         Assert.DoesNotContain("component:listeyeDon", requires);
-        Assert.Contains("component:yeniKartDugmesi", requires);
+        Assert.DoesNotContain("component:yeniKartDugmesi", requires);
         Assert.Contains("component:kartSekmeleri", requires);
     }
 
     [Fact]
-    public void Units_grid_is_admin_only_and_staged()
+    public void Units_use_a_tenant_admin_window_and_readonly_table()
     {
         var props = Props("birimIzgarasi");
-        Assert.Equal("editableGrid", (string)Component("birimIzgarasi")["type"]!);
-        Assert.Equal("stage", (string)props["gridMode"]!);
-        Assert.Equal("birimler", (string)props["sourceQuery"]!);
-        Assert.Equal("id", (string)props["rowKey"]!);
-        Assert.Equal(new[] { "unitCode|Birim|text|required,unique,upperCase,maxLength:8", "factorToBase|Ana birim katsayısı|number|required,min:0.000001" },
-            Strings(props["gridColumns"]));
-        Assert.Equal("Ana birim: {{anaBirim.value}} (1)", (string)props["fixedRowLabel"]!);
-        Assert.Equal("kullanici.rol != 'TenantAdmin'", (string)props["disabledWhen"]!);
-        Assert.Equal("Birim dönüşümlerini yalnız firma yöneticisi değiştirebilir.", (string)props["disabledReason"]!);
-        Assert.Equal("Birim dönüşümleri", (string)props["title"]!);
-
-        Assert.Equal("stok.kart.birimleri", (string)Query("birimler")["operation"]!);
+        Assert.Equal("dataTable", (string)Component("birimIzgarasi")["type"]!);
+        Assert.Equal("birimler", (string)props["query"]!);
+        Assert.Equal(new[] { "unitCode", "factorToBase" }, Strings(props["columns"]));
+        Assert.Equal(new[] { "birimSilDugmesi" }, Strings(props["rowActions"]));
         Assert.Equal("{{kart.rows[0].id}}", Binding("birimler", "id"));
-        foreach (var (query, id) in new[] { ("birimEkle", "{{kart.rows[0].id}}"), ("birimEkleYeni", "{{olustur.sonuc.id}}") })
-        {
-            Assert.Equal("stok.kart.birimEkle", (string)Query(query)["operation"]!);
-            Assert.Equal(id, Binding(query, "id"));
-            Assert.Equal("{{birimIzgarasi.eklenenSatir.unitCode}}", Binding(query, "unitCode"));
-            Assert.Equal("{{birimIzgarasi.eklenenSatir.factorToBase}}", Binding(query, "factorToBase"));
-            Assert.Equal(3, Query(query)["parameters"]!.AsArray().Count);
-        }
-        Assert.Equal("stok.kart.birimSil", (string)Query("birimSil")["operation"]!);
-        Assert.Equal("{{kart.rows[0].id}}", Binding("birimSil", "id"));
-        Assert.Equal("{{birimIzgarasi.silinenSatir.id}}", Binding("birimSil", "conversionId"));
+        var add = Props("birimEkleDugmesi");
+        Assert.Equal("birimEklePenceresi", (string)add["dialogId"]!);
+        Assert.Equal("kullanici.rol != 'TenantAdmin'", (string)add["disabledWhen"]!);
+        Assert.Equal(new[] { "yeniBirimKodu", "yeniBirimKatsayisi" }, Strings(Props("birimEkleFormu")["inputs"]));
+        Assert.Equal("{{yeniBirimKodu.value}}", Binding("birimEkle", "unitCode"));
+        Assert.Equal("{{yeniBirimKatsayisi.value}}", Binding("birimEkle", "factorToBase"));
+        Assert.Equal("{{birimIzgarasi.seciliSatir.id}}", Binding("birimSil", "conversionId"));
     }
 
     [Fact]
@@ -344,13 +321,6 @@ public sealed class InventoryStockCreateStandardTests
         Assert.Equal("stok.kart.ozelAlanKaydet", (string)Query("ozelKaydet")["operation"]!);
         Assert.Equal("{{kart.rows[0].id}}", Binding("ozelKaydet", "id"));
         Assert.Equal("{{ozelAlanlar.degerler}}", Binding("ozelKaydet", "values"));
-
-        var matrix = Props("varyantMatrisi");
-        Assert.Equal("matrix", (string)matrix["gridMode"]!);
-        Assert.Equal("{{kod.value}}", (string)matrix["matrixCode"]!);
-        Assert.Equal("{{ad.value}}", (string)matrix["matrixName"]!);
-        Assert.Equal("Varyant boyutları", (string)matrix["title"]!);
-        Assert.Equal("kart.rows[0].id == null", (string)matrix["visibleWhen"]!);
 
         var variants = Props("varyantListesi");
         Assert.Equal("varyantlar", (string)variants["query"]!);
@@ -376,23 +346,13 @@ public sealed class InventoryStockCreateStandardTests
     }
 
     [Fact]
-    public void Negative_stock_notes_cover_three_states()
+    public void Negative_stock_policy_is_a_single_conditional_alert()
     {
-        var expected = new (string Id, string Text, string VisibleWhen)[]
-        {
-            ("negatifStokYasak", "Negatif stoka izin verilmez (sistem kuralı)", "negatifStok.rows[0].allowNegativeStock == false"),
-            ("negatifStokIzinli", "Negatif stoka izin veriliyor (sistem kuralı)", "negatifStok.rows[0].allowNegativeStock == true"),
-            ("negatifStokBilinmiyor", "Negatif stok kuralı şirket ayarlarından gelir (sistem kuralı)", "negatifStok.rows[0].allowNegativeStock == null")
-        };
-        foreach (var (id, text, visibleWhen) in expected)
-        {
-            Assert.Equal("text", (string)Component(id)["type"]!);
-            Assert.Equal(text, (string)Props(id)["text"]!);
-            Assert.Equal(visibleWhen, (string)Props(id)["visibleWhen"]!);
-        }
+        var props = Props("negatifStokNotu");
+        Assert.Equal("alert", (string)Component("negatifStokNotu")["type"]!);
+        Assert.Equal("negatifStok.rows[0].allowNegativeStock != null", (string)props["visibleWhen"]!);
+        Assert.Equal("above", (string)props["slot"]!);
         Assert.Equal("ayar.negatifStok", (string)Query("negatifStok")["operation"]!);
-        Assert.Equal("load", (string)Query("negatifStok")["runOn"]!);
-        Assert.Empty(Query("negatifStok")["parameters"]!.AsArray());
     }
 
     private static JsonObject Definition() =>JsonNode.Parse(SystemPageStandards.All[Key].DefinitionJson)!.AsObject();
