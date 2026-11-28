@@ -1,87 +1,398 @@
 {
-  "screenKey": "manufacturing-recipes", "title": "Tanımlı reçeteler",
-  "description": "Ürün reçetelerini (bileşen ve rota) listeleyin; reçete kartı bugünkü ekranda açılır.", "module": "Üretim",
-  "version": 1, "stage": "preview",
+  "screenKey": "manufacturing-recipes",
+  "title": "Tanımlı reçeteler",
+  "description": "Ürün reçetelerini (bileşen ve rota) listeleyin; reçete kartı bugünkü ekranda açılır.",
+  "module": "Üretim",
+  "version": 2,
+  "stage": "preview",
   "items": {
-    "component:komutlar": {"since": 1, "label": "İşlem çubuğu", "requires": ["component:suzgec", "component:liste", "component:yeniDugmesi", "component:acDugmesi", "component:silDugmesi", "component:pasifeAlDugmesi", "component:etkinlestirDugmesi", "query:receteler"]},
-    "component:yeniDugmesi": {"since": 1, "label": "Yeni reçete komutu (eski kart)"},
-    "component:acDugmesi": {"since": 1, "label": "Reçeteyi aç komutu (eski kart)", "requires": ["component:liste"]},
-    "component:silDugmesi": {"since": 1, "label": "Reçeteyi sil komutu", "requires": ["component:liste", "query:sil", "query:receteler"]},
-    "component:pasifeAlDugmesi": {"since": 1, "label": "Pasife al komutu", "requires": ["component:liste", "query:pasifeAl", "query:receteler"]},
-    "component:etkinlestirDugmesi": {"since": 1, "label": "Etkinleştir komutu", "requires": ["component:liste", "query:etkinlestir", "query:receteler"]},
-    "component:suzgec": {"since": 1, "label": "Süzgeç alanı (arama)", "requires": ["component:liste"]},
-    "component:suzgecSecimleri": {"since": 1, "label": "Süzgeç seçimleri kartı", "requires": ["component:durumSecimi"]},
-    "component:durumSecimi": {"since": 1, "label": "Durum seçimi"},
-    "component:secimCipleri": {"since": 1, "label": "Durum seçimi çipleri", "requires": ["component:durumSecimi"]},
-    "component:liste": {"since": 1, "label": "Reçete listesi", "requires": ["component:acDugmesi", "query:receteler"]},
-    "query:receteler": {"since": 1, "label": "Ürün reçetelerini listele", "requires": ["component:durumSecimi", "component:liste"]},
-    "query:sil": {"since": 1, "label": "Ürün reçetesini sil", "requires": ["component:liste"]},
-    "query:pasifeAl": {"since": 1, "label": "Ürün reçetesini pasife al", "requires": ["component:liste"]},
-    "query:etkinlestir": {"since": 1, "label": "Ürün reçetesini etkinleştir", "requires": ["component:liste"]}
+    "component:komutlar": {
+      "since": 1,
+      "label": "İşlem çubuğu",
+      "requires": [
+        "component:suzgec",
+        "component:liste",
+        "component:yeniDugmesi",
+        "component:acDugmesi",
+        "component:silDugmesi",
+        "component:pasifeAlDugmesi",
+        "component:etkinlestirDugmesi",
+        "query:receteler"
+      ]
+    },
+    "component:yeniDugmesi": {
+      "since": 1,
+      "label": "Yeni reçete komutu (eski kart)",
+      "requires": []
+    },
+    "component:acDugmesi": {
+      "since": 1,
+      "label": "Reçeteyi aç komutu (eski kart)",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:silDugmesi": {
+      "since": 1,
+      "label": "Reçeteyi sil komutu",
+      "requires": [
+        "component:liste",
+        "query:sil",
+        "query:receteler"
+      ]
+    },
+    "component:pasifeAlDugmesi": {
+      "since": 1,
+      "label": "Pasife al komutu",
+      "requires": [
+        "component:liste",
+        "query:pasifeAl",
+        "query:receteler"
+      ]
+    },
+    "component:etkinlestirDugmesi": {
+      "since": 1,
+      "label": "Etkinleştir komutu",
+      "requires": [
+        "component:liste",
+        "query:etkinlestir",
+        "query:receteler"
+      ]
+    },
+    "component:suzgec": {
+      "since": 1,
+      "label": "Süzgeç alanı (arama)",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:durumSecimi": {
+      "since": 1,
+      "label": "Durum seçimi",
+      "requires": []
+    },
+    "component:liste": {
+      "since": 1,
+      "label": "Reçete listesi",
+      "requires": [
+        "component:acDugmesi",
+        "query:receteler"
+      ]
+    },
+    "component:detayOzeti": {
+      "since": 2,
+      "label": "Reçete detay kartı",
+      "requires": []
+    },
+    "query:receteler": {
+      "since": 1,
+      "label": "Ürün reçetelerini listele",
+      "requires": [
+        "component:durumSecimi",
+        "component:liste"
+      ]
+    },
+    "query:sil": {
+      "since": 1,
+      "label": "Ürün reçetesini sil",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:pasifeAl": {
+      "since": 1,
+      "label": "Ürün reçetesini pasife al",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:etkinlestir": {
+      "since": 1,
+      "label": "Ürün reçetesini etkinleştir",
+      "requires": [
+        "component:liste"
+      ]
+    }
   },
-  "screenViews": [ { "key": "manufacturing-recipes", "component": "liste",
-                     "fields": { "recipe": "name", "product": "productName", "outputQuantity": "outputQuantity", "content": "lineCount",
-                                 "status": "isActive" } } ],
+  "screenViews": [
+    {
+      "key": "manufacturing-recipes",
+      "component": "liste",
+      "fields": {
+        "outputQuantity": "outputQuantity"
+      }
+    }
+  ],
   "definition": {
     "schemaVersion": 2,
     "components": [
-      { "id": "komutlar", "type": "actionBar", "name": "komutlar",
-        "props": { "newButton": "yeniDugmesi", "openButton": "acDugmesi", "focusInput": "suzgec", "exportTable": "liste",
-                   "titleCount": "{{receteler.satirSayisi}}",
-                   "moreButtons": ["silDugmesi", "pasifeAlDugmesi", "etkinlestirDugmesi"],
-                   "hiddenCommands": ["save", "delete", "print"] } },
-      { "id": "yeniDugmesi", "type": "button", "name": "yeniDugmesi",
-        "props": { "text": "Yeni reçete", "actionType": "erpPage", "pageKey": "manufacturing-recipe-create", "target": "newTab", "legacyScreen": true } },
-      { "id": "acDugmesi", "type": "button", "name": "acDugmesi",
-        "props": { "text": "Aç", "icon": "open", "actionType": "erpPage", "pageKey": "manufacturing-recipe-create", "target": "newTab", "legacyScreen": true,
-                   "params": ["bomId={{liste.seciliSatir.id}}"],
-                   "disabledWhen": "liste.seciliSatir.id == null", "disabledReason": "Önce bir kayıt seçin" } },
-      { "id": "silDugmesi", "type": "button", "name": "silDugmesi",
-        "props": { "text": "Sil", "actionType": "query", "queryId": "sil", "confirmEnabled": true,
-                   "confirmText": "Ürün reçetesi kalıcı olarak silinsin mi? {{liste.seciliSatir.code}} · {{liste.seciliSatir.name}} reçetesi kalıcı olarak silinecek. Bu işlem geri alınamaz.",
-                   "successMessage": "Ürün reçetesi silindi.", "refreshQueries": ["receteler"],
-                   "disabledWhen": "liste.seciliSatir.id == null || liste.seciliSatir.orderCount > 0",
-                   "disabledReason": "Üretim emri referansı olan reçeteler silinemez." } },
-      { "id": "pasifeAlDugmesi", "type": "button", "name": "pasifeAlDugmesi",
-        "props": { "text": "Pasife al", "actionType": "query", "queryId": "pasifeAl",
-                   "successMessage": "Ürün reçetesi pasife alındı.", "refreshQueries": ["receteler"],
-                   "visibleWhen": "liste.seciliSatir.isActive == true" } },
-      { "id": "etkinlestirDugmesi", "type": "button", "name": "etkinlestirDugmesi",
-        "props": { "text": "Etkinleştir", "actionType": "query", "queryId": "etkinlestir",
-                   "successMessage": "Ürün reçetesi etkinleştirildi.", "refreshQueries": ["receteler"],
-                   "visibleWhen": "liste.seciliSatir.isActive == false" } },
-
-      { "id": "suzgec", "type": "filterBar", "name": "suzgec",
-        "props": { "table": "liste", "width": 8, "search": true, "searchPlaceholder": "Kod, reçete veya mamul ara",
-                   "searchColumns": ["code", "name", "productName"] } },
-      { "id": "suzgecSecimleri", "type": "formCard", "name": "suzgecSecimleri",
-        "props": { "title": "Süzgeçler", "layout": "inline", "width": 4, "inputs": ["durumSecimi"] } },
-      { "id": "durumSecimi", "type": "input", "name": "durumSecimi",
-        "props": { "inputType": "select", "label": "Durum", "staticOptions": ["=Tümü", "true=Aktif", "false=Pasif"] } },
-      { "id": "secimCipleri", "type": "filterChips", "name": "secimCipleri",
-        "props": { "width": 12, "inputs": ["durumSecimi"] } },
-
-      { "id": "liste", "type": "dataTable", "name": "liste",
-        "props": { "title": "Ürün reçeteleri", "query": "receteler", "width": 12,
-                   "columns": ["code", "name", "productName", "outputQuantity", "lineCount", "operationCount", "orderCount", "isActive"],
-                   "columnLabels": ["code=Kod", "name=Reçete", "productName=Mamul", "outputQuantity=Çıktı", "lineCount=Bileşen",
-                                    "operationCount=Operasyon", "orderCount=Üretim emri", "isActive=Durum"],
-                   "columnFormats": ["code=code", "outputQuantity=number", "lineCount=number", "operationCount=number", "orderCount=number",
-                                     "isActive=status"],
-                   "valueLabels": ["isActive:true=Aktif", "isActive:false=Pasif"],
-                   "toneMap": ["Aktif=success"],
-                   "rowOpenAction": "acDugmesi",
-                   "emptyText": "Henüz ürün reçetesi yok ya da aramanızla eşleşen reçete bulunamadı. Yeni (F2) ile ilk reçeteyi oluşturun." } }
+      {
+        "id": "komutlar",
+        "type": "actionBar",
+        "name": "komutlar",
+        "props": {
+          "newButton": "yeniDugmesi",
+          "openButton": "acDugmesi",
+          "focusInput": "suzgec",
+          "exportTable": "liste",
+          "titleCount": "{{receteler.satirSayisi}}",
+          "moreButtons": [
+            "silDugmesi",
+            "pasifeAlDugmesi",
+            "etkinlestirDugmesi"
+          ],
+          "hiddenCommands": [
+            "save",
+            "delete",
+            "print"
+          ],
+          "slot": "commands"
+        }
+      },
+      {
+        "id": "yeniDugmesi",
+        "type": "button",
+        "name": "yeniDugmesi",
+        "props": {
+          "text": "Yeni reçete",
+          "actionType": "erpPage",
+          "pageKey": "manufacturing-recipe-create",
+          "target": "newTab",
+          "legacyScreen": true,
+          "slot": "actions"
+        }
+      },
+      {
+        "id": "acDugmesi",
+        "type": "button",
+        "name": "acDugmesi",
+        "props": {
+          "text": "Aç",
+          "icon": "open",
+          "actionType": "erpPage",
+          "pageKey": "manufacturing-recipe-create",
+          "target": "newTab",
+          "legacyScreen": true,
+          "params": [
+            "bomId={{liste.seciliSatir.id}}"
+          ],
+          "disabledWhen": "liste.seciliSatir.id == null",
+          "disabledReason": "Önce bir kayıt seçin",
+          "slot": "actions"
+        }
+      },
+      {
+        "id": "silDugmesi",
+        "type": "button",
+        "name": "silDugmesi",
+        "props": {
+          "text": "Sil",
+          "actionType": "query",
+          "queryId": "sil",
+          "confirmEnabled": true,
+          "confirmText": "Ürün reçetesi kalıcı olarak silinsin mi? {{liste.seciliSatir.code}} · {{liste.seciliSatir.name}} reçetesi kalıcı olarak silinecek. Bu işlem geri alınamaz.",
+          "successMessage": "Ürün reçetesi silindi.",
+          "refreshQueries": [
+            "receteler"
+          ],
+          "disabledWhen": "liste.seciliSatir.id == null || liste.seciliSatir.orderCount > 0",
+          "disabledReason": "Üretim emri referansı olan reçeteler silinemez.",
+          "slot": "actions"
+        }
+      },
+      {
+        "id": "pasifeAlDugmesi",
+        "type": "button",
+        "name": "pasifeAlDugmesi",
+        "props": {
+          "text": "Pasife al",
+          "actionType": "query",
+          "queryId": "pasifeAl",
+          "successMessage": "Ürün reçetesi pasife alındı.",
+          "refreshQueries": [
+            "receteler"
+          ],
+          "visibleWhen": "liste.seciliSatir.isActive == true",
+          "slot": "actions"
+        }
+      },
+      {
+        "id": "etkinlestirDugmesi",
+        "type": "button",
+        "name": "etkinlestirDugmesi",
+        "props": {
+          "text": "Etkinleştir",
+          "actionType": "query",
+          "queryId": "etkinlestir",
+          "successMessage": "Ürün reçetesi etkinleştirildi.",
+          "refreshQueries": [
+            "receteler"
+          ],
+          "visibleWhen": "liste.seciliSatir.isActive == false",
+          "slot": "actions"
+        }
+      },
+      {
+        "id": "suzgec",
+        "type": "filterBar",
+        "name": "suzgec",
+        "props": {
+          "table": "liste",
+          "search": true,
+          "searchPlaceholder": "Kod, reçete veya mamul ara",
+          "slot": "filters"
+        }
+      },
+      {
+        "id": "durumSecimi",
+        "type": "input",
+        "name": "durumSecimi",
+        "props": {
+          "inputType": "select",
+          "label": "Durum",
+          "staticOptions": [
+            "=Tümü",
+            "true=Aktif",
+            "false=Pasif"
+          ],
+          "slot": "above"
+        }
+      },
+      {
+        "id": "liste",
+        "type": "dataTable",
+        "name": "liste",
+        "props": {
+          "title": "Ürün reçeteleri",
+          "query": "receteler",
+          "columns": [
+            "code",
+            "name",
+            "productName",
+            "outputQuantity",
+            "lineCount",
+            "operationCount",
+            "orderCount",
+            "isActive"
+          ],
+          "columnLabels": [
+            "code=Kod",
+            "name=Reçete",
+            "productName=Mamul",
+            "outputQuantity=Çıktı",
+            "lineCount=Bileşen",
+            "operationCount=Operasyon",
+            "orderCount=Üretim emri",
+            "isActive=Durum"
+          ],
+          "columnFormats": [
+            "code=code",
+            "outputQuantity=number",
+            "lineCount=number",
+            "operationCount=number",
+            "orderCount=number",
+            "isActive=status"
+          ],
+          "valueLabels": [
+            "isActive:true=Aktif",
+            "isActive:false=Pasif"
+          ],
+          "toneMap": [
+            "Aktif=success"
+          ],
+          "emptyText": "Henüz ürün reçetesi yok ya da aramanızla eşleşen reçete bulunamadı. Yeni (F2) ile ilk reçeteyi oluşturun.",
+          "slot": "list"
+        }
+      },
+      {
+        "id": "detayOzeti",
+        "type": "card",
+        "name": "detayOzeti",
+        "props": {
+          "variant": "panel",
+          "title": "{{liste.seciliSatir.name}}",
+          "description": "{{liste.seciliSatir.code}} · {{liste.seciliSatir.productName}}",
+          "slot": "detail"
+        },
+        "children": [
+          {
+            "id": "detayBilgi",
+            "type": "contextPanel",
+            "name": "detayBilgi",
+            "props": {
+              "table": "liste",
+              "fields": [
+                "outputQuantity=Çıktı miktarı",
+                "lineCount=Bileşen",
+                "operationCount=Operasyon",
+                "orderCount=Üretim emri",
+                "isActive=Durum"
+              ]
+            }
+          }
+        ]
+      }
     ],
     "queries": [
-      { "id": "receteler", "name": "receteler", "kind": "read", "operation": "uretim.recete.tumunuListele", "runOn": "load",
-        "parameters": [ { "name": "isActive", "binding": "{{durumSecimi.value}}", "type": "bool" } ] },
-      { "id": "sil", "name": "sil", "kind": "delete", "operation": "uretim.recete.sil", "runOn": "manual",
-        "parameters": [ { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" } ] },
-      { "id": "pasifeAl", "name": "pasifeAl", "kind": "update", "operation": "uretim.recete.pasifeAl", "runOn": "manual",
-        "parameters": [ { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" } ] },
-      { "id": "etkinlestir", "name": "etkinlestir", "kind": "update", "operation": "uretim.recete.etkinlestir", "runOn": "manual",
-        "parameters": [ { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" } ] }
-    ]
+      {
+        "id": "receteler",
+        "name": "receteler",
+        "kind": "read",
+        "operation": "uretim.recete.tumunuListele",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "isActive",
+            "binding": "{{durumSecimi.value}}",
+            "type": "bool"
+          }
+        ]
+      },
+      {
+        "id": "sil",
+        "name": "sil",
+        "kind": "delete",
+        "operation": "uretim.recete.sil",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "pasifeAl",
+        "name": "pasifeAl",
+        "kind": "update",
+        "operation": "uretim.recete.pasifeAl",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "etkinlestir",
+        "name": "etkinlestir",
+        "kind": "update",
+        "operation": "uretim.recete.etkinlestir",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      }
+    ],
+    "template": {
+      "name": "list"
+    }
   }
 }

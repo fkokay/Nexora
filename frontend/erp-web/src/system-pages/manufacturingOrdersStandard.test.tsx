@@ -113,7 +113,8 @@ function setup() {
 
 const T = { timeout: 10000 };
 const GRID = '.tenant-page-data-grid td, .tenant-page-data-grid td *';
-const command = (id: string) => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>(`[data-command="${id}"]`)!;
+const command = (id: string) => id === 'more' ? screen.getByRole('button', { name: 'Diğer işlemler' })
+  : screen.getByRole('toolbar', { name: 'İşlemler' }).querySelector<HTMLElement>(`[data-command="${id}"]`)!;
 const lists = () => calls.filter((call) => call.method === 'GET' && call.url.split('?')[0] === '/api/manufacturing/orders');
 const writes = () => calls.filter((call) => call.method !== 'GET');
 const query = (url: string) => new URLSearchParams(url.split('?')[1] ?? '');
@@ -146,16 +147,11 @@ const confirm = async (expected: string) => {
 };
 const openDetail = async (code: string) => {
   await select(code);
-  // İşlem Çubuğu Aç'a bağlı değil; detay paneli "Detay paneli" anahtarıyla (ya da satırı açarak, rowOpenAction) açılır.
-  // Düğme tablonun araç çubuğundadır (taslak 21); onay kutusu girişi ayrıca çizilmez.
-  const panel = screen.getByRole('button', { name: 'Detay paneli' });
-  if (panel.getAttribute('aria-pressed') !== 'true') fireEvent.click(panel);
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Detay paneli' }).getAttribute('aria-pressed')).toBe('true'), T);
-  await waitFor(() => expect(screen.getAllByRole('tab').some((tab) => /^Rota/.test(tab.textContent ?? ''))).toBe(true), T);
+  await waitFor(() => expect(text()).toContain(code), T);
 };
 const routeTab = async () => {
-  fireEvent.click(screen.getAllByRole('tab').find((tab) => /^Rota/.test(tab.textContent ?? ''))!);
-  await screen.findByText('Operasyonlar sırayla, serbest bırakılmış emirde ve planlanan başlangıç gününden itibaren başlatılır.', {}, T);
+  fireEvent.click(await menuItem(/^Rota/));
+  await screen.findByRole('dialog', { name: /Rota/ }, T);
 };
 
 beforeEach(() => {
@@ -186,9 +182,8 @@ describe('Üretim emirleri standart tanımı', { timeout: 30000 }, () => {
     expect(within(rowOf('URE-001')).getByText('Planlandı')).toBeTruthy();
     expect(within(rowOf('URE-002')).getByText('Serbest bırakıldı')).toBeTruthy();
     expect(within(rowOf('URE-004')).getByText('Tamamlandı')).toBeTruthy();
-    expect(rowOf('URE-001').textContent).toContain('1 op · çizelgelenmedi');
-    expect(rowOf('URE-001').textContent).toContain('Stoka üretim');
-    expect(rowOf('URE-002').textContent).toContain('SS-0001 · satır 1');
+    expect(rowOf('URE-001').textContent).toContain('Salça reçetesi');
+    expect(rowOf('URE-002').textContent).toContain('Üretim Deposu');
   });
 
   it('the Durum selection and the search reload the list with status and q', async () => {
@@ -252,23 +247,22 @@ describe('Üretim emirleri standart tanımı', { timeout: 30000 }, () => {
     setup();
     await select('URE-001');
     fireEvent.click(await menuItem(/İptal et/));
-    await confirm('URE-001 üretim emri iptal edilsin mi? Kapasite ayırmaları silinir; işlem geri alınamaz.');
+    await confirm('URE-001 üretim emri iptal edilsin mi? Başlamış operasyon varsa fiili kayıtları da etkiler; kapasite ayırmaları silinir ve işlem geri alınamaz.');
     await waitFor(() => expect(writes()).toHaveLength(1), T);
     expect(writes()[0]).toMatchObject({ method: 'POST', url: `/api/manufacturing/orders/${O1}/cancel` });
 
     await select('URE-002');
     fireEvent.click(await menuItem(/İptal et/));
     const dialog = await screen.findByRole('alertdialog', {}, T);
-    expect(dialog.textContent).toContain('URE-002 üretim emri iptal edilsin mi? 1 operasyonun fiili kaydı var; iptal geri alınamaz.');
+    expect(dialog.textContent).toContain('URE-002 üretim emri iptal edilsin mi? Başlamış operasyon varsa fiili kayıtları da etkiler; kapasite ayırmaları silinir ve işlem geri alınamaz.');
     fireEvent.click(within(dialog).getAllByRole('button').at(-1)!);
     await waitFor(() => expect(writes()).toHaveLength(2), T);
     expect(writes()[1]).toMatchObject({ method: 'POST', url: `/api/manufacturing/orders/${O2}/cancel` });
   });
 
-  it('detail panel: route tab counter, operation start and completion with both route ids', async () => {
+  it('Rota window: operation start and completion retain both route ids', async () => {
     setup();
     await openDetail('URE-002');
-    await waitFor(() => expect(screen.getAllByRole('tab').some((tab) => (tab.textContent ?? '').replace(/\s+/g, ' ').trim() === 'Rota 2')).toBe(true), T);
     await routeTab();
     // Bekleyen operasyon: Başlat; devam eden: Tamamla.
     const start = await screen.findByRole('button', { name: 'Başlat' }, T);

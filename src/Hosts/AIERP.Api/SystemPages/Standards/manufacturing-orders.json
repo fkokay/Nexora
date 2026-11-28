@@ -1,309 +1,1395 @@
 {
-  "screenKey": "manufacturing-orders", "title": "Üretim emirleri",
-  "description": "Üretim emirlerini planlayın, kapasiteye çizelgeleyin, serbest bırakın; rota operasyonlarını yürütüp üretimi bildirin.", "module": "Üretim",
-  "version": 1, "stage": "preview",
+  "screenKey": "manufacturing-orders",
+  "title": "Üretim emirleri",
+  "description": "Üretim emirlerini planlayın, kapasiteye çizelgeleyin, serbest bırakın; rota operasyonlarını yürütüp üretimi bildirin.",
+  "module": "Üretim",
+  "version": 2,
+  "stage": "preview",
   "items": {
-    "component:komutlar": {"since": 1, "label": "İşlem çubuğu", "requires": ["component:suzgec", "component:liste", "component:cizelgeleDugmesi", "component:serbestBirakDugmesi", "component:tamamlaDugmesi", "component:iptalDugmesi", "component:iptalUyariliDugmesi", "query:emirler"]},
-    "component:acikGostergesi": {"since": 1, "label": "Açık emir göstergesi", "requires": ["query:emirler"]},
-    "component:maliyetGostergesi": {"since": 1, "label": "Planlanan maliyet göstergesi", "requires": ["query:emirler"]},
-    "component:cizelgesizGostergesi": {"since": 1, "label": "Çizelgelenmemiş göstergesi", "requires": ["query:emirler"]},
-    "component:tamamlananGostergesi": {"since": 1, "label": "Tamamlanan göstergesi", "requires": ["component:durumSecimi", "query:emirler"]},
-    "component:suzgec": {"since": 1, "label": "Süzgeç alanı (arama)", "requires": ["component:liste"]},
-    "component:suzgecSecimleri": {"since": 1, "label": "Süzgeç seçimleri kartı", "requires": ["component:durumSecimi"]},
-    "component:durumSecimi": {"since": 1, "label": "Durum seçimi"},
-    "component:detayPaneli": {"since": 1, "label": "Detay paneli anahtarı"},
-    "component:secimCipleri": {"since": 1, "label": "Durum seçimi çipleri", "requires": ["component:durumSecimi"]},
-    "component:liste": {"since": 1, "label": "Üretim emri listesi", "requires": ["component:detayPaneli", "component:acDugmesi", "query:emirler"]},
-    "component:acDugmesi": {"since": 1, "label": "Satırı aç (detay paneli)", "requires": ["component:liste", "component:detayPaneli"]},
-    "component:cizelgeleDugmesi": {"since": 1, "label": "Kapasiteye çizelgele komutu", "requires": ["component:liste", "query:cizelgele", "query:emirler", "query:emir", "query:operasyonlar"]},
-    "component:serbestBirakDugmesi": {"since": 1, "label": "Serbest bırak komutu", "requires": ["component:liste", "query:serbestBirak", "query:emirler", "query:emir", "query:operasyonlar"]},
-    "component:tamamlaDugmesi": {"since": 1, "label": "Üretimi tamamla komutu", "requires": ["component:liste", "component:tamamlaPenceresi"]},
-    "component:iptalDugmesi": {"since": 1, "label": "İptal et komutu", "requires": ["component:liste", "query:iptal", "query:emirler", "query:emir", "query:operasyonlar"]},
-    "component:iptalUyariliDugmesi": {"since": 1, "label": "İptal et komutu (başlamış operasyon uyarılı)", "requires": ["component:liste", "query:iptal", "query:emirler", "query:emir", "query:operasyonlar"]},
-    "component:detayKarti": {"since": 1, "label": "Detay paneli", "requires": ["component:detayPaneli", "component:liste", "component:ozetPaneli", "component:tutarNotu", "component:operasyonTablosu", "component:rotaNotu", "component:bilesenTablosu", "component:tamamlaPenceresi", "query:emir", "query:cizelgele", "query:serbestBirak", "query:emirler", "query:operasyonlar"]},
-    "component:ozetPaneli": {"since": 1, "label": "Detay: Özet", "requires": ["component:liste"]},
-    "component:tutarNotu": {"since": 1, "label": "Detay: tutar notu"},
-    "component:operasyonTablosu": {"since": 1, "label": "Detay: Rota operasyonları", "requires": ["component:opBaslatDugmesi", "component:opTamamlaDugmesi", "query:operasyonlar"]},
-    "component:rotaNotu": {"since": 1, "label": "Detay: rota notu"},
-    "component:bilesenTablosu": {"since": 1, "label": "Detay: Bileşenler", "requires": ["query:bilesenler"]},
-    "component:opBaslatDugmesi": {"since": 1, "label": "Operasyonu başlat satır düğmesi", "requires": ["component:liste", "component:operasyonTablosu", "query:opBaslat", "query:emir", "query:emirler", "query:operasyonlar"]},
-    "component:opTamamlaDugmesi": {"since": 1, "label": "Operasyonu tamamla satır düğmesi", "requires": ["component:operasyonTablosu", "component:opTamamlaPenceresi", "query:emir"]},
-    "component:opTamamlaPenceresi": {"since": 1, "label": "Operasyon fiili kaydı penceresi", "requires": ["component:opTamamlaFormu", "component:operasyonTablosu", "component:liste", "query:opTamamla", "query:emir", "query:emirler", "query:operasyonlar"]},
-    "component:opTamamlaFormu": {"since": 1, "label": "Operasyon fiili kaydı alanları", "requires": ["component:kurulumDk", "component:calismaDk", "component:enerjiKwh", "component:enerjiBedeli", "component:operator"]},
-    "component:kurulumDk": {"since": 1, "label": "Alan: Kurulum dk", "requires": ["component:operasyonTablosu"]},
-    "component:calismaDk": {"since": 1, "label": "Alan: Çalışma dk", "requires": ["component:operasyonTablosu"]},
-    "component:enerjiKwh": {"since": 1, "label": "Alan: Enerji kWh", "requires": ["component:operasyonTablosu"]},
-    "component:enerjiBedeli": {"since": 1, "label": "Alan: Baz para/kWh", "requires": ["component:operasyonTablosu"]},
-    "component:operator": {"since": 1, "label": "Alan: Operatör", "requires": ["query:operatorler"]},
-    "component:tamamlaPenceresi": {"since": 1, "label": "Üretimi bildir penceresi", "requires": ["component:tamamlaBilgisi", "component:tamamlaFormu", "component:tamamlaDurumu", "component:takip", "component:tamamlaUyarisi", "component:liste", "query:tamamla", "query:emir", "query:emirler", "query:operasyonlar", "query:bilesenler"]},
-    "component:tamamlaBilgisi": {"since": 1, "label": "Üretimi bildir: mamul ve depo", "requires": ["query:emir"]},
-    "component:tamamlaFormu": {"since": 1, "label": "Üretimi bildir: miktarlar", "requires": ["component:iyiMiktar", "component:fireMiktar", "component:fireNedeni"]},
-    "component:iyiMiktar": {"since": 1, "label": "Alan: İyi ürün miktarı", "requires": ["query:emir"]},
-    "component:fireMiktar": {"since": 1, "label": "Alan: Fire miktarı"},
-    "component:fireNedeni": {"since": 1, "label": "Alan: Fire nedeni", "requires": ["component:fireMiktar"]},
-    "component:tamamlaDurumu": {"since": 1, "label": "Üretimi bildir: planlanan / bildirilen", "requires": ["component:iyiMiktar", "component:fireMiktar", "query:emir"]},
-    "component:takip": {"since": 1, "label": "Mamul lot / seri satırları", "requires": ["query:emir"]},
-    "component:tamamlaUyarisi": {"since": 1, "label": "Üretimi bildir: stok ve geri alma notu", "requires": ["query:emir"]},
-    "query:emirler": {"since": 1, "label": "Üretim emirlerini listele", "requires": ["component:suzgec", "component:durumSecimi", "component:liste"]},
-    "query:emir": {"since": 1, "label": "Seçili üretim emri", "requires": ["component:liste"]},
-    "query:operasyonlar": {"since": 1, "label": "Seçili emrin rota operasyonları", "requires": ["component:liste"]},
-    "query:bilesenler": {"since": 1, "label": "Seçili emrin bileşenleri", "requires": ["component:liste"]},
-    "query:operatorler": {"since": 1, "label": "Üretim operatörleri"},
-    "query:cizelgele": {"since": 1, "label": "Kapasiteye çizelgele", "requires": ["component:liste"]},
-    "query:serbestBirak": {"since": 1, "label": "Serbest bırak", "requires": ["component:liste"]},
-    "query:opBaslat": {"since": 1, "label": "Rota operasyonunu başlat", "requires": ["component:liste", "component:operasyonTablosu"]},
-    "query:opTamamla": {"since": 1, "label": "Rota operasyonunun fiili kaydı", "requires": ["component:liste", "component:operasyonTablosu", "component:kurulumDk", "component:calismaDk", "component:enerjiKwh", "component:enerjiBedeli", "component:operator"]},
-    "query:tamamla": {"since": 1, "label": "Üretimi bildir ve tamamla", "requires": ["component:liste", "component:iyiMiktar", "component:fireMiktar", "component:fireNedeni", "component:takip"]},
-    "query:iptal": {"since": 1, "label": "Üretim emrini iptal et", "requires": ["component:liste"]}
+    "component:yeniDugmesi": {
+      "since": 2,
+      "label": "Yeni üretim emri komutu",
+      "requires": []
+    },
+    "component:rotaDugmesi": {
+      "since": 2,
+      "label": "Rota penceresi komutu",
+      "requires": [
+        "component:rotaPenceresi"
+      ]
+    },
+    "component:bilesenDugmesi": {
+      "since": 2,
+      "label": "Bileşenler penceresi komutu",
+      "requires": [
+        "component:bilesenPenceresi"
+      ]
+    },
+    "component:rotaPenceresi": {
+      "since": 2,
+      "label": "Rota operasyonları penceresi",
+      "requires": [
+        "component:operasyonTablosu",
+        "query:operasyonlar"
+      ]
+    },
+    "component:bilesenPenceresi": {
+      "since": 2,
+      "label": "Bileşenler penceresi",
+      "requires": [
+        "component:bilesenTablosu",
+        "query:bilesenler"
+      ]
+    },
+    "component:komutlar": {
+      "since": 1,
+      "label": "İşlem çubuğu",
+      "requires": [
+        "component:suzgec",
+        "component:liste",
+        "component:cizelgeleDugmesi",
+        "component:serbestBirakDugmesi",
+        "component:tamamlaDugmesi",
+        "component:iptalDugmesi",
+        "query:emirler"
+      ]
+    },
+    "component:acikGostergesi": {
+      "since": 1,
+      "label": "Açık emir göstergesi",
+      "requires": [
+        "query:emirler"
+      ]
+    },
+    "component:maliyetGostergesi": {
+      "since": 1,
+      "label": "Planlanan maliyet göstergesi",
+      "requires": [
+        "query:emirler"
+      ]
+    },
+    "component:cizelgesizGostergesi": {
+      "since": 1,
+      "label": "Çizelgelenmemiş göstergesi",
+      "requires": [
+        "query:emirler"
+      ]
+    },
+    "component:tamamlananGostergesi": {
+      "since": 1,
+      "label": "Tamamlanan göstergesi",
+      "requires": [
+        "component:durumSecimi",
+        "query:emirler"
+      ]
+    },
+    "component:suzgec": {
+      "since": 1,
+      "label": "Süzgeç alanı (arama)",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:durumSecimi": {
+      "since": 1,
+      "label": "Durum seçimi",
+      "requires": []
+    },
+    "component:liste": {
+      "since": 1,
+      "label": "Üretim emri listesi",
+      "requires": [
+        "query:emirler"
+      ]
+    },
+    "component:cizelgeleDugmesi": {
+      "since": 1,
+      "label": "Kapasiteye çizelgele komutu",
+      "requires": [
+        "component:liste",
+        "query:cizelgele",
+        "query:emirler",
+        "query:emir",
+        "query:operasyonlar"
+      ]
+    },
+    "component:serbestBirakDugmesi": {
+      "since": 1,
+      "label": "Serbest bırak komutu",
+      "requires": [
+        "component:liste",
+        "query:serbestBirak",
+        "query:emirler",
+        "query:emir",
+        "query:operasyonlar"
+      ]
+    },
+    "component:tamamlaDugmesi": {
+      "since": 1,
+      "label": "Üretimi tamamla komutu",
+      "requires": [
+        "component:liste",
+        "component:tamamlaPenceresi"
+      ]
+    },
+    "component:iptalDugmesi": {
+      "since": 1,
+      "label": "İptal et komutu",
+      "requires": [
+        "component:liste",
+        "query:iptal",
+        "query:emirler",
+        "query:emir",
+        "query:operasyonlar"
+      ]
+    },
+    "component:detayKarti": {
+      "since": 1,
+      "label": "Detay paneli",
+      "requires": [
+        "component:liste",
+        "component:operasyonTablosu",
+        "component:rotaNotu",
+        "component:bilesenTablosu",
+        "component:tamamlaPenceresi",
+        "query:emir",
+        "query:cizelgele",
+        "query:serbestBirak",
+        "query:emirler",
+        "query:operasyonlar"
+      ]
+    },
+    "component:opTamamlaPenceresi": {
+      "since": 1,
+      "label": "Operasyon fiili kaydı penceresi",
+      "requires": [
+        "component:opTamamlaFormu",
+        "component:operasyonTablosu",
+        "component:liste",
+        "query:opTamamla",
+        "query:emir",
+        "query:emirler",
+        "query:operasyonlar"
+      ]
+    },
+    "component:tamamlaPenceresi": {
+      "since": 1,
+      "label": "Üretimi bildir penceresi",
+      "requires": [
+        "component:tamamlaBilgisi",
+        "component:tamamlaFormu",
+        "component:tamamlaDurumu",
+        "component:takip",
+        "component:tamamlaUyarisi",
+        "component:liste",
+        "query:tamamla",
+        "query:emir",
+        "query:emirler",
+        "query:operasyonlar",
+        "query:bilesenler"
+      ]
+    },
+    "component:opTamamlaFormu": {
+      "since": 1,
+      "label": "Operasyon fiili kaydı alanları",
+      "requires": [
+        "component:kurulumDk",
+        "component:calismaDk",
+        "component:enerjiKwh",
+        "component:enerjiBedeli",
+        "component:operator"
+      ]
+    },
+    "component:kurulumDk": {
+      "since": 1,
+      "label": "Alan: Kurulum dk",
+      "requires": [
+        "component:operasyonTablosu"
+      ]
+    },
+    "component:calismaDk": {
+      "since": 1,
+      "label": "Alan: Çalışma dk",
+      "requires": [
+        "component:operasyonTablosu"
+      ]
+    },
+    "component:enerjiKwh": {
+      "since": 1,
+      "label": "Alan: Enerji kWh",
+      "requires": [
+        "component:operasyonTablosu"
+      ]
+    },
+    "component:enerjiBedeli": {
+      "since": 1,
+      "label": "Alan: Baz para/kWh",
+      "requires": [
+        "component:operasyonTablosu"
+      ]
+    },
+    "component:operator": {
+      "since": 1,
+      "label": "Alan: Operatör",
+      "requires": [
+        "query:operatorler"
+      ]
+    },
+    "component:tamamlaBilgisi": {
+      "since": 1,
+      "label": "Üretimi bildir: mamul ve depo",
+      "requires": [
+        "query:emir"
+      ]
+    },
+    "component:tamamlaFormu": {
+      "since": 1,
+      "label": "Üretimi bildir: miktarlar",
+      "requires": [
+        "component:iyiMiktar",
+        "component:fireMiktar",
+        "component:fireNedeni"
+      ]
+    },
+    "component:iyiMiktar": {
+      "since": 1,
+      "label": "Alan: İyi ürün miktarı",
+      "requires": [
+        "query:emir"
+      ]
+    },
+    "component:fireMiktar": {
+      "since": 1,
+      "label": "Alan: Fire miktarı",
+      "requires": []
+    },
+    "component:fireNedeni": {
+      "since": 1,
+      "label": "Alan: Fire nedeni",
+      "requires": [
+        "component:fireMiktar"
+      ]
+    },
+    "component:tamamlaDurumu": {
+      "since": 1,
+      "label": "Üretimi bildir: planlanan / bildirilen",
+      "requires": [
+        "component:iyiMiktar",
+        "component:fireMiktar",
+        "query:emir"
+      ]
+    },
+    "component:takip": {
+      "since": 1,
+      "label": "Mamul lot / seri satırları",
+      "requires": [
+        "query:emir"
+      ]
+    },
+    "component:tamamlaUyarisi": {
+      "since": 1,
+      "label": "Üretimi bildir: stok ve geri alma notu",
+      "requires": [
+        "query:emir"
+      ]
+    },
+    "component:operasyonTablosu": {
+      "since": 1,
+      "label": "Detay: Rota operasyonları",
+      "requires": [
+        "component:opBaslatDugmesi",
+        "component:opTamamlaDugmesi",
+        "query:operasyonlar"
+      ]
+    },
+    "component:rotaNotu": {
+      "since": 1,
+      "label": "Detay: rota notu",
+      "requires": []
+    },
+    "component:bilesenTablosu": {
+      "since": 1,
+      "label": "Detay: Bileşenler",
+      "requires": [
+        "query:bilesenler"
+      ]
+    },
+    "component:opBaslatDugmesi": {
+      "since": 1,
+      "label": "Operasyonu başlat satır düğmesi",
+      "requires": [
+        "component:liste",
+        "component:operasyonTablosu",
+        "query:opBaslat",
+        "query:emir",
+        "query:emirler",
+        "query:operasyonlar"
+      ]
+    },
+    "component:opTamamlaDugmesi": {
+      "since": 1,
+      "label": "Operasyonu tamamla satır düğmesi",
+      "requires": [
+        "component:operasyonTablosu",
+        "component:opTamamlaPenceresi",
+        "query:emir"
+      ]
+    },
+    "query:emirler": {
+      "since": 1,
+      "label": "Üretim emirlerini listele",
+      "requires": [
+        "component:suzgec",
+        "component:durumSecimi",
+        "component:liste"
+      ]
+    },
+    "query:emir": {
+      "since": 1,
+      "label": "Seçili üretim emri",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:operasyonlar": {
+      "since": 1,
+      "label": "Seçili emrin rota operasyonları",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:bilesenler": {
+      "since": 1,
+      "label": "Seçili emrin bileşenleri",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:operatorler": {
+      "since": 1,
+      "label": "Üretim operatörleri",
+      "requires": []
+    },
+    "query:cizelgele": {
+      "since": 1,
+      "label": "Kapasiteye çizelgele",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:serbestBirak": {
+      "since": 1,
+      "label": "Serbest bırak",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:opBaslat": {
+      "since": 1,
+      "label": "Rota operasyonunu başlat",
+      "requires": [
+        "component:liste",
+        "component:operasyonTablosu"
+      ]
+    },
+    "query:opTamamla": {
+      "since": 1,
+      "label": "Rota operasyonunun fiili kaydı",
+      "requires": [
+        "component:liste",
+        "component:operasyonTablosu",
+        "component:kurulumDk",
+        "component:calismaDk",
+        "component:enerjiKwh",
+        "component:enerjiBedeli",
+        "component:operator"
+      ]
+    },
+    "query:tamamla": {
+      "since": 1,
+      "label": "Üretimi bildir ve tamamla",
+      "requires": [
+        "component:liste",
+        "component:iyiMiktar",
+        "component:fireMiktar",
+        "component:fireNedeni",
+        "component:takip"
+      ]
+    },
+    "query:iptal": {
+      "since": 1,
+      "label": "Üretim emrini iptal et",
+      "requires": [
+        "component:liste"
+      ]
+    }
   },
-  "screenViews": [ { "key": "manufacturing-orders", "component": "liste",
-                     "fields": { "code": "code", "plannedDate": "plannedDate", "billOfMaterialName": "billOfMaterialName", "warehouseName": "warehouseName",
-                                 "plannedQuantity": "plannedQuantity", "components": "componentCodes", "status": "status" } } ],
+  "screenViews": [
+    {
+      "key": "manufacturing-orders",
+      "component": "liste",
+      "fields": {
+        "code": "code",
+        "plannedDate": "plannedDate",
+        "billOfMaterialName": "billOfMaterialName",
+        "warehouseName": "warehouseName",
+        "plannedQuantity": "plannedQuantity",
+        "status": "status"
+      }
+    }
+  ],
   "definition": {
     "schemaVersion": 2,
     "components": [
-      { "id": "komutlar", "type": "actionBar", "name": "komutlar",
-        "props": { "newAction": "page", "newPageCode": "@manufacturing-order-create", "newTarget": "newTab", "openButton": "acDugmesi",
-                   "focusInput": "suzgec", "exportTable": "liste",
-                   "titleCount": "{{emirler.meta.totalCount}}",
-                   "moreButtons": ["cizelgeleDugmesi", "serbestBirakDugmesi", "tamamlaDugmesi", "iptalDugmesi", "iptalUyariliDugmesi"],
-                   "hiddenCommands": ["save", "delete", "print"] } },
-
-      { "id": "acikGostergesi", "type": "metric", "name": "acikGostergesi",
-        "props": { "title": "Açık emir", "value": "{{emirler.meta.openOrderCount}}", "format": "number", "width": 3, "icon": "clock",
-                   "description": "tüm kayıtlar · Planlandı + Serbest bırakıldı" } },
-      { "id": "maliyetGostergesi", "type": "metric", "name": "maliyetGostergesi",
-        "props": { "title": "Planlanan maliyet", "value": "{{emirler.meta.openPlannedCostBase}}", "format": "money", "width": 3, "icon": "wallet",
-                   "description": "tüm kayıtlar · açık emirler · baz para" } },
-      { "id": "cizelgesizGostergesi", "type": "metric", "name": "cizelgesizGostergesi",
-        "props": { "title": "Çizelgelenmemiş", "value": "{{emirler.meta.unscheduledOrderCount}}", "format": "number", "width": 3, "icon": "alert",
-                   "variant": "warning", "description": "tüm kayıtlar · rotası takvimsiz" } },
-      { "id": "tamamlananGostergesi", "type": "metric", "name": "tamamlananGostergesi",
-        "props": { "title": "Tamamlanan", "value": "{{emirler.meta.completedOrderCount}}", "format": "number", "width": 3, "icon": "check",
-                   "variant": "success", "description": "tüm kayıtlar", "filterInput": "durumSecimi", "filterValue": "Completed" } },
-
-      { "id": "suzgec", "type": "filterBar", "name": "suzgec",
-        "props": { "table": "liste", "width": 8, "search": true, "searchPlaceholder": "Emir, reçete, depo veya sipariş ara", "searchParam": "q" } },
-      { "id": "suzgecSecimleri", "type": "formCard", "name": "suzgecSecimleri",
-        "props": { "title": "Süzgeçler", "layout": "inline", "width": 4, "inputs": ["durumSecimi"] } },
-      { "id": "durumSecimi", "type": "input", "name": "durumSecimi",
-        "props": { "inputType": "select", "label": "Durum",
-                   "staticOptions": ["=Tümü", "Planned=Planlandı", "Released=Serbest bırakıldı", "Completed=Tamamlandı", "Cancelled=İptal edildi"] } },
-      { "id": "detayPaneli", "type": "input", "name": "detayPaneli",
-        "props": { "inputType": "checkbox", "label": "Detay paneli", "icon": "panel", "defaultWhen": "sayfa.genis == true" } },
-      { "id": "secimCipleri", "type": "filterChips", "name": "secimCipleri",
-        "props": { "width": 12, "inputs": ["durumSecimi"] } },
-
-      { "id": "liste", "type": "dataTable", "name": "liste",
-        "props": { "title": "Üretim emirleri", "query": "emirler", "paging": "server", "pageSize": 25, "width": 12,
-                   "widthWhen": "8=detayPaneli.value == true && liste.seciliSatir.id != null",
-                   "detailToggleInput": "detayPaneli",
-                   "columns": ["code", "plannedDate", "billOfMaterialName", "productName", "routeSummary", "warehouseName", "plannedQuantity",
-                               "sourceText", "componentCodes", "status"],
-                   "columnLabels": ["code=Üretim emri", "plannedDate=Plan tarihi", "billOfMaterialName=Reçete", "productName=Mamul",
-                                    "routeSummary=Rota", "warehouseName=Depo", "plannedQuantity=Miktar", "sourceText=Sipariş",
-                                    "componentCodes=Bileşenler", "status=Durum", "plannedCostBase=Planlanan maliyet", "completedAt=Tamamlanma"],
-                   "columnFormats": ["code=code", "plannedDate=date", "plannedQuantity=number", "status=status", "plannedCostBase=money",
-                                     "completedAt=date"],
-                   "valueLabels": ["status:Planned=Planlandı", "status:Released=Serbest bırakıldı", "status:Completed=Tamamlandı",
-                                   "status:Cancelled=İptal edildi"],
-                   "toneMap": ["Planlandı=info", "Serbest bırakıldı=warning", "Tamamlandı=success"],
-                   "rowOpenAction": "acDugmesi",
-                   "emptyText": "Henüz üretim emri yok ya da süzgeçle eşleşen emir yok. Bir reçete oluşturduktan sonra ilk emri planlayabilirsiniz." } },
-      { "id": "acDugmesi", "type": "button", "name": "acDugmesi",
-        "props": { "text": "Aç", "icon": "open", "actionType": "setInput", "assignments": ["detayPaneli=true"],
-                   "disabledWhen": "liste.seciliSatir.id == null", "disabledReason": "Önce bir kayıt seçin" } },
-
-      { "id": "cizelgeleDugmesi", "type": "button", "name": "cizelgeleDugmesi",
-        "props": { "text": "Kapasiteye çizelgele", "actionType": "query", "queryId": "cizelgele",
-                   "successMessage": "{{liste.seciliSatir.code}} için iş merkezi kapasitesi ayrıldı.",
-                   "refreshQueries": ["emirler", "emir", "operasyonlar"], "visibleWhen": "liste.seciliSatir.canSchedule == true" } },
-      { "id": "serbestBirakDugmesi", "type": "button", "name": "serbestBirakDugmesi",
-        "props": { "text": "Serbest bırak", "actionType": "query", "queryId": "serbestBirak", "successMessage": "Üretim emri serbest bırakıldı.",
-                   "refreshQueries": ["emirler", "emir", "operasyonlar"], "visibleWhen": "liste.seciliSatir.canRelease == true" } },
-      { "id": "tamamlaDugmesi", "type": "button", "name": "tamamlaDugmesi",
-        "props": { "text": "Üretimi tamamla", "actionType": "openDialog", "dialogId": "tamamlaPenceresi",
-                   "visibleWhen": "liste.seciliSatir.canComplete == true" } },
-      { "id": "iptalDugmesi", "type": "button", "name": "iptalDugmesi",
-        "props": { "text": "İptal et", "actionType": "query", "queryId": "iptal", "confirmEnabled": true,
-                   "confirmText": "{{liste.seciliSatir.code}} üretim emri iptal edilsin mi? Kapasite ayırmaları silinir; işlem geri alınamaz.",
-                   "successMessage": "Üretim emri iptal edildi.", "refreshQueries": ["emirler", "emir", "operasyonlar"],
-                   "visibleWhen": "liste.seciliSatir.canCancel == true && liste.seciliSatir.startedOperationCount == 0" } },
-      { "id": "iptalUyariliDugmesi", "type": "button", "name": "iptalUyariliDugmesi",
-        "props": { "text": "İptal et", "actionType": "query", "queryId": "iptal", "confirmEnabled": true,
-                   "confirmText": "{{liste.seciliSatir.code}} üretim emri iptal edilsin mi? {{liste.seciliSatir.startedOperationCount}} operasyonun fiili kaydı var; iptal geri alınamaz.",
-                   "successMessage": "Üretim emri iptal edildi.", "refreshQueries": ["emirler", "emir", "operasyonlar"],
-                   "visibleWhen": "liste.seciliSatir.canCancel == true && liste.seciliSatir.startedOperationCount > 0" } },
-
-      { "id": "detayKarti", "type": "card", "name": "detayKarti",
-        "props": { "variant": "panel", "title": "{{emir.rows[0].code}}",
-                   "description": "{{emir.rows[0].productName}} · {{emir.rows[0].plannedQuantity}} · {{emir.rows[0].warehouseName}}",
-                   "closeInput": "detayPaneli", "width": 4,
-                   "visibleWhen": "detayPaneli.value == true && liste.seciliSatir.id != null" },
+      {
+        "id": "yeniDugmesi",
+        "type": "button",
+        "name": "yeniDugmesi",
+        "props": {
+          "text": "Yeni emir",
+          "actionType": "page",
+          "pageCode": "@manufacturing-order-create",
+          "target": "newTab",
+          "slot": "actions"
+        }
+      },
+      {
+        "id": "rotaDugmesi",
+        "type": "button",
+        "name": "rotaDugmesi",
+        "props": {
+          "text": "Rota",
+          "actionType": "openDialog",
+          "dialogId": "rotaPenceresi",
+          "visibleWhen": "liste.seciliSatir.id != null",
+          "slot": "actions"
+        }
+      },
+      {
+        "id": "bilesenDugmesi",
+        "type": "button",
+        "name": "bilesenDugmesi",
+        "props": {
+          "text": "Bileşenler",
+          "actionType": "openDialog",
+          "dialogId": "bilesenPenceresi",
+          "visibleWhen": "liste.seciliSatir.id != null",
+          "slot": "actions"
+        }
+      },
+      {
+        "id": "rotaPenceresi",
+        "type": "dialog",
+        "name": "rotaPenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "xl",
+          "title": "Rota · {{liste.seciliSatir.code}}",
+          "contains": [
+            "operasyonTablosu",
+            "rotaNotu"
+          ],
+          "slot": "dialogs"
+        }
+      },
+      {
+        "id": "bilesenPenceresi",
+        "type": "dialog",
+        "name": "bilesenPenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "lg",
+          "title": "Bileşenler · {{liste.seciliSatir.code}}",
+          "contains": [
+            "bilesenTablosu"
+          ],
+          "slot": "dialogs"
+        }
+      },
+      {
+        "id": "komutlar",
+        "type": "actionBar",
+        "name": "komutlar",
+        "props": {
+          "slot": "commands",
+          "newButton": "yeniDugmesi",
+          "focusInput": "suzgec",
+          "exportTable": "liste",
+          "titleCount": "{{emirler.meta.totalCount}}",
+          "moreButtons": [
+            "cizelgeleDugmesi",
+            "serbestBirakDugmesi",
+            "tamamlaDugmesi",
+            "iptalDugmesi",
+            "rotaDugmesi",
+            "bilesenDugmesi"
+          ],
+          "hiddenCommands": [
+            "save",
+            "delete",
+            "print"
+          ]
+        }
+      },
+      {
+        "id": "acikGostergesi",
+        "type": "metric",
+        "name": "acikGostergesi",
+        "props": {
+          "title": "Açık emir",
+          "value": "{{emirler.meta.openOrderCount}}",
+          "format": "number",
+          "width": 3,
+          "icon": "clock",
+          "description": "tüm kayıtlar · Planlandı + Serbest bırakıldı",
+          "slot": "indicators"
+        }
+      },
+      {
+        "id": "maliyetGostergesi",
+        "type": "metric",
+        "name": "maliyetGostergesi",
+        "props": {
+          "title": "Planlanan maliyet",
+          "value": "{{emirler.meta.openPlannedCostBase}}",
+          "format": "money",
+          "width": 3,
+          "icon": "wallet",
+          "description": "tüm kayıtlar · açık emirler · baz para",
+          "slot": "indicators"
+        }
+      },
+      {
+        "id": "cizelgesizGostergesi",
+        "type": "metric",
+        "name": "cizelgesizGostergesi",
+        "props": {
+          "title": "Çizelgelenmemiş",
+          "value": "{{emirler.meta.unscheduledOrderCount}}",
+          "format": "number",
+          "width": 3,
+          "icon": "alert",
+          "variant": "warning",
+          "description": "tüm kayıtlar · rotası takvimsiz",
+          "slot": "indicators"
+        }
+      },
+      {
+        "id": "tamamlananGostergesi",
+        "type": "metric",
+        "name": "tamamlananGostergesi",
+        "props": {
+          "title": "Tamamlanan",
+          "value": "{{emirler.meta.completedOrderCount}}",
+          "format": "number",
+          "width": 3,
+          "icon": "check",
+          "variant": "success",
+          "description": "tüm kayıtlar",
+          "filterInput": "durumSecimi",
+          "filterValue": "Completed",
+          "slot": "indicators"
+        }
+      },
+      {
+        "id": "suzgec",
+        "type": "filterBar",
+        "name": "suzgec",
+        "props": {
+          "table": "liste",
+          "search": true,
+          "searchPlaceholder": "Emir, reçete, depo veya sipariş ara",
+          "slot": "filters",
+          "searchParam": "q"
+        }
+      },
+      {
+        "id": "durumSecimi",
+        "type": "input",
+        "name": "durumSecimi",
+        "props": {
+          "inputType": "select",
+          "label": "Durum",
+          "staticOptions": [
+            "=Tümü",
+            "Planned=Planlandı",
+            "Released=Serbest bırakıldı",
+            "Completed=Tamamlandı",
+            "Cancelled=İptal edildi"
+          ],
+          "slot": "above"
+        }
+      },
+      {
+        "id": "liste",
+        "type": "dataTable",
+        "name": "liste",
+        "props": {
+          "title": "Üretim emirleri",
+          "query": "emirler",
+          "paging": "server",
+          "pageSize": 25,
+          "columns": [
+            "code",
+            "plannedDate",
+            "productName",
+            "billOfMaterialName",
+            "warehouseName",
+            "plannedQuantity",
+            "status"
+          ],
+          "columnLabels": [
+            "code=Üretim emri",
+            "plannedDate=Plan tarihi",
+            "billOfMaterialName=Reçete",
+            "productName=Mamul",
+            "warehouseName=Depo",
+            "plannedQuantity=Miktar",
+            "status=Durum"
+          ],
+          "columnFormats": [
+            "code=code",
+            "plannedDate=date",
+            "plannedQuantity=number",
+            "status=status"
+          ],
+          "valueLabels": [
+            "status:Planned=Planlandı",
+            "status:Released=Serbest bırakıldı",
+            "status:Completed=Tamamlandı",
+            "status:Cancelled=İptal edildi"
+          ],
+          "toneMap": [
+            "Planlandı=info",
+            "Serbest bırakıldı=warning",
+            "Tamamlandı=success"
+          ],
+          "emptyText": "Henüz üretim emri yok ya da süzgeçle eşleşen emir yok. Bir reçete oluşturduktan sonra ilk emri planlayabilirsiniz.",
+          "slot": "list"
+        }
+      },
+      {
+        "id": "cizelgeleDugmesi",
+        "type": "button",
+        "name": "cizelgeleDugmesi",
+        "props": {
+          "text": "Kapasiteye çizelgele",
+          "actionType": "query",
+          "queryId": "cizelgele",
+          "successMessage": "{{liste.seciliSatir.code}} için iş merkezi kapasitesi ayrıldı.",
+          "refreshQueries": [
+            "emirler",
+            "emir",
+            "operasyonlar"
+          ],
+          "visibleWhen": "liste.seciliSatir.canSchedule == true",
+          "slot": "actions"
+        }
+      },
+      {
+        "id": "serbestBirakDugmesi",
+        "type": "button",
+        "name": "serbestBirakDugmesi",
+        "props": {
+          "text": "Serbest bırak",
+          "actionType": "query",
+          "queryId": "serbestBirak",
+          "successMessage": "Üretim emri serbest bırakıldı.",
+          "refreshQueries": [
+            "emirler",
+            "emir",
+            "operasyonlar"
+          ],
+          "visibleWhen": "liste.seciliSatir.canRelease == true",
+          "slot": "actions"
+        }
+      },
+      {
+        "id": "tamamlaDugmesi",
+        "type": "button",
+        "name": "tamamlaDugmesi",
+        "props": {
+          "text": "Üretimi tamamla",
+          "actionType": "openDialog",
+          "dialogId": "tamamlaPenceresi",
+          "visibleWhen": "liste.seciliSatir.canComplete == true",
+          "slot": "actions"
+        }
+      },
+      {
+        "id": "iptalDugmesi",
+        "type": "button",
+        "name": "iptalDugmesi",
+        "props": {
+          "text": "İptal et",
+          "actionType": "query",
+          "queryId": "iptal",
+          "confirmEnabled": true,
+          "confirmText": "{{liste.seciliSatir.code}} üretim emri iptal edilsin mi? Başlamış operasyon varsa fiili kayıtları da etkiler; kapasite ayırmaları silinir ve işlem geri alınamaz.",
+          "successMessage": "Üretim emri iptal edildi.",
+          "refreshQueries": [
+            "emirler",
+            "emir",
+            "operasyonlar"
+          ],
+          "slot": "actions",
+          "visibleWhen": "liste.seciliSatir.canCancel == true"
+        }
+      },
+      {
+        "id": "detayKarti",
+        "type": "card",
+        "name": "detayKarti",
+        "props": {
+          "variant": "panel",
+          "title": "{{emir.rows[0].code}}",
+          "description": "{{emir.rows[0].productName}} · {{emir.rows[0].plannedQuantity}} · {{emir.rows[0].warehouseName}}",
+          "slot": "detail"
+        },
         "children": [
-          { "id": "rozetPlanlandi", "type": "badge", "name": "rozetPlanlandi",
-            "props": { "text": "Planlandı", "variant": "info", "visibleWhen": "emir.rows[0].status == 'Planned'" } },
-          { "id": "rozetSerbest", "type": "badge", "name": "rozetSerbest",
-            "props": { "text": "Serbest bırakıldı", "variant": "warning", "visibleWhen": "emir.rows[0].status == 'Released'" } },
-          { "id": "rozetTamamlandi", "type": "badge", "name": "rozetTamamlandi",
-            "props": { "text": "Tamamlandı", "variant": "success", "visibleWhen": "emir.rows[0].status == 'Completed'" } },
-          { "id": "rozetIptal", "type": "badge", "name": "rozetIptal",
-            "props": { "text": "İptal edildi", "variant": "info", "visibleWhen": "emir.rows[0].status == 'Cancelled'" } },
-          { "id": "siradakiCizelgele", "type": "button", "name": "siradakiCizelgele",
-            "props": { "text": "Sıradaki adım: Kapasiteye çizelgele", "actionType": "query", "queryId": "cizelgele",
-                       "successMessage": "{{emir.rows[0].code}} için iş merkezi kapasitesi ayrıldı.",
-                       "refreshQueries": ["emirler", "emir", "operasyonlar"], "visibleWhen": "emir.rows[0].canSchedule == true" } },
-          { "id": "siradakiSerbest", "type": "button", "name": "siradakiSerbest",
-            "props": { "text": "Sıradaki adım: Serbest bırak", "actionType": "query", "queryId": "serbestBirak",
-                       "successMessage": "Üretim emri serbest bırakıldı.",
-                       "refreshQueries": ["emirler", "emir", "operasyonlar"], "visibleWhen": "emir.rows[0].canRelease == true" } },
-          { "id": "siradakiTamamla", "type": "button", "name": "siradakiTamamla",
-            "props": { "text": "Sıradaki adım: Üretimi bildir", "actionType": "openDialog", "dialogId": "tamamlaPenceresi",
-                       "visibleWhen": "emir.rows[0].canComplete == true" } },
-          { "id": "detaySekmeleri", "type": "tabs", "name": "detaySekmeleri",
-            "props": { "tabs": ["Özet=ozetPaneli,tutarNotu", "Rota {{operasyonlar.satirSayisi}}=operasyonTablosu,rotaNotu",
-                                "Bileşenler {{bilesenler.satirSayisi}}=bilesenTablosu"] } }
-        ] },
-      { "id": "ozetPaneli", "type": "contextPanel", "name": "ozetPaneli",
-        "props": { "table": "liste", "width": 12,
-                   "fields": ["plannedQuantity=Planlanan miktar", "actualGoodQuantity=İyi ürün", "scrapQuantity=Fire", "scrapReason=Fire nedeni",
-                              "plannedMaterialCostBase=Planlanan malzeme", "plannedOperationCostBase=Planlanan operasyon",
-                              "plannedCostBase=Planlanan maliyet", "actualOperationCostBase=Fiili işlem maliyeti", "plannedDate=Plan tarihi",
-                              "warehouseName=Depo", "sourceText=Üretim türü", "completedAt=Tamamlanma"] } },
-      { "id": "tutarNotu", "type": "text", "name": "tutarNotu",
-        "props": { "text": "Tutarlar firma baz para birimindedir." } },
-      { "id": "operasyonTablosu", "type": "dataTable", "name": "operasyonTablosu",
-        "props": { "title": "Rota", "query": "operasyonlar", "width": 12,
-                   "showGridSearch": false, "showColumnFilters": false, "showColumnChooser": false, "showExport": false, "showPivot": false,
-                   "showCsv": false, "showSelectedExport": false,
-                   "columns": ["sequence", "workCenterCode", "status", "setupMinutes", "runMinutes", "scheduledStartDate", "actualSetupMinutes",
-                               "actualRunMinutes", "performedByEmployeeName"],
-                   "columnLabels": ["sequence=Sıra", "workCenterCode=İş merkezi", "status=Durum", "setupMinutes=Kurulum dk", "runMinutes=Çalışma dk",
-                                    "scheduledStartDate=Başlangıç", "actualSetupMinutes=Fiili kurulum", "actualRunMinutes=Fiili çalışma",
-                                    "performedByEmployeeName=Operatör"],
-                   "columnFormats": ["workCenterCode=code", "status=status", "setupMinutes=number", "runMinutes=number", "scheduledStartDate=date",
-                                     "actualSetupMinutes=number", "actualRunMinutes=number"],
-                   "columnUnits": ["workCenterCode=workCenterName"],
-                   "valueLabels": ["status:Planned=Bekliyor", "status:InProgress=Devam ediyor", "status:Completed=Tamamlandı"],
-                   "toneMap": ["Devam ediyor=warning", "Tamamlandı=success"],
-                   "rowActions": ["opBaslatDugmesi", "opTamamlaDugmesi"],
-                   "emptyText": "Operasyon rotası tanımlı değil." } },
-      { "id": "rotaNotu", "type": "text", "name": "rotaNotu",
-        "props": { "text": "Operasyonlar sırayla, serbest bırakılmış emirde ve planlanan başlangıç gününden itibaren başlatılır." } },
-      { "id": "bilesenTablosu", "type": "dataTable", "name": "bilesenTablosu",
-        "props": { "title": "Bileşenler", "query": "bilesenler", "width": 12,
-                   "showGridSearch": false, "showColumnFilters": false, "showColumnChooser": false, "showExport": false, "showPivot": false,
-                   "showCsv": false, "showSelectedExport": false,
-                   "columns": ["componentCode", "componentName", "requiredQuantity", "standardUnitCostBaseSnapshot", "plannedCostBase"],
-                   "columnLabels": ["componentCode=Kod", "componentName=Bileşen", "requiredQuantity=Gereken", "standardUnitCostBaseSnapshot=Birim maliyet",
-                                    "plannedCostBase=Planlanan malzeme"],
-                   "columnFormats": ["componentCode=code", "requiredQuantity=number", "standardUnitCostBaseSnapshot=money", "plannedCostBase=money"],
-                   "totals": ["plannedCostBase"],
-                   "emptyText": "Bu emirde bileşen satırı yok." } },
-      { "id": "opBaslatDugmesi", "type": "button", "name": "opBaslatDugmesi",
-        "props": { "text": "Başlat", "actionType": "query", "queryId": "opBaslat", "successMessage": "Operasyon başlatıldı.",
-                   "refreshQueries": ["emirler", "emir", "operasyonlar"],
-                   "visibleWhen": "operasyonTablosu.seciliSatir.status == 'Planned'",
-                   "disabledWhen": "emir.rows[0].status != 'Released'",
-                   "disabledReason": "Operasyon yalnız serbest bırakılmış emirde başlatılabilir." } },
-      { "id": "opTamamlaDugmesi", "type": "button", "name": "opTamamlaDugmesi",
-        "props": { "text": "Tamamla", "actionType": "openDialog", "dialogId": "opTamamlaPenceresi",
-                   "visibleWhen": "operasyonTablosu.seciliSatir.status == 'InProgress'",
-                   "disabledWhen": "emir.rows[0].status != 'Released'",
-                   "disabledReason": "Operasyon yalnız serbest bırakılmış emirde tamamlanabilir." } },
-
-      { "id": "opTamamlaPenceresi", "type": "dialog", "name": "opTamamlaPenceresi",
-        "props": { "presentation": "dialog", "size": "md",
-                   "title": "Operasyonu tamamla · {{operasyonTablosu.seciliSatir.sequence}} · {{operasyonTablosu.seciliSatir.workCenterName}}",
-                   "contains": ["opTamamlaFormu"], "saveQuery": "opTamamla", "saveLabel": "Fiili kayıtları kaydet", "closeOnSave": true,
-                   "resetOnOpen": true, "refreshQueries": ["emirler", "emir", "operasyonlar"] } },
-      { "id": "opTamamlaFormu", "type": "formCard", "name": "opTamamlaFormu",
-        "props": { "title": "Fiili kayıt", "columns": 2, "inputs": ["kurulumDk", "calismaDk", "enerjiKwh", "enerjiBedeli", "operator"] } },
-      { "id": "kurulumDk", "type": "input", "name": "kurulumDk",
-        "props": { "inputType": "number", "label": "Kurulum dk", "required": true, "min": 0, "step": 0.01,
-                   "defaultValue": "{{operasyonTablosu.seciliSatir.setupMinutes}}" } },
-      { "id": "calismaDk", "type": "input", "name": "calismaDk",
-        "props": { "inputType": "number", "label": "Çalışma dk", "required": true, "min": 0, "step": 0.01,
-                   "defaultValue": "{{operasyonTablosu.seciliSatir.runMinutes}}" } },
-      { "id": "enerjiKwh", "type": "input", "name": "enerjiKwh",
-        "props": { "inputType": "number", "label": "Enerji kWh", "min": 0, "step": 0.001,
-                   "defaultValue": "{{operasyonTablosu.seciliSatir.plannedEnergyQuantityKwh}}" } },
-      { "id": "enerjiBedeli", "type": "input", "name": "enerjiBedeli",
-        "props": { "inputType": "number", "label": "Baz para/kWh", "min": 0, "step": 0.000001,
-                   "defaultValue": "{{operasyonTablosu.seciliSatir.plannedEnergyCostPerKwhBase}}" } },
-      { "id": "operator", "type": "input", "name": "operator",
-        "props": { "inputType": "lookup", "label": "Operatör", "required": true, "optionsQuery": "operatorler", "optionValueColumn": "id",
-                   "optionLabelColumn": "fullName", "optionDescriptionColumn": "code", "minChars": 0, "placeholder": "Operatör / personel seçin" } },
-
-      { "id": "tamamlaPenceresi", "type": "dialog", "name": "tamamlaPenceresi",
-        "props": { "presentation": "dialog", "size": "lg", "title": "Üretimi bildir · {{emir.rows[0].code}}",
-                   "contains": ["tamamlaBilgisi", "tamamlaFormu", "tamamlaDurumu", "takip", "tamamlaUyarisi"],
-                   "saveQuery": "tamamla", "saveLabel": "Bildir ve Tamamla", "closeOnSave": true, "resetOnOpen": true,
-                   "refreshQueries": ["emirler", "emir", "operasyonlar", "bilesenler"] } },
-      { "id": "tamamlaBilgisi", "type": "text", "name": "tamamlaBilgisi",
-        "props": { "text": "{{emir.rows[0].productName}} · {{emir.rows[0].warehouseName}}" } },
-      { "id": "tamamlaFormu", "type": "formCard", "name": "tamamlaFormu",
-        "props": { "title": "Bildirilen miktarlar", "columns": 3, "inputs": ["iyiMiktar", "fireMiktar", "fireNedeni"] } },
-      { "id": "iyiMiktar", "type": "input", "name": "iyiMiktar",
-        "props": { "inputType": "number", "label": "İyi ürün miktarı", "required": true, "min": 0, "step": 0.0001,
-                   "defaultValue": "{{emir.rows[0].plannedQuantity}}" } },
-      { "id": "fireMiktar", "type": "input", "name": "fireMiktar",
-        "props": { "inputType": "number", "label": "Fire miktarı", "required": true, "min": 0, "step": 0.0001, "defaultValue": "0" } },
-      { "id": "fireNedeni", "type": "input", "name": "fireNedeni",
-        "props": { "inputType": "text", "label": "Fire nedeni", "maxLength": 500, "requiredWhen": "fireMiktar.value > 0",
-                   "placeholder": "Fire varsa zorunlu" } },
-      { "id": "tamamlaDurumu", "type": "text", "name": "tamamlaDurumu",
-        "props": { "text": "Planlanan {{emir.rows[0].plannedQuantity}} · Bildirilen {{iyiMiktar.value}} + {{fireMiktar.value}} (iyi + fire planlanan miktara eşit olmalıdır)" } },
-      { "id": "takip", "type": "editableGrid", "name": "takip",
-        "props": { "gridMode": "list", "title": "Lot / seri numaraları", "addLabel": "Satır ekle", "maxRows": 200,
-                   "gridColumns": ["trackingCode|Lot / seri numarası|text|required,unique,maxLength:100",
-                                   "quantity|Miktar|number|required,min:0.0001,step:0.0001",
-                                   "expiryDate|Son kullanma tarihi|date"],
-                   "visibleWhen": "emir.rows[0].productTrackingMode == 'Lot' || emir.rows[0].productTrackingMode == 'Serial'" } },
-      { "id": "tamamlaUyarisi", "type": "alert", "name": "tamamlaUyarisi",
-        "props": { "title": "Stok hareketi", "variant": "info", "width": 12,
-                   "text": "Bileşenler {{emir.rows[0].warehouseName}} deposundan, son kullanma tarihi en yakın lottan başlanarak (FEFO) otomatik düşülür. Hareket tarihi bugündür; muhasebe fişi yazılmaz. Tamamlanan üretim geri alınamaz. Lotlu mamulde tek satır (SKT zorunlu), serili mamulde her seri için bir satır (miktar 1) girin." } }
+          {
+            "id": "ozetPaneli",
+            "type": "contextPanel",
+            "name": "ozetPaneli",
+            "props": {
+              "table": "liste",
+              "visibleWhen": "liste.seciliSatir.id != null",
+              "fields": [
+                "status=Durum",
+                "billOfMaterialName=Reçete",
+                "sourceText=Kaynak",
+                "componentCodes=Bileşen kodları",
+                "routeSummary=Rota",
+                "plannedCostBase=Planlanan maliyet"
+              ]
+            }
+          },
+          {
+            "id": "tutarNotu",
+            "type": "text",
+            "name": "tutarNotu",
+            "props": {
+              "text": "Rota ve bileşen ayrıntıları ilgili pencerelerde açılır."
+            }
+          }
+        ]
+      },
+      {
+        "id": "opTamamlaPenceresi",
+        "type": "dialog",
+        "name": "opTamamlaPenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "md",
+          "title": "Operasyonu tamamla · {{operasyonTablosu.seciliSatir.sequence}} · {{operasyonTablosu.seciliSatir.workCenterName}}",
+          "contains": [
+            "opTamamlaFormu"
+          ],
+          "saveQuery": "opTamamla",
+          "saveLabel": "Fiili kayıtları kaydet",
+          "closeOnSave": true,
+          "resetOnOpen": true,
+          "refreshQueries": [
+            "emirler",
+            "emir",
+            "operasyonlar"
+          ],
+          "slot": "dialogs"
+        }
+      },
+      {
+        "id": "tamamlaPenceresi",
+        "type": "dialog",
+        "name": "tamamlaPenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "lg",
+          "title": "Üretimi bildir · {{emir.rows[0].code}}",
+          "contains": [
+            "tamamlaBilgisi",
+            "tamamlaFormu",
+            "tamamlaDurumu",
+            "takip",
+            "tamamlaUyarisi"
+          ],
+          "saveQuery": "tamamla",
+          "saveLabel": "Bildir ve Tamamla",
+          "closeOnSave": true,
+          "resetOnOpen": true,
+          "refreshQueries": [
+            "emirler",
+            "emir",
+            "operasyonlar",
+            "bilesenler"
+          ],
+          "slot": "dialogs"
+        }
+      },
+      {
+        "id": "opTamamlaFormu",
+        "type": "formCard",
+        "name": "opTamamlaFormu",
+        "props": {
+          "title": "Fiili kayıt",
+          "columns": 2,
+          "inputs": [
+            "kurulumDk",
+            "calismaDk",
+            "enerjiKwh",
+            "enerjiBedeli",
+            "operator"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "kurulumDk",
+        "type": "input",
+        "name": "kurulumDk",
+        "props": {
+          "inputType": "number",
+          "label": "Kurulum dk",
+          "required": true,
+          "min": 0,
+          "step": 0.01,
+          "defaultValue": "{{operasyonTablosu.seciliSatir.setupMinutes}}",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "calismaDk",
+        "type": "input",
+        "name": "calismaDk",
+        "props": {
+          "inputType": "number",
+          "label": "Çalışma dk",
+          "required": true,
+          "min": 0,
+          "step": 0.01,
+          "defaultValue": "{{operasyonTablosu.seciliSatir.runMinutes}}",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "enerjiKwh",
+        "type": "input",
+        "name": "enerjiKwh",
+        "props": {
+          "inputType": "number",
+          "label": "Enerji kWh",
+          "min": 0,
+          "step": 0.001,
+          "defaultValue": "{{operasyonTablosu.seciliSatir.plannedEnergyQuantityKwh}}",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "enerjiBedeli",
+        "type": "input",
+        "name": "enerjiBedeli",
+        "props": {
+          "inputType": "number",
+          "label": "Baz para/kWh",
+          "min": 0,
+          "step": 1e-06,
+          "defaultValue": "{{operasyonTablosu.seciliSatir.plannedEnergyCostPerKwhBase}}",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "operator",
+        "type": "input",
+        "name": "operator",
+        "props": {
+          "inputType": "lookup",
+          "label": "Operatör",
+          "required": true,
+          "optionsQuery": "operatorler",
+          "optionValueColumn": "id",
+          "optionLabelColumn": "fullName",
+          "optionDescriptionColumn": "code",
+          "minChars": 0,
+          "placeholder": "Operatör / personel seçin",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "tamamlaBilgisi",
+        "type": "text",
+        "name": "tamamlaBilgisi",
+        "props": {
+          "text": "{{emir.rows[0].productName}} · {{emir.rows[0].warehouseName}}",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "tamamlaFormu",
+        "type": "formCard",
+        "name": "tamamlaFormu",
+        "props": {
+          "title": "Bildirilen miktarlar",
+          "columns": 3,
+          "inputs": [
+            "iyiMiktar",
+            "fireMiktar",
+            "fireNedeni"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "iyiMiktar",
+        "type": "input",
+        "name": "iyiMiktar",
+        "props": {
+          "inputType": "number",
+          "label": "İyi ürün miktarı",
+          "required": true,
+          "min": 0,
+          "step": 0.0001,
+          "defaultValue": "{{emir.rows[0].plannedQuantity}}",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "fireMiktar",
+        "type": "input",
+        "name": "fireMiktar",
+        "props": {
+          "inputType": "number",
+          "label": "Fire miktarı",
+          "required": true,
+          "min": 0,
+          "step": 0.0001,
+          "defaultValue": "0",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "fireNedeni",
+        "type": "input",
+        "name": "fireNedeni",
+        "props": {
+          "inputType": "text",
+          "label": "Fire nedeni",
+          "maxLength": 500,
+          "requiredWhen": "fireMiktar.value > 0",
+          "placeholder": "Fire varsa zorunlu",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "tamamlaDurumu",
+        "type": "text",
+        "name": "tamamlaDurumu",
+        "props": {
+          "text": "Planlanan {{emir.rows[0].plannedQuantity}} · Bildirilen {{iyiMiktar.value}} + {{fireMiktar.value}} (iyi + fire planlanan miktara eşit olmalıdır)",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "takip",
+        "type": "editableGrid",
+        "name": "takip",
+        "props": {
+          "gridMode": "list",
+          "title": "Lot / seri satırları",
+          "addLabel": "Satır ekle",
+          "maxRows": 200,
+          "gridColumns": [
+            "trackingCode|Lot / seri numarası|text|required,unique,maxLength:100",
+            "quantity|Miktar|number|required,min:0.0001,step:0.0001",
+            "expiryDate|Son kullanma tarihi|date"
+          ],
+          "slot": "dialog",
+          "visibleWhen": "emir.rows[0].productTrackingMode == 'Lot' || emir.rows[0].productTrackingMode == 'Serial'"
+        }
+      },
+      {
+        "id": "tamamlaUyarisi",
+        "type": "alert",
+        "name": "tamamlaUyarisi",
+        "props": {
+          "title": "Stok hareketi",
+          "variant": "info",
+          "width": 12,
+          "text": "Bileşenler {{emir.rows[0].warehouseName}} deposundan, son kullanma tarihi en yakın lottan başlanarak (FEFO) otomatik düşülür. Hareket tarihi bugündür; muhasebe fişi yazılmaz. Tamamlanan üretim geri alınamaz. Lotlu mamulde tek satır (SKT zorunlu), serili mamulde her seri için bir satır (miktar 1) girin.",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "operasyonTablosu",
+        "type": "dataTable",
+        "name": "operasyonTablosu",
+        "props": {
+          "title": "Rota",
+          "query": "operasyonlar",
+          "width": 12,
+          "showGridSearch": false,
+          "showColumnFilters": false,
+          "showColumnChooser": false,
+          "showExport": false,
+          "showPivot": false,
+          "showCsv": false,
+          "showSelectedExport": false,
+          "columns": [
+            "sequence",
+            "workCenterCode",
+            "status",
+            "setupMinutes",
+            "runMinutes",
+            "actualSetupMinutes",
+            "actualRunMinutes",
+            "scheduledStartDate",
+            "performedByEmployeeName"
+          ],
+          "columnLabels": [
+            "sequence=Sıra",
+            "workCenterCode=İş merkezi",
+            "status=Durum",
+            "setupMinutes=Kurulum dk",
+            "runMinutes=Çalışma dk",
+            "scheduledStartDate=Başlangıç",
+            "actualSetupMinutes=Fiili kurulum",
+            "actualRunMinutes=Fiili çalışma",
+            "performedByEmployeeName=Operatör"
+          ],
+          "columnFormats": [
+            "workCenterCode=code",
+            "status=status",
+            "setupMinutes=number",
+            "runMinutes=number",
+            "scheduledStartDate=date",
+            "actualSetupMinutes=number",
+            "actualRunMinutes=number"
+          ],
+          "columnUnits": [
+            "workCenterCode=workCenterName"
+          ],
+          "valueLabels": [
+            "status:Planned=Bekliyor",
+            "status:InProgress=Devam ediyor",
+            "status:Completed=Tamamlandı"
+          ],
+          "toneMap": [
+            "Devam ediyor=warning",
+            "Tamamlandı=success"
+          ],
+          "rowActions": [
+            "opBaslatDugmesi",
+            "opTamamlaDugmesi"
+          ],
+          "emptyText": "Operasyon rotası tanımlı değil.",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "rotaNotu",
+        "type": "text",
+        "name": "rotaNotu",
+        "props": {
+          "text": "Operasyonlar sırayla, serbest bırakılmış emirde ve planlanan başlangıç gününden itibaren başlatılır.",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "bilesenTablosu",
+        "type": "dataTable",
+        "name": "bilesenTablosu",
+        "props": {
+          "title": "Bileşenler",
+          "query": "bilesenler",
+          "showGridSearch": false,
+          "showColumnFilters": false,
+          "showColumnChooser": false,
+          "showExport": false,
+          "showPivot": false,
+          "showCsv": false,
+          "showSelectedExport": false,
+          "columns": [
+            "componentCode",
+            "componentName",
+            "requiredQuantity",
+            "standardUnitCostBaseSnapshot",
+            "plannedCostBase"
+          ],
+          "columnLabels": [
+            "componentCode=Kod",
+            "componentName=Bileşen",
+            "requiredQuantity=Gereken",
+            "standardUnitCostBaseSnapshot=Birim maliyet",
+            "plannedCostBase=Planlanan malzeme"
+          ],
+          "columnFormats": [
+            "componentCode=code",
+            "requiredQuantity=number",
+            "standardUnitCostBaseSnapshot=money",
+            "plannedCostBase=money"
+          ],
+          "totals": [
+            "plannedCostBase"
+          ],
+          "emptyText": "Bu emirde bileşen satırı yok.",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "opBaslatDugmesi",
+        "type": "button",
+        "name": "opBaslatDugmesi",
+        "props": {
+          "text": "Başlat",
+          "actionType": "query",
+          "queryId": "opBaslat",
+          "successMessage": "Operasyon başlatıldı.",
+          "refreshQueries": [
+            "emirler",
+            "emir",
+            "operasyonlar"
+          ],
+          "visibleWhen": "operasyonTablosu.seciliSatir.status == 'Planned'",
+          "disabledWhen": "emir.rows[0].status != 'Released'",
+          "disabledReason": "Operasyon yalnız serbest bırakılmış emirde başlatılabilir.",
+          "slot": "rowActions"
+        }
+      },
+      {
+        "id": "opTamamlaDugmesi",
+        "type": "button",
+        "name": "opTamamlaDugmesi",
+        "props": {
+          "text": "Tamamla",
+          "actionType": "openDialog",
+          "dialogId": "opTamamlaPenceresi",
+          "visibleWhen": "operasyonTablosu.seciliSatir.status == 'InProgress'",
+          "disabledWhen": "emir.rows[0].status != 'Released'",
+          "disabledReason": "Operasyon yalnız serbest bırakılmış emirde tamamlanabilir.",
+          "slot": "rowActions"
+        }
+      }
     ],
     "queries": [
-      { "id": "emirler", "name": "emirler", "kind": "read", "operation": "uretim.emir.listele", "runOn": "load",
+      {
+        "id": "emirler",
+        "name": "emirler",
+        "kind": "read",
+        "operation": "uretim.emir.listele",
+        "runOn": "load",
         "parameters": [
-          { "name": "q", "binding": "{{suzgec.q}}", "type": "text" },
-          { "name": "status", "binding": "{{durumSecimi.value}}", "type": "text" },
-          { "name": "page", "binding": "{{liste.sayfa}}", "type": "int" },
-          { "name": "pageSize", "binding": "{{liste.sayfaBoyutu}}", "type": "int" } ] },
-      { "id": "emir", "name": "emir", "kind": "read", "operation": "uretim.emir.getir", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" } ] },
-      { "id": "operasyonlar", "name": "operasyonlar", "kind": "read", "operation": "uretim.emir.operasyonlari", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" } ] },
-      { "id": "bilesenler", "name": "bilesenler", "kind": "read", "operation": "uretim.emir.bilesenleri", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" } ] },
-      { "id": "operatorler", "name": "operatorler", "kind": "read", "operation": "uretim.operatorler", "runOn": "load", "parameters": [] },
-      { "id": "cizelgele", "name": "cizelgele", "kind": "update", "operation": "uretim.emir.cizelgele", "runOn": "manual",
-        "parameters": [ { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" } ] },
-      { "id": "serbestBirak", "name": "serbestBirak", "kind": "update", "operation": "uretim.emir.serbestBirak", "runOn": "manual",
-        "parameters": [ { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" } ] },
-      { "id": "opBaslat", "name": "opBaslat", "kind": "update", "operation": "uretim.emir.operasyonBaslat", "runOn": "manual",
+          {
+            "name": "q",
+            "binding": "{{suzgec.q}}",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "binding": "{{durumSecimi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "page",
+            "binding": "{{liste.sayfa}}",
+            "type": "int"
+          },
+          {
+            "name": "pageSize",
+            "binding": "{{liste.sayfaBoyutu}}",
+            "type": "int"
+          }
+        ]
+      },
+      {
+        "id": "emir",
+        "name": "emir",
+        "kind": "read",
+        "operation": "uretim.emir.getir",
+        "runOn": "load",
         "parameters": [
-          { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" },
-          { "name": "operationId", "binding": "{{operasyonTablosu.seciliSatir.id}}", "type": "guid" } ] },
-      { "id": "opTamamla", "name": "opTamamla", "kind": "update", "operation": "uretim.emir.operasyonTamamla", "runOn": "manual",
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "operasyonlar",
+        "name": "operasyonlar",
+        "kind": "read",
+        "operation": "uretim.emir.operasyonlari",
+        "runOn": "load",
         "parameters": [
-          { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" },
-          { "name": "operationId", "binding": "{{operasyonTablosu.seciliSatir.id}}", "type": "guid" },
-          { "name": "actualSetupMinutes", "binding": "{{kurulumDk.value}}", "type": "decimal" },
-          { "name": "actualRunMinutes", "binding": "{{calismaDk.value}}", "type": "decimal" },
-          { "name": "actualEnergyQuantityKwh", "binding": "{{enerjiKwh.value}}", "type": "decimal" },
-          { "name": "actualEnergyCostPerKwhBase", "binding": "{{enerjiBedeli.value}}", "type": "decimal" },
-          { "name": "performedByEmployeeId", "binding": "{{operator.value}}", "type": "guid" } ] },
-      { "id": "tamamla", "name": "tamamla", "kind": "update", "operation": "uretim.emir.tamamla", "runOn": "manual",
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "bilesenler",
+        "name": "bilesenler",
+        "kind": "read",
+        "operation": "uretim.emir.bilesenleri",
+        "runOn": "load",
         "parameters": [
-          { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" },
-          { "name": "actualGoodQuantity", "binding": "{{iyiMiktar.value}}", "type": "decimal" },
-          { "name": "scrapQuantity", "binding": "{{fireMiktar.value}}", "type": "decimal" },
-          { "name": "scrapReason", "binding": "{{fireNedeni.value}}", "type": "text" },
-          { "name": "finishedGoodsTracking", "binding": "{{takip.satirlar}}", "type": "list" } ] },
-      { "id": "iptal", "name": "iptal", "kind": "update", "operation": "uretim.emir.iptal", "runOn": "manual",
-        "parameters": [ { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" } ] }
-    ]
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "operatorler",
+        "name": "operatorler",
+        "kind": "read",
+        "operation": "uretim.operatorler",
+        "runOn": "load",
+        "parameters": []
+      },
+      {
+        "id": "cizelgele",
+        "name": "cizelgele",
+        "kind": "update",
+        "operation": "uretim.emir.cizelgele",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "serbestBirak",
+        "name": "serbestBirak",
+        "kind": "update",
+        "operation": "uretim.emir.serbestBirak",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "opBaslat",
+        "name": "opBaslat",
+        "kind": "update",
+        "operation": "uretim.emir.operasyonBaslat",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          },
+          {
+            "name": "operationId",
+            "binding": "{{operasyonTablosu.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "opTamamla",
+        "name": "opTamamla",
+        "kind": "update",
+        "operation": "uretim.emir.operasyonTamamla",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          },
+          {
+            "name": "operationId",
+            "binding": "{{operasyonTablosu.seciliSatir.id}}",
+            "type": "guid"
+          },
+          {
+            "name": "actualSetupMinutes",
+            "binding": "{{kurulumDk.value}}",
+            "type": "decimal"
+          },
+          {
+            "name": "actualRunMinutes",
+            "binding": "{{calismaDk.value}}",
+            "type": "decimal"
+          },
+          {
+            "name": "actualEnergyQuantityKwh",
+            "binding": "{{enerjiKwh.value}}",
+            "type": "decimal"
+          },
+          {
+            "name": "actualEnergyCostPerKwhBase",
+            "binding": "{{enerjiBedeli.value}}",
+            "type": "decimal"
+          },
+          {
+            "name": "performedByEmployeeId",
+            "binding": "{{operator.value}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "tamamla",
+        "name": "tamamla",
+        "kind": "update",
+        "operation": "uretim.emir.tamamla",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          },
+          {
+            "name": "actualGoodQuantity",
+            "binding": "{{iyiMiktar.value}}",
+            "type": "decimal"
+          },
+          {
+            "name": "scrapQuantity",
+            "binding": "{{fireMiktar.value}}",
+            "type": "decimal"
+          },
+          {
+            "name": "scrapReason",
+            "binding": "{{fireNedeni.value}}",
+            "type": "text"
+          },
+          {
+            "name": "finishedGoodsTracking",
+            "binding": "{{takip.satirlar}}",
+            "type": "list"
+          }
+        ]
+      },
+      {
+        "id": "iptal",
+        "name": "iptal",
+        "kind": "update",
+        "operation": "uretim.emir.iptal",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      }
+    ],
+    "template": {
+      "name": "list"
+    }
   }
 }
