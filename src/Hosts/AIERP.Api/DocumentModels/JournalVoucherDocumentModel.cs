@@ -37,7 +37,7 @@ internal static class JournalVoucherDocumentModel
         ],
         [new DocumentStateView(Posted, "Kaydedildi", false)],
         [],
-        "finans.fis.belge", null, null, new Dictionary<string, IReadOnlyList<string>>(), "finans.fis.olustur", null);
+        "finans.fis.belge", "", "", new Dictionary<string, IReadOnlyList<string>>(), "finans.fis.olustur", "");
 
     /// <summary>The Studio canvas' sample voucher: fixed values, nothing read or written.</summary>
     internal static JournalVoucherDocumentView Sample()

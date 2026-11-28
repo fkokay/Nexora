@@ -434,6 +434,12 @@ function LegacyPageRouter({
   if (page === "sales-quote-document")
     return <LegacyDocumentCard onNavigate={onNavigate} documentKey="sales-quote-document" noun="Teklif"
       openKey="sales-quote-create" openParam="quoteId" createKey="sales-quote-create" />;
+  if (page === "sales-delivery-document")
+    return <LegacyDocumentCard onNavigate={onNavigate} documentKey="sales-delivery-document" noun="İrsaliye"
+      openKey="sales-deliveries" openParam="belgeIrsaliyeId" createKey="sales-delivery-create" />;
+  if (page === "sales-invoice-document")
+    return <LegacyDocumentCard onNavigate={onNavigate} documentKey="sales-invoice-document" noun="Fatura"
+      openKey="sales-invoices" openParam="belgeFaturaId" createKey="sales-invoice-create" />;
   if (page === "sales-invoice-create")
     return <SalesInvoicesPage {...salesPageProps} openInvoiceCreate />;
   if (page === "sales-invoices")
@@ -510,6 +516,7 @@ function LegacyPageRouter({
     page === "finance-ledger-chart" ||
     page === "finance-ledger-mappings" ||
     page === "finance-journal-vouchers" ||
+    page === "finance-journal-voucher-document" ||
     page === "finance-trial-balance" ||
     page === "finance-balance-sheet" ||
     page === "finance-journal-ledger" ||

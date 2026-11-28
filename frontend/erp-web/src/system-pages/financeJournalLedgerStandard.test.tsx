@@ -19,7 +19,7 @@ vi.mock('../erpApi', () => ({ api }));
 
 type Definition = { schemaVersion: number; components: { id: string; type: string; props?: Record<string, unknown> }[]; queries: { id: string; operation: string }[] };
 const KEY = 'finance-journal-ledger';
-const standard = JSON.parse(readFileSync(resolve(process.cwd(), `../../src/Hosts/AIERP.Api/SystemPages/Standards/${KEY}.json`), 'utf8')) as { title: string; definition: Definition };
+const standard = JSON.parse(readFileSync(resolve(process.cwd(), `../../src/Hosts/AIERP.Api/SystemPages/Standards/${KEY}.json`), 'utf8')) as { title: string; version: number; definition: Definition };
 
 const J1 = '99999999-0000-0000-0000-000000000001';
 const J2 = '99999999-0000-0000-0000-000000000002';
@@ -40,6 +40,7 @@ const entries = () => [
 
 type Call = { url: string; method: string; body?: string };
 let calls: Call[] = [];
+let selectedCode = '';
 let navigations: WorkspaceOpenRequest[] = [];
 const onNavigate = (event: Event) => { navigations.push((event as CustomEvent<WorkspaceOpenRequest>).detail); };
 
@@ -66,7 +67,7 @@ function setup(role = 'TenantAdmin') {
   api.mockImplementation(async (endpoint: string, _token: string, init?: RequestInit) => {
     if (endpoint === `/api/system-pages/${KEY}/published`) {
       return { id: 'sp', code: `@${KEY}`, name: standard.title, description: null, revision: 1, forms: [], rights: { view: true, insert: true, update: true, delete: true },
-        screenKey: KEY, source: 'standard', standardVersion: 1, definitionJson: JSON.stringify(standard.definition) };
+        screenKey: KEY, source: 'standard', standardVersion: standard.version, definitionJson: JSON.stringify(standard.definition) };
     }
     if (endpoint === '/api/custom-pages/erp-operations') return catalog;
     const method = init?.method ?? 'GET';
@@ -83,17 +84,16 @@ function setup(role = 'TenantAdmin') {
 }
 
 const T = { timeout: 10000 };
-const command = (id: string) => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>(`[data-command="${id}"]`)!;
+const selectedRow = () => screen.getAllByRole('row').find((row) => row.querySelector('td') && row.textContent?.includes(selectedCode))!;
+const command = (id: string) => id === 'new' || id === 'more' ? screen.getByRole('toolbar', { name: '\u0130\u015flemler' }).querySelector<HTMLElement>(`[data-command="${id}"]`)! : within(selectedRow()).getByRole('button', { name: id === 'open' ? 'A\u00e7' : id });
 const ready = (id: string) => waitFor(() => expect(command(id).getAttribute('aria-disabled')).not.toBe('true'), T);
 const gets = (path: string) => calls.filter((call) => call.method === 'GET' && call.url.split('?')[0] === path);
 const writes = () => calls.filter((call) => call.method !== 'GET');
 const query = (url: string) => new URLSearchParams(url.split('?')[1] ?? '');
-const menuItem = async (name: RegExp) => {
-  fireEvent.click(command('more'));
-  return screen.findByRole('menuitem', { name }, T);
-};
+const menuItem = async (name: RegExp) => within(selectedRow()).findByRole('button', { name }, T);
 const closeMenu = () => fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
 const select = async (code: string, id: string) => {
+  selectedCode = code;
   fireEvent.click(await screen.findByText(code, { selector: '.tenant-page-data-grid td, .tenant-page-data-grid td *' }, T));
   await waitFor(() => expect(gets(`${ENTRIES}/${id}`).length).toBeGreaterThan(0), T);
 };
@@ -109,7 +109,7 @@ const reverse = async (reason: string) => {
 };
 
 beforeEach(() => {
-  calls = []; navigations = []; api.mockReset(); localStorage.clear();
+  calls = []; selectedCode = ''; navigations = []; api.mockReset(); localStorage.clear();
   window.addEventListener(OPEN_PAGE_EVENT, onNavigate);
 });
 afterEach(() => {
@@ -135,18 +135,16 @@ describe('Yevmiye Defterleri standart tanımı', { timeout: 30000 }, () => {
     await waitFor(() => expect(document.querySelector('.list-v2-title')?.textContent ?? '').toContain('3'), T);
     fireEvent.click(command('new'));
     await waitFor(() => expect(navigations).toHaveLength(1), T);
-    expect(navigations[0]).toMatchObject({ page: 'finance-journal-vouchers' });
+    expect(navigations[0]).toMatchObject({ page: 'finance-journal-voucher-document' });
   });
 
-  it('Aç opens the voucher dialog with its lines', async () => {
+  it('A opens the read-only voucher Belge screen', async () => {
     setup();
     await select('YF-0001', J1);
     await ready('open');
     fireEvent.click(command('open'));
-    const dialog = await screen.findByRole('dialog', { name: /YF-0001 · Manuel fiş/ }, T);
-    await within(dialog).findByText('Genel yönetim giderleri', {}, T);
-    expect(dialog.textContent).toContain('Satıcılar');
-    expect(dialog.textContent).toContain('Kira tahakkuku');
+    await waitFor(() => expect(navigations).toHaveLength(1), T);
+    expect(navigations[0]).toMatchObject({ page: 'finance-journal-voucher-document', params: { id: J1 } });
   });
 
   it('a manual voucher reverses with a required reason, today as the date and no source warning', async () => {
@@ -173,13 +171,13 @@ describe('Yevmiye Defterleri standart tanımı', { timeout: 30000 }, () => {
   it('reversal is disabled when the server says canReverse false, and for a non-admin', async () => {
     setup();
     await select('YF-0003', J3);
-    expect((await menuItem(/Ters kayıt oluştur/)).getAttribute('aria-disabled')).toBe('true');
+    expect(within(selectedRow()).queryByRole('button', { name: /Ters kay\u0131t olu\u015ftur/ })).toBeNull();
     closeMenu();
     cleanup();
     calls = [];
     setup('TenantUser');
     await select('YF-0001', J1);
-    expect((await menuItem(/Ters kayıt oluştur/)).getAttribute('aria-disabled')).toBe('true');
+    expect(within(selectedRow()).queryByRole('button', { name: /Ters kay\u0131t olu\u015ftur/ })).toBeNull();
     closeMenu();
     expect(writes()).toEqual([]);
   });

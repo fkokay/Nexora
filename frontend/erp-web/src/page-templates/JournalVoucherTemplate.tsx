@@ -2,7 +2,7 @@ import { createElement, useCallback, useContext, useEffect, useMemo, useState, t
 import { CanvasAnchorContext } from "../designer-canvas/anchorContext";
 import { ANCHOR_ATTRIBUTE } from "../designer-canvas/canvasProtocol";
 import { EditableGrid, type GridPicker } from "../custom-page/EditableGrid";
-import { LookupInput, type LookupOption } from "../custom-page/LookupInput";
+import { type LookupOption } from "../custom-page/LookupInput";
 import { emptyGridState, gridReducer, type GridAction, type GridColumn, type GridDraft, type GridState } from "../custom-page/gridState";
 import { api } from "../erpApi";
 import { openWorkspacePage, setPageParams } from "../pageNavigation";
@@ -21,7 +21,7 @@ export const MAX_VOUCHER_LINES = 100;
 const MIN_VOUCHER_LINES = 2;
 
 type VoucherLine = { lineNumber: number; accountId: string; accountCode: string; accountName: string; description: string; debit: number; credit: number };
-type VoucherEntry = { id: string; code: string; entryDate: string; description: string; accountingBasis: string; lines: VoucherLine[] };
+type VoucherEntry = { id: string; code: string; entryDate: string; description: string; accountingBasis: string; canReverse?: boolean; reversedByEntryCode?: string | null; lines: VoucherLine[] };
 type VoucherDocument = {
   entry: VoucherEntry; totalDebit: number; totalCredit: number; difference: number; allowedTransitions: string[];
   activity: ActivityRow[]; activityStartedLate: boolean;
@@ -100,7 +100,7 @@ export function JournalVoucherTemplate<C extends BelgeComponent>({ layout, token
   const [loadError, setLoadError] = useState("");
   const [message, setMessage] = useState<{ tone: "error" | "info"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
-  const sample = previewState != null;
+  const sample = isPreview;
   const isAdmin = roleOfToken(token) === "TenantAdmin";
   const posted = doc !== null;
 
@@ -108,7 +108,7 @@ export function JournalVoucherTemplate<C extends BelgeComponent>({ layout, token
     let alive = true;
     setLoading(true); setLoadError("");
     const documentLoad: Promise<VoucherDocument | null> = sample
-      ? api<VoucherDocument>(`/api/document-models/${JOURNAL_VOUCHER_CODE}/sample?state=${encodeURIComponent(previewState!)}`, token)
+      ? api<VoucherDocument>(`/api/document-models/${JOURNAL_VOUCHER_CODE}/sample?state=${encodeURIComponent(previewState || "Posted")}`, token)
       : orderId ? api<VoucherDocument>(`/api/finance/general-ledger/entries/${encodeURIComponent(orderId)}/document`, token) : Promise.resolve(null);
     // Hesap seçicide yalnız aktif hesaplar listelenir.
     const accountsLoad = sample || orderId ? Promise.resolve([] as Account[])
@@ -161,11 +161,28 @@ export function JournalVoucherTemplate<C extends BelgeComponent>({ layout, token
     } finally { setBusy(false); }
   };
 
+  const reverse = async () => {
+    if (!doc?.entry.canReverse || !isAdmin) return;
+    const reason = window.prompt(`Ters kayıt gerekçesi · ${doc.entry.code}`)?.trim();
+    if (!reason) return;
+    setBusy(true); setMessage(null);
+    try {
+      const result = await api<{ id: string }>(`/api/finance/general-ledger/entries/${encodeURIComponent(doc.entry.id)}/reverse`, token, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ entryDate: today(), reason }),
+      });
+      openWorkspacePage({ page: "finance-journal-voucher-document", params: { id: result.id }, replace: true, from: tabKey, refresh: true, notice: "Ters kayıt oluşturuldu." });
+    } catch (failure) {
+      setMessage({ tone: "error", text: failure instanceof Error ? failure.message : "Ters kayıt oluşturulamadı." });
+    } finally { setBusy(false); }
+  };
+
   if (loading && !model) return <div className="tenant-custom-page-state" role="status">Belge yükleniyor…</div>;
   if (loadError || !model) return <div className="tenant-custom-page-state tenant-custom-page-error" role="alert">{loadError || "Belge yüklenemedi."}</div>;
 
   const actions: ShellAction[] = [];
   if (posted) {
+    if (doc.entry.canReverse && isAdmin) actions.push({ id: "ters-kayit", label: "Ters kayıt", kind: "normal", disabled: busy,
+      disabledReason: "Yevmiye fişi silinemez veya güncellenemez; düzeltme yeni bir ters kayıtla yapılır.", run: () => void reverse() });
     if (tabKey && !sample) actions.push({ id: "yeni", label: "Yeni fiş", kind: "primary", run: () => setPageParams(tabKey, {}) });
   } else {
     actions.push({ id: "kaydet", label: "Kaydet", kind: "primary", disabled: busy || !savable,

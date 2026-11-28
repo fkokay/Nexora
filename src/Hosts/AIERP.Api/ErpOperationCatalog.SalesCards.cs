@@ -44,7 +44,28 @@ internal static partial class ErpOperationCatalog
             Record(Columns<SalesInvoiceSummary>()), null, null);
         ErpOperationParameter[] invoicePreview = [.. BodyParameters<SalesInvoicePreviewRequest>(sourceBacked: false), previewLines];
         yield return SalesPreview("satis.fatura.onizle", "Satış faturası önizlemesi (satırlar ve toplamlar)", invoicesRoute + "/preview", invoicePreview, taxes: false);
+        // Belge modeli: the invoice as a document and "alan değişince" fills.
+        yield return Read(SalesModule, "satis.fatura.belge", "Satış faturası belgesi", invoicesRoute + "/{id}/document", [id], Record(Columns<AIERP.Api.DocumentModels.SalesInvoiceDocumentRecord>()));
+        yield return new ErpOperation("satis.fatura.doldur", "Satış faturası alanı değişince dolanlar", SalesModule, "read", "read", "POST",
+            "/api/document-models/satis.fatura/fill", BodyParameters<AIERP.Api.DocumentModels.DocumentFillRequest>(sourceBacked: false), None, null, null, Since);
         yield return SalesPreview("satis.fatura.onizleVergileri", "Satış faturası önizlemesi (vergi dökümü)", invoicesRoute + "/preview", invoicePreview, taxes: true);
+
+        // ---- İrsaliye (Belge satis.irsaliye): siparişsiz irsaliye taslağı (kaydet, güncelle, sevk et) ve belge görünümü ----
+        const string standaloneRoute = "/api/sales/standalone-deliveries";
+        var standaloneLines = ListParameter<StandaloneSalesDeliveryLineWrite>("lines");
+        var standaloneResult = Record(Columns<StandaloneSalesDeliveryDraftResult>());
+        // requestId is page-made (autoId); a retry with the same key returns the draft.
+        yield return Write(SalesModule, "satis.irsaliye.olustur", "Siparişsiz satış irsaliyesi taslağı oluştur", "insert", "POST", standaloneRoute,
+            [.. BodyParameters<StandaloneSalesDeliveryWrite>(sourceBacked: false), standaloneLines], standaloneResult, null, null);
+        yield return Write(SalesModule, "satis.irsaliye.guncelle", "Siparişsiz satış irsaliyesi taslağını güncelle", "update", "PUT", standaloneRoute + "/{id}",
+            [id, .. BodyParameters<StandaloneSalesDeliveryWrite>(sourceBacked: false), standaloneLines], standaloneResult, null, null);
+        // Posting moves the stock out; lot / serial allocation is not part of the Belge (items that need it are refused by the server).
+        yield return Write(SalesModule, "satis.irsaliye.sevket", "Siparişsiz satış irsaliyesini sevk et", "update", "POST", standaloneRoute + "/{id}/post",
+            [id], None, null, null);
+        yield return Read(SalesModule, "satis.irsaliye.belge", "Satış irsaliyesi belgesi", "/api/sales/deliveries/{id}/document", [id],
+            Record(Columns<AIERP.Api.DocumentModels.SalesDeliveryDocumentRecord>()));
+        yield return new ErpOperation("satis.irsaliye.doldur", "Satış irsaliyesi alanı değişince dolanlar", SalesModule, "read", "read", "POST",
+            "/api/document-models/satis.irsaliye/fill", BodyParameters<AIERP.Api.DocumentModels.DocumentFillRequest>(sourceBacked: false), None, null, null, Since);
 
         // ---- Teklif (sales-quote-create): new, edit (quoteId), revision (revisesQuoteId), from a request (salesRequestId) ----
         const string quotesRoute = "/api/sales/quotes";

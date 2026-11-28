@@ -12,6 +12,7 @@ vi.mock('../erpApi', () => ({ api }));
 
 const KEY = 'sales-order-document';
 const QUOTE_KEY = 'sales-quote-document';
+const INVOICE_KEY = 'sales-invoice-document';
 const tenant = { id: 't1', name: 'Firma', role: 'TenantAdmin' } as unknown as AppTypes.Tenant;
 const noop = () => {};
 
@@ -25,7 +26,7 @@ function show(onNavigate: (page: string) => void, page = KEY) {
   </Suspense>);
 }
 
-afterEach(() => { cleanup(); setPageParams(KEY, {}); setPageParams('sales-orders', {}); setPageParams(QUOTE_KEY, {}); setPageParams('sales-quote-create', {}); });
+afterEach(() => { cleanup(); setPageParams(KEY, {}); setPageParams('sales-orders', {}); setPageParams(QUOTE_KEY, {}); setPageParams('sales-quote-create', {}); setPageParams(INVOICE_KEY, {}); setPageParams('sales-invoices', {}); });
 
 describe('Belge sipariş kartı açık değilse', () => {
   it('kimlikli sipariş eski listede o siparişin ayrıntısıyla açılır ve bu sekme kapanır', async () => {
@@ -69,5 +70,28 @@ describe('Belge teklif kartı açık değilse', () => {
     const onNavigate = vi.fn();
     show(onNavigate, QUOTE_KEY);
     await waitFor(() => expect(onNavigate).toHaveBeenCalledWith('sales-quote-create'));
+  });
+});
+
+describe('Belge fatura kartı açık değilse', () => {
+  it('kimlikli istek fatura listesine Belge sayfasını tetiklemeyen bir parametreyle döner ve bu sekme kapanır', async () => {
+    const closed: string[] = [];
+    const onClose = (event: Event) => closed.push((event as CustomEvent<{ page: string }>).detail.page);
+    window.addEventListener(CLOSE_PAGE_EVENT, onClose);
+    try {
+      setPageParams(INVOICE_KEY, { id: 'i1' });
+      const onNavigate = vi.fn();
+      show(onNavigate, INVOICE_KEY);
+      await waitFor(() => expect(onNavigate).toHaveBeenCalledWith('sales-invoices'));
+      expect(pageParamsOf('sales-invoices')).toEqual({ belgeFaturaId: 'i1' });
+      expect(closed).toContain(INVOICE_KEY);
+      expect(onNavigate).not.toHaveBeenCalledWith(INVOICE_KEY);
+    } finally { window.removeEventListener(CLOSE_PAGE_EVENT, onClose); }
+  });
+
+  it('kimliksiz istek eski Yeni fatura ekranını açar', async () => {
+    const onNavigate = vi.fn();
+    show(onNavigate, INVOICE_KEY);
+    await waitFor(() => expect(onNavigate).toHaveBeenCalledWith('sales-invoice-create'));
   });
 });

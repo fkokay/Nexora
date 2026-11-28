@@ -1,6 +1,7 @@
 import { createElement, Fragment, useCallback, useContext, type ComponentProps, type CSSProperties, type FormEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { readPageTemplate, type PageTemplate } from "./page-templates/pageTemplate";
 import { DocumentTemplate } from "./page-templates/DocumentTemplate";
+import { JournalVoucherTemplate } from "./page-templates/JournalVoucherTemplate";
 import { BELGE_PARTS, layoutDocumentTemplate } from "./page-templates/documentTemplateModel";
 import { commandsBarOf, hasListSlot, layoutListTemplate } from "./page-templates/listTemplateModel";
 import { ListTemplate, ShellSearch } from "./page-templates/ListTemplate";
@@ -4107,11 +4108,17 @@ export default function TenantCustomPage({ code, previewId, token, systemScreenK
     const extra = (part: ComponentDefinition[]) => <PageBody key={`${page.id}:${page.revision}:${paramKey}:${part.map((c) => c.id).join(",")}`}
       page={page} components={part} queryDefinitions={queryDefinitions} isV2 pageTemplate={null} token={token} previewId={previewId}
       tabKey={tabKey} pageParams={pageParams} legacyLink={null} />;
+    if (pageTemplate.document === "muhasebe.fis") return <main className={`tenant-custom-page${previewId ? " is-preview" : ""}`}>
+      <JournalVoucherTemplate key={`${page.id}:${page.revision}`} document={pageTemplate.document} layout={belgeLayout} token={token} orderId={orderId}
+        isPreview={!!previewId} previewState={belgePreviewState} title={titleOverride || page.name} tabKey={tabKey}
+        renderExtra={(part) => extra(part.filter((c) => !(BELGE_PARTS as readonly string[]).includes(c.type)))} />
+    </main>;
     return <main className={`tenant-custom-page${previewId ? " is-preview" : ""}`}>
       {previewId && !belgePreviewState && <div className="tenant-custom-page-preview-banner" role="status"><strong>Studio taslak önizlemesi</strong><span>Bu taslak henüz yayımlanmadı; ERP kullanıcılarının aktif sayfasını değiştirmez.</span></div>}
       <DocumentTemplate key={`${page.id}:${page.revision}`} document={pageTemplate.document} layout={belgeLayout} token={token} orderId={orderId}
         isPreview={!!previewId} previewState={belgePreviewState} title={titleOverride || page.name}
         onSaved={(id) => { if (tabKey) setPageParams(tabKey, { ...pageParams, id }); }}
+        onOpenDocument={(pageKey, id) => openWorkspacePage({ page: pageKey, params: { id }, replace: false, ...(tabKey ? { from: tabKey } : {}) })}
         renderExtra={(part) => extra(part.filter((c) => !(BELGE_PARTS as readonly string[]).includes(c.type)))} />
     </main>;
   }

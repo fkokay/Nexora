@@ -20,7 +20,10 @@ export const SUBROUTE_PARENTS: Record<string, string> = {
   "sales-quote-create": "sales-quotes",
   "sales-order-create": "sales-orders",
   "sales-order-document": "sales-orders",
+  "finance-journal-voucher-document": "finance-journal-vouchers",
   "sales-quote-document": "sales-quotes",
+  "sales-invoice-document": "sales-invoices",
+  "sales-delivery-document": "sales-deliveries",
   "sales-invoice-create": "sales-invoices",
   "sales-delivery-create": "sales-deliveries",
   "sales-purchase-order-create": "sales-purchasing",
@@ -80,7 +83,7 @@ export const moduleMenus: ModuleMenu[] = [
   {
     railId: "sales",
     title: ["Satış", "Sales"],
-    pages: [...salesNavigationPages, "sales-quote-create", "sales-order-create", "sales-order-document", "sales-quote-document", "sales-invoice-create", "sales-delivery-create"],
+    pages: [...salesNavigationPages, "sales-quote-create", "sales-order-create", "sales-order-document", "sales-quote-document", "sales-invoice-document", "sales-delivery-document", "sales-invoice-create", "sales-delivery-create"],
   },
   {
     railId: "purchasing",
@@ -90,7 +93,7 @@ export const moduleMenus: ModuleMenu[] = [
   {
     railId: "finance",
     title: ["Finans", "Finance"],
-    pages: [...Object.keys(financePageTitles), "finance-account-create"],
+    pages: [...Object.keys(financePageTitles), "finance-account-create", "finance-journal-voucher-document"],
   },
   {
     railId: "manufacturing",
