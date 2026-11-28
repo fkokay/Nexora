@@ -1863,3 +1863,10 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
 - Entegrasyon kapsamı: taslak ve post, stok hareketi/maliyet, takip miktarı uyuşmazlığı, aynı kabulde yinelenen lot ve başka tenant deposu reddi. Standart ve ERP Vitest kapsamı güncellendi.
 - Doğrulama: odaklı .NET koşusu (268 test, 266 geçti, 2 SQL Server kabul testi atlandı), ilgili erp-web Vitest dosyaları ve erp-web/development-studio `npx tsc -b` geçti.
 - Siparişli kabul penceresinde de (`sales-purchasing` v5, `updates` ile eski kopyalara eklenir) lot/seri tahsis penceresi eklendi; eski izlemeli kabul düğmesi korundu; dağıtımlar katalogdaki `trackingAllocations` alanıyla sipariş satırı numarasına bağlanıyor ve API bunları mevcut `lines[].tracking` request modeline dönüştürüyor.
+
+### MigrationBatch sütunu: koddan kaldırıldı (2026-11-28)
+
+- `TenantCustomPageRevision.MigrationBatch` (toplu şablon taşıma aracının revizyon grubu) artık kodda yok: entity property'si, Platform ve Tenant eşlemesi ve `(TenantId, MigrationBatch)` indeks tanımı kaldırıldı; taşıma aracı daha önce silinmişti.
+- Expand → contract (`docs/release-migrations.md`): `20261128145535_RemoveMigrationBatchFromModel` (Platform) ve `20261128145545_RemoveTenantMigrationBatchFromModel` (Tenant) boş gövdelidir; sütun ve indeks bu sürümde veritabanında kalır, önceki sürüm onları okuyabilir.
+- **Sonraki sürüm (yapılmadı):** elle yazılacak migration önce `IX_TenantCustomPageRevisions_TenantId_MigrationBatch` indeksini, sonra `MigrationBatch` sütununu düşürür (Platform + her tenant DB), yedek + prova ile.
+- Doğrulanan: `dotnet ef migrations has-pending-model-changes` iki bağlamda temiz, çözüm derleniyor. Doğrulanmayan: SQL Server'da boş migration'ların uygulanması (yalnız geçmiş kaydı).

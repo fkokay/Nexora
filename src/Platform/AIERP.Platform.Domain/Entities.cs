@@ -3180,8 +3180,6 @@ public sealed class TenantCustomPageRevision
     public Guid ChangedByUserId { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public int? StandardVersion { get; set; }
-    /// <summary>Set by the bulk template migration; groups the revisions written in one run so they can be rolled back together.</summary>
-    public string? MigrationBatch { get; set; }
 }
 
 /// <summary>Per-page access settings keyed by page code; draft and published rows of the same code share them.</summary>
