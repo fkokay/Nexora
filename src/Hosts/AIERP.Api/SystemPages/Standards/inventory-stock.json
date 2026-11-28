@@ -1,247 +1,1079 @@
 {
-  "screenKey": "inventory-stock", "title": "Stok Kartları",
-  "description": "Stok kartları, depo bakiyeleri ve stok hareketleri.", "module": "Stok & Depo",
-  "version": 2, "stage": "preview",
+  "screenKey": "inventory-stock",
+  "title": "Stok Kartları",
+  "description": "Stok kartları, depo bakiyeleri ve stok hareketleri.",
+  "module": "Stok & Depo",
+  "version": 3,
+  "stage": "preview",
   "items": {
-    "component:komutlar": { "since": 1, "label": "İşlem çubuğu",
-      "requires": ["component:devreDisiBirak", "component:etkinlestir", "component:hareketGirDugmesi", "component:hareketlerDugmesi",
-                   "query:kartSil", "component:suzgec", "component:liste"] },
-    "component:suzgec": { "since": 1, "label": "Süzgeç alanı (arama, depo, pasifler, minimum altı)",
-      "requires": ["component:liste", "query:bakiye", "query:depolar"] },
-    "component:stokDegeriGostergesi": { "since": 1, "label": "Stok değeri göstergesi", "requires": ["query:bakiye"] },
-    "component:kullanilabilirGostergesi": { "since": 1, "label": "Kullanılabilir miktar göstergesi", "requires": ["query:bakiye"] },
-    "component:minimumAltiGostergesi": { "since": 1, "label": "Minimum altı göstergesi", "requires": ["query:bakiye"] },
-    "component:maliyetsizGostergesi": { "since": 1, "label": "Maliyetsiz göstergesi", "requires": ["query:bakiye"] },
-    "component:liste": { "since": 1, "label": "Stok kartları listesi", "requires": ["query:bakiye", "component:suzgec"] },
-    "component:detayKarti": { "since": 1, "label": "Stok kartı özeti (sağ bölme)",
-      "requires": ["component:liste", "component:hareketPenceresi", "query:pasifeAl", "query:aktifEt"] },
-    "component:negatifStokKorumaAcik": { "since": 1, "label": "Negatif stok koruması bilgisi (açık)", "requires": ["query:negatifStok"] },
-    "component:negatifStokKorumaKapali": { "since": 1, "label": "Negatif stok uyarısı (izinli)", "requires": ["query:negatifStok"] },
-    "component:devreDisiBirak": { "since": 1, "label": "Devre dışı bırak düğmesi", "requires": ["query:pasifeAl", "component:liste"] },
-    "component:etkinlestir": { "since": 1, "label": "Etkinleştir düğmesi", "requires": ["query:aktifEt", "component:liste"] },
-    "component:hareketGirDugmesi": { "since": 1, "label": "Hareket gir düğmesi", "requires": ["component:hareketPenceresi", "component:suzgec"] },
-    "component:hareketlerDugmesi": { "since": 1, "label": "Hareketler düğmesi (hareket geçmişi ekranı)", "requires": ["component:liste"] },
-    "component:hareketPenceresi": { "since": 1, "label": "Hareket gir penceresi",
-      "requires": ["component:hareketFormu", "component:izlemeUyarisi", "query:hareketEkle", "query:bakiye"] },
-    "component:hareketFormu": { "since": 1, "label": "Yeni hareket formu",
-      "requires": ["component:hareketYonu", "component:hareketTarihi", "component:hareketBirimi", "component:hareketMiktari",
-                   "component:hareketAciklamasi", "component:hareketKonumu", "component:birimMaliyet"] },
-    "component:hareketYonu": { "since": 1, "label": "Alan: Yön" },
-    "component:hareketTarihi": { "since": 1, "label": "Alan: Tarih" },
-    "component:hareketBirimi": { "since": 1, "label": "Alan: Hareket birimi", "requires": ["query:birimler"] },
-    "component:hareketMiktari": { "since": 1, "label": "Alan: Miktar" },
-    "component:hareketAciklamasi": { "since": 1, "label": "Alan: Açıklama" },
-    "component:hareketKonumu": { "since": 1, "label": "Alan: Depo konumu", "requires": ["query:konumlar"] },
-    "component:birimMaliyet": { "since": 1, "label": "Alan: Birim maliyet", "requires": ["component:hareketYonu"] },
-    "component:izlemeUyarisi": { "since": 1, "label": "Lot / seri takipli kart notu", "requires": ["component:liste"] },
-    "query:bakiye": { "since": 1, "label": "Stok bakiyeleri (sayfalı)", "requires": ["component:suzgec", "component:liste"] },
-    "query:depolar": { "since": 1, "label": "Depoları listele" },
-    "query:kartSil": { "since": 1, "label": "Stok kartını sil", "requires": ["component:liste"] },
-    "query:kart": { "since": 1, "label": "Seçili stok kartı", "requires": ["component:liste"] },
-    "query:pasifeAl": { "since": 1, "label": "Stok kartını pasife al", "requires": ["component:liste", "query:kart"] },
-    "query:aktifEt": { "since": 1, "label": "Stok kartını etkinleştir", "requires": ["component:liste", "query:kart"] },
-    "query:negatifStok": { "since": 1, "label": "Negatif stok kuralı" },
-    "query:birimler": { "since": 1, "label": "Seçili kartın birimleri", "requires": ["component:liste"] },
-    "query:konumlar": { "since": 1, "label": "Seçili deponun konumları", "requires": ["component:suzgec"] },
-    "query:hareketEkle": { "since": 1, "label": "Stok hareketi ekle",
-      "requires": ["component:suzgec", "component:liste", "component:hareketTarihi", "component:hareketYonu", "component:hareketMiktari",
-                   "component:hareketAciklamasi", "component:birimMaliyet", "component:hareketBirimi", "component:hareketKonumu"] }
+    "component:komutlar": {
+      "since": 1,
+      "label": "İşlem çubuğu",
+      "requires": [
+        "component:devreDisiBirak",
+        "component:etkinlestir",
+        "component:hareketGirDugmesi",
+        "component:hareketlerDugmesi",
+        "query:kartSil",
+        "component:suzgec",
+        "component:liste"
+      ]
+    },
+    "component:suzgec": {
+      "since": 1,
+      "label": "Süzgeç alanı (arama, depo, pasifler, minimum altı)",
+      "requires": [
+        "component:liste",
+        "query:bakiye",
+        "query:depolar"
+      ]
+    },
+    "component:stokDegeriGostergesi": {
+      "since": 1,
+      "label": "Stok değeri göstergesi",
+      "requires": [
+        "query:bakiye"
+      ]
+    },
+    "component:kullanilabilirGostergesi": {
+      "since": 1,
+      "label": "Kullanılabilir miktar göstergesi",
+      "requires": [
+        "query:bakiye"
+      ]
+    },
+    "component:minimumAltiGostergesi": {
+      "since": 1,
+      "label": "Minimum altı göstergesi",
+      "requires": [
+        "query:bakiye"
+      ]
+    },
+    "component:maliyetsizGostergesi": {
+      "since": 1,
+      "label": "Maliyetsiz göstergesi",
+      "requires": [
+        "query:bakiye"
+      ]
+    },
+    "component:liste": {
+      "since": 1,
+      "label": "Stok kartları listesi",
+      "requires": [
+        "query:bakiye",
+        "component:suzgec"
+      ]
+    },
+    "component:detayKarti": {
+      "since": 1,
+      "label": "Stok kartı özeti (sağ bölme)",
+      "requires": [
+        "component:liste",
+        "component:hareketPenceresi",
+        "query:pasifeAl",
+        "query:aktifEt"
+      ]
+    },
+    "component:negatifStokKorumaAcik": {
+      "since": 1,
+      "label": "Negatif stok koruması bilgisi (açık)",
+      "requires": [
+        "query:negatifStok"
+      ]
+    },
+    "component:negatifStokKorumaKapali": {
+      "since": 1,
+      "label": "Negatif stok uyarısı (izinli)",
+      "requires": [
+        "query:negatifStok"
+      ]
+    },
+    "component:devreDisiBirak": {
+      "since": 1,
+      "label": "Devre dışı bırak düğmesi",
+      "requires": [
+        "query:pasifeAl",
+        "component:liste"
+      ]
+    },
+    "component:etkinlestir": {
+      "since": 1,
+      "label": "Etkinleştir düğmesi",
+      "requires": [
+        "query:aktifEt",
+        "component:liste"
+      ]
+    },
+    "component:hareketGirDugmesi": {
+      "since": 1,
+      "label": "Hareket gir düğmesi",
+      "requires": [
+        "component:hareketPenceresi",
+        "component:suzgec"
+      ]
+    },
+    "component:hareketlerDugmesi": {
+      "since": 1,
+      "label": "Hareketler düğmesi (hareket geçmişi ekranı)",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:hareketPenceresi": {
+      "since": 1,
+      "label": "Hareket gir penceresi ve lot/seri satırları",
+      "requires": [
+        "component:hareketFormu",
+        "query:hareketEkle",
+        "query:bakiye",
+        "component:izlemeSatirlari"
+      ]
+    },
+    "component:hareketFormu": {
+      "since": 1,
+      "label": "Yeni hareket formu",
+      "requires": [
+        "component:hareketYonu",
+        "component:hareketTarihi",
+        "component:hareketBirimi",
+        "component:hareketMiktari",
+        "component:hareketAciklamasi",
+        "component:hareketKonumu",
+        "component:birimMaliyet"
+      ]
+    },
+    "component:hareketYonu": {
+      "since": 1,
+      "label": "Alan: Yön"
+    },
+    "component:hareketTarihi": {
+      "since": 1,
+      "label": "Alan: Tarih"
+    },
+    "component:hareketBirimi": {
+      "since": 1,
+      "label": "Alan: Hareket birimi",
+      "requires": [
+        "query:birimler"
+      ]
+    },
+    "component:hareketMiktari": {
+      "since": 1,
+      "label": "Alan: Miktar"
+    },
+    "component:hareketAciklamasi": {
+      "since": 1,
+      "label": "Alan: Açıklama"
+    },
+    "component:hareketKonumu": {
+      "since": 1,
+      "label": "Alan: Depo konumu",
+      "requires": [
+        "query:konumlar"
+      ]
+    },
+    "component:birimMaliyet": {
+      "since": 1,
+      "label": "Alan: Birim maliyet",
+      "requires": [
+        "component:hareketYonu"
+      ]
+    },
+    "query:bakiye": {
+      "since": 1,
+      "label": "Stok bakiyeleri (sayfalı)",
+      "requires": [
+        "component:suzgec",
+        "component:liste"
+      ]
+    },
+    "query:depolar": {
+      "since": 1,
+      "label": "Depoları listele"
+    },
+    "query:kartSil": {
+      "since": 1,
+      "label": "Stok kartını sil",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:kart": {
+      "since": 1,
+      "label": "Seçili stok kartı",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:pasifeAl": {
+      "since": 1,
+      "label": "Stok kartını pasife al",
+      "requires": [
+        "component:liste",
+        "query:kart"
+      ]
+    },
+    "query:aktifEt": {
+      "since": 1,
+      "label": "Stok kartını etkinleştir",
+      "requires": [
+        "component:liste",
+        "query:kart"
+      ]
+    },
+    "query:negatifStok": {
+      "since": 1,
+      "label": "Negatif stok kuralı"
+    },
+    "query:birimler": {
+      "since": 1,
+      "label": "Seçili kartın birimleri",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:konumlar": {
+      "since": 1,
+      "label": "Seçili deponun konumları",
+      "requires": [
+        "component:suzgec"
+      ]
+    },
+    "query:hareketEkle": {
+      "since": 1,
+      "label": "Stok hareketi ekle",
+      "requires": [
+        "component:suzgec",
+        "component:liste",
+        "component:hareketTarihi",
+        "component:hareketYonu",
+        "component:hareketMiktari",
+        "component:hareketAciklamasi",
+        "component:birimMaliyet",
+        "component:hareketBirimi",
+        "component:hareketKonumu"
+      ]
+    },
+    "component:izlemeSatirlari": {
+      "since": 3,
+      "label": "Lot / seri satır tablosu",
+      "requires": [
+        "query:hareketEkle",
+        "component:hareketMiktari"
+      ]
+    }
   },
-  "screenViews": [ { "key": "inventory-stock", "component": "liste",
-    "fields": { "code": "balance.code", "name": "balance.name", "category": "stockItem.category",
-                "quantityOnHand": "balance.quantityOnHand", "reservedQuantity": "balance.reservedQuantity",
-                "availableQuantity": "balance.availableQuantity", "minimumStock": "balance.minimumStock",
-                "valuationAmountBase": "balance.valuationAmountBase", "unvaluedQuantity": "balance.unvaluedQuantity",
-                "status": "status" } } ],
+  "screenViews": [
+    {
+      "key": "inventory-stock",
+      "component": "liste",
+      "fields": {
+        "code": "balance.code",
+        "name": "balance.name",
+        "category": "stockItem.category",
+        "quantityOnHand": "balance.quantityOnHand",
+        "reservedQuantity": "balance.reservedQuantity",
+        "availableQuantity": "balance.availableQuantity",
+        "minimumStock": "balance.minimumStock",
+        "valuationAmountBase": "balance.valuationAmountBase",
+        "unvaluedQuantity": "balance.unvaluedQuantity",
+        "status": "status"
+      }
+    }
+  ],
   "definition": {
     "schemaVersion": 2,
     "components": [
-      { "id": "komutlar", "type": "actionBar", "name": "komutlar",
-        "props": { "deleteQuery": "kartSil", "deleteConfirmText": "{{liste.seciliSatir.balance.code}} · {{liste.seciliSatir.balance.name}} stok kartı silinsin mi?",
-                   "focusInput": "suzgec", "exportTable": "liste",
-                   "moreButtons": ["devreDisiBirak", "etkinlestir", "hareketGirDugmesi", "hareketlerDugmesi"],
-                   "newAction": "page", "newPageCode": "@inventory-stock-create", "newTarget": "newTab",
-                   "openAction": "page", "openPageCode": "@inventory-stock-create", "openTarget": "newTab", "openTable": "liste",
-                   "openParams": ["id={{liste.seciliSatir.stockItem.id}}"],
-                   "titleCount": "{{bakiye.meta.totalCount}}", "hiddenCommands": ["save", "print"], "slot": "commands" } },
-
-      { "id": "stokDegeriGostergesi", "type": "metric", "name": "stokDegeriGostergesi",
-        "props": { "title": "Stok değeri", "value": "{{bakiye.meta.pageValuationAmountBase}}", "format": "money",
-                   "description": "bu sayfa · {{bakiye.meta.baseCurrencyCode}}", "icon": "wallet", "slot": "indicators" } },
-      { "id": "kullanilabilirGostergesi", "type": "metric", "name": "kullanilabilirGostergesi",
-        "props": { "title": "Kullanılabilir", "value": "{{bakiye.meta.pageAvailableQuantity}}", "format": "number",
-                   "description": "bu sayfa · {{bakiye.meta.pageUnitCode}}", "variant": "success", "icon": "box",
-                   "visibleWhen": "bakiye.meta.pageUnitCode != null", "slot": "indicators" } },
-      { "id": "minimumAltiGostergesi", "type": "metric", "name": "minimumAltiGostergesi",
-        "props": { "title": "Minimum altı", "value": "{{bakiye.meta.belowMinimumCount}}", "format": "number",
-                   "description": "seçili depolarda (arama hariç)", "variant": "danger", "icon": "alert", "slot": "indicators" } },
-      { "id": "maliyetsizGostergesi", "type": "metric", "name": "maliyetsizGostergesi",
-        "props": { "title": "Maliyetsiz", "value": "{{bakiye.meta.pageUnvaluedCount}}", "format": "number",
-                   "description": "bu sayfa", "variant": "warning", "icon": "alert", "slot": "indicators" } },
-
-      { "id": "suzgec", "type": "filterBar", "name": "suzgec",
-        "props": { "table": "liste", "search": true, "searchPlaceholder": "Kod veya stok adıyla ara", "searchParam": "q",
-                   "filters": ["warehouseId|select|row|warehouseId|Depo|depolar:id:name",
-                               "includeInactive|toggle|row|includeInactive|Pasif kartları da göster",
-                               "belowMinimumOnly|toggle|row|belowMinimumOnly|Minimum altı"],
-                   "slot": "filters" } },
-      { "id": "negatifStokKorumaAcik", "type": "alert", "name": "negatifStokKorumaAcik",
-        "props": { "title": "Negatif stok koruması açık", "variant": "success", "icon": "shield",
-                   "text": "Hareketler sıralı kaydedilir · Değer ağırlıklı ortalama · Maliyetsiz miktar ayrı izlenir",
-                   "visibleWhen": "negatifStok.rows[0].allowNegativeStock == false", "slot": "above" } },
-      { "id": "negatifStokKorumaKapali", "type": "alert", "name": "negatifStokKorumaKapali",
-        "props": { "title": "Negatif stoka izin veriliyor", "variant": "warning", "icon": "shieldAlert",
-                   "text": "Takipsiz ve konumsuz çıkışlar bakiyeyi eksiye düşürebilir · Değer ağırlıklı ortalama · Maliyetsiz miktar ayrı izlenir",
-                   "visibleWhen": "negatifStok.rows[0].allowNegativeStock == true", "slot": "above" } },
-
-      { "id": "liste", "type": "dataTable", "name": "liste",
-        "props": { "title": "Stok kartları", "query": "bakiye", "paging": "server", "pageSize": 25,
-                   "columns": ["balance.code", "balance.name", "stockItem.category", "balance.quantityOnHand",
-                               "balance.reservedQuantity", "balance.availableQuantity", "balance.minimumStock",
-                               "balance.valuationAmountBase", "balance.unvaluedQuantity", "status"],
-                   "columnLabels": ["balance.code=Stok kodu", "balance.name=Stok adı", "stockItem.category=Kategori",
-                                    "balance.quantityOnHand=Depo bakiyesi", "balance.reservedQuantity=Rezerve",
-                                    "balance.availableQuantity=Kullanılabilir", "balance.minimumStock=Minimum",
-                                    "balance.valuationAmountBase=Stok değeri", "balance.unvaluedQuantity=Maliyetsiz miktar", "status=Durum"],
-                   "columnUnits": ["balance.quantityOnHand=balance.unitCode", "balance.reservedQuantity=balance.unitCode",
-                                   "balance.availableQuantity=balance.unitCode", "balance.unvaluedQuantity=balance.unitCode",
-                                   "balance.valuationAmountBase=balance.baseCurrencyCode"],
-                   "columnFormats": ["balance.code=code", "balance.quantityOnHand=number", "balance.reservedQuantity=number",
-                                     "balance.availableQuantity=number", "balance.minimumStock=number",
-                                     "balance.unvaluedQuantity=number", "balance.valuationAmountBase=money", "status=status"],
-                   "toneMap": ["Minimum altı=danger", "Maliyetsiz=warning", "Yeterli=success", "Pasif=info"],
-                   "valueLabels": ["stockItem.trackingMode:None=Yok", "stockItem.trackingMode:Lot=Lot", "stockItem.trackingMode:Serial=Seri"],
-                   "footerMeta": ["belowMinimumCount=Minimum altı"], "slot": "list" } },
-      { "id": "detayKarti", "type": "card", "name": "detayKarti",
-        "props": { "variant": "panel", "title": "{{liste.seciliSatir.balance.name}}", "description": "{{liste.seciliSatir.balance.code}}", "slot": "detail" },
+      {
+        "id": "komutlar",
+        "type": "actionBar",
+        "name": "komutlar",
+        "props": {
+          "deleteQuery": "kartSil",
+          "deleteConfirmText": "{{liste.seciliSatir.balance.code}} · {{liste.seciliSatir.balance.name}} stok kartı silinsin mi?",
+          "focusInput": "suzgec",
+          "exportTable": "liste",
+          "moreButtons": [
+            "devreDisiBirak",
+            "etkinlestir",
+            "hareketGirDugmesi",
+            "hareketlerDugmesi"
+          ],
+          "newAction": "page",
+          "newPageCode": "@inventory-stock-create",
+          "newTarget": "newTab",
+          "openAction": "page",
+          "openPageCode": "@inventory-stock-create",
+          "openTarget": "newTab",
+          "openTable": "liste",
+          "openParams": [
+            "id={{liste.seciliSatir.stockItem.id}}"
+          ],
+          "titleCount": "{{bakiye.meta.totalCount}}",
+          "hiddenCommands": [
+            "save",
+            "print"
+          ],
+          "slot": "commands"
+        }
+      },
+      {
+        "id": "stokDegeriGostergesi",
+        "type": "metric",
+        "name": "stokDegeriGostergesi",
+        "props": {
+          "title": "Stok değeri",
+          "value": "{{bakiye.meta.pageValuationAmountBase}}",
+          "format": "money",
+          "description": "bu sayfa · {{bakiye.meta.baseCurrencyCode}}",
+          "icon": "wallet",
+          "slot": "indicators"
+        }
+      },
+      {
+        "id": "kullanilabilirGostergesi",
+        "type": "metric",
+        "name": "kullanilabilirGostergesi",
+        "props": {
+          "title": "Kullanılabilir",
+          "value": "{{bakiye.meta.pageAvailableQuantity}}",
+          "format": "number",
+          "description": "bu sayfa · {{bakiye.meta.pageUnitCode}}",
+          "variant": "success",
+          "icon": "box",
+          "visibleWhen": "bakiye.meta.pageUnitCode != null",
+          "slot": "indicators"
+        }
+      },
+      {
+        "id": "minimumAltiGostergesi",
+        "type": "metric",
+        "name": "minimumAltiGostergesi",
+        "props": {
+          "title": "Minimum altı",
+          "value": "{{bakiye.meta.belowMinimumCount}}",
+          "format": "number",
+          "description": "seçili depolarda (arama hariç)",
+          "variant": "danger",
+          "icon": "alert",
+          "slot": "indicators"
+        }
+      },
+      {
+        "id": "maliyetsizGostergesi",
+        "type": "metric",
+        "name": "maliyetsizGostergesi",
+        "props": {
+          "title": "Maliyetsiz",
+          "value": "{{bakiye.meta.pageUnvaluedCount}}",
+          "format": "number",
+          "description": "bu sayfa",
+          "variant": "warning",
+          "icon": "alert",
+          "slot": "indicators"
+        }
+      },
+      {
+        "id": "suzgec",
+        "type": "filterBar",
+        "name": "suzgec",
+        "props": {
+          "table": "liste",
+          "search": true,
+          "searchPlaceholder": "Kod veya stok adıyla ara",
+          "searchParam": "q",
+          "filters": [
+            "warehouseId|select|row|warehouseId|Depo|depolar:id:name",
+            "includeInactive|toggle|row|includeInactive|Pasif kartları da göster",
+            "belowMinimumOnly|toggle|row|belowMinimumOnly|Minimum altı"
+          ],
+          "slot": "filters"
+        }
+      },
+      {
+        "id": "negatifStokKorumaAcik",
+        "type": "alert",
+        "name": "negatifStokKorumaAcik",
+        "props": {
+          "title": "Negatif stok koruması açık",
+          "variant": "success",
+          "icon": "shield",
+          "text": "Hareketler sıralı kaydedilir · Değer ağırlıklı ortalama · Maliyetsiz miktar ayrı izlenir",
+          "visibleWhen": "negatifStok.rows[0].allowNegativeStock == false",
+          "slot": "above"
+        }
+      },
+      {
+        "id": "negatifStokKorumaKapali",
+        "type": "alert",
+        "name": "negatifStokKorumaKapali",
+        "props": {
+          "title": "Negatif stoka izin veriliyor",
+          "variant": "warning",
+          "icon": "shieldAlert",
+          "text": "Takipsiz ve konumsuz çıkışlar bakiyeyi eksiye düşürebilir · Değer ağırlıklı ortalama · Maliyetsiz miktar ayrı izlenir",
+          "visibleWhen": "negatifStok.rows[0].allowNegativeStock == true",
+          "slot": "above"
+        }
+      },
+      {
+        "id": "liste",
+        "type": "dataTable",
+        "name": "liste",
+        "props": {
+          "title": "Stok kartları",
+          "query": "bakiye",
+          "paging": "server",
+          "pageSize": 25,
+          "columns": [
+            "balance.code",
+            "balance.name",
+            "stockItem.category",
+            "balance.quantityOnHand",
+            "balance.reservedQuantity",
+            "balance.availableQuantity",
+            "balance.minimumStock",
+            "balance.valuationAmountBase",
+            "balance.unvaluedQuantity",
+            "status"
+          ],
+          "columnLabels": [
+            "balance.code=Stok kodu",
+            "balance.name=Stok adı",
+            "stockItem.category=Kategori",
+            "balance.quantityOnHand=Depo bakiyesi",
+            "balance.reservedQuantity=Rezerve",
+            "balance.availableQuantity=Kullanılabilir",
+            "balance.minimumStock=Minimum",
+            "balance.valuationAmountBase=Stok değeri",
+            "balance.unvaluedQuantity=Maliyetsiz miktar",
+            "status=Durum"
+          ],
+          "columnUnits": [
+            "balance.quantityOnHand=balance.unitCode",
+            "balance.reservedQuantity=balance.unitCode",
+            "balance.availableQuantity=balance.unitCode",
+            "balance.unvaluedQuantity=balance.unitCode",
+            "balance.valuationAmountBase=balance.baseCurrencyCode"
+          ],
+          "columnFormats": [
+            "balance.code=code",
+            "balance.quantityOnHand=number",
+            "balance.reservedQuantity=number",
+            "balance.availableQuantity=number",
+            "balance.minimumStock=number",
+            "balance.unvaluedQuantity=number",
+            "balance.valuationAmountBase=money",
+            "status=status"
+          ],
+          "toneMap": [
+            "Minimum altı=danger",
+            "Maliyetsiz=warning",
+            "Yeterli=success",
+            "Pasif=info"
+          ],
+          "valueLabels": [
+            "stockItem.trackingMode:None=Yok",
+            "stockItem.trackingMode:Lot=Lot",
+            "stockItem.trackingMode:Serial=Seri"
+          ],
+          "footerMeta": [
+            "belowMinimumCount=Minimum altı"
+          ],
+          "slot": "list"
+        }
+      },
+      {
+        "id": "detayKarti",
+        "type": "card",
+        "name": "detayKarti",
+        "props": {
+          "variant": "panel",
+          "title": "{{liste.seciliSatir.balance.name}}",
+          "description": "{{liste.seciliSatir.balance.code}}",
+          "slot": "detail"
+        },
         "children": [
-          { "id": "detayDurum", "type": "badge", "name": "detayDurum",
-            "props": { "text": "{{liste.seciliSatir.status}}",
-                       "toneMap": ["Minimum altı=danger", "Maliyetsiz=warning", "Yeterli=success", "Pasif=info"],
-                       "visibleWhen": "liste.seciliSatir.stockItem.id != null" } },
-          { "id": "detayLot", "type": "badge", "name": "detayLot",
-            "props": { "text": "Lot takipli", "visibleWhen": "liste.seciliSatir.stockItem.trackingMode == 'Lot'" } },
-          { "id": "detaySeri", "type": "badge", "name": "detaySeri",
-            "props": { "text": "Seri no takipli", "visibleWhen": "liste.seciliSatir.stockItem.trackingMode == 'Serial'" } },
-          { "id": "detayBos", "type": "text", "name": "detayBos",
-            "props": { "text": "Bir stok kartı seçin; ayrıntıları burada görün.", "visibleWhen": "liste.seciliSatir.stockItem.id == null" } },
-          { "id": "ozetBakiye", "type": "metric", "name": "ozetBakiye",
-            "props": { "title": "Depo bakiyesi", "value": "{{liste.seciliSatir.balance.quantityOnHand}}", "format": "number",
-                       "description": "{{liste.seciliSatir.balance.unitCode}}", "icon": "box", "visibleWhen": "liste.seciliSatir.stockItem.id != null" } },
-          { "id": "ozetKullanilabilir", "type": "metric", "name": "ozetKullanilabilir",
-            "props": { "title": "Kullanılabilir", "value": "{{liste.seciliSatir.balance.availableQuantity}}", "format": "number",
-                       "description": "{{liste.seciliSatir.balance.unitCode}}", "variant": "success", "icon": "check",
-                       "visibleWhen": "liste.seciliSatir.stockItem.id != null" } },
-          { "id": "ozetPaneli", "type": "contextPanel", "name": "ozetPaneli",
-            "props": { "table": "liste", "visibleWhen": "liste.seciliSatir.stockItem.id != null",
-                       "fields": ["balance.reservedQuantity=Rezerve", "balance.minimumStock=Minimum", "balance.valuationAmountBase=Stok değeri",
-                                  "balance.unvaluedQuantity=Maliyetsiz miktar", "stockItem.category=Kategori", "balance.unitCode=Birim"] } },
-          { "id": "detayHareketGir", "type": "button", "name": "detayHareketGir",
-            "props": { "text": "Hareket gir", "actionType": "openDialog", "dialogId": "hareketPenceresi",
-                       "visibleWhen": "liste.seciliSatir.stockItem.id != null", "disabledWhen": "suzgec.warehouseId == null",
-                       "disabledReason": "Hareket için önce bir depo seçin." } },
-          { "id": "detayHareketler", "type": "button", "name": "detayHareketler",
-            "props": { "text": "Hareketler ›", "actionType": "page", "pageCode": "@inventory-stock-movements", "target": "newTab",
-                       "params": ["stockItemId={{liste.seciliSatir.stockItem.id}}", "warehouseId={{suzgec.warehouseId}}"],
-                       "visibleWhen": "liste.seciliSatir.stockItem.id != null" } },
-          { "id": "detayDevreDisi", "type": "button", "name": "detayDevreDisi",
-            "props": { "text": "Devre dışı bırak", "actionType": "query", "queryId": "pasifeAl", "confirmEnabled": true,
-                       "confirmText": "“{{liste.seciliSatir.balance.name}}” devre dışı bırakılsın mı? Bakiyesi sıfır olmayan veya açık siparişte kullanılan kart devre dışı bırakılamaz.",
-                       "successMessage": "Stok kartı devre dışı bırakıldı.", "refreshQueries": ["bakiye"],
-                       "visibleWhen": "liste.seciliSatir.stockItem.isActive == true" } },
-          { "id": "detayEtkinlestir", "type": "button", "name": "detayEtkinlestir",
-            "props": { "text": "Etkinleştir", "actionType": "query", "queryId": "aktifEt", "confirmEnabled": true,
-                       "confirmText": "“{{liste.seciliSatir.balance.name}}” yeniden etkinleştirilsin mi?",
-                       "successMessage": "Stok kartı etkinleştirildi.", "refreshQueries": ["bakiye"],
-                       "visibleWhen": "liste.seciliSatir.stockItem.isActive == false" } }
-        ] },
-
-      { "id": "devreDisiBirak", "type": "button", "name": "devreDisiBirak",
-        "props": { "text": "Devre dışı bırak", "actionType": "query", "queryId": "pasifeAl", "confirmEnabled": true,
-                   "confirmText": "“{{liste.seciliSatir.balance.name}}” devre dışı bırakılsın mı? Bakiyesi sıfır olmayan veya açık siparişte kullanılan kart devre dışı bırakılamaz.",
-                   "successMessage": "Stok kartı devre dışı bırakıldı.", "refreshQueries": ["bakiye"],
-                   "visibleWhen": "liste.seciliSatir.stockItem.isActive == true", "slot": "actions" } },
-      { "id": "etkinlestir", "type": "button", "name": "etkinlestir",
-        "props": { "text": "Etkinleştir", "actionType": "query", "queryId": "aktifEt", "confirmEnabled": true,
-                   "confirmText": "“{{liste.seciliSatir.balance.name}}” yeniden etkinleştirilsin mi?",
-                   "successMessage": "Stok kartı etkinleştirildi.", "refreshQueries": ["bakiye"],
-                   "visibleWhen": "liste.seciliSatir.stockItem.isActive == false", "slot": "actions" } },
-      { "id": "hareketGirDugmesi", "type": "button", "name": "hareketGirDugmesi",
-        "props": { "text": "Hareket gir", "actionType": "openDialog", "dialogId": "hareketPenceresi",
-                   "visibleWhen": "liste.seciliSatir.stockItem.id != null", "disabledWhen": "suzgec.warehouseId == null",
-                   "disabledReason": "Hareket için önce bir depo seçin.", "slot": "actions" } },
-      { "id": "hareketlerDugmesi", "type": "button", "name": "hareketlerDugmesi",
-        "props": { "text": "Hareketler", "actionType": "page", "pageCode": "@inventory-stock-movements", "target": "newTab",
-                   "params": ["stockItemId={{liste.seciliSatir.stockItem.id}}", "warehouseId={{suzgec.warehouseId}}"],
-                   "visibleWhen": "liste.seciliSatir.stockItem.id != null", "slot": "actions" } },
-
-      { "id": "hareketPenceresi", "type": "dialog", "name": "hareketPenceresi",
-        "props": { "presentation": "dialog", "size": "md",
-                   "title": "Stok hareketi · {{liste.seciliSatir.balance.code}} · {{suzgec.seciliSatir.warehouseId.name}}",
-                   "contains": ["izlemeUyarisi", "hareketFormu"], "saveQuery": "hareketEkle",
-                   "saveLabel": "Kaydet", "closeOnSave": true, "resetOnOpen": true, "refreshQueries": ["bakiye"], "slot": "dialogs" } },
-      { "id": "izlemeUyarisi", "type": "alert", "name": "izlemeUyarisi",
-        "props": { "title": "Lot / seri takipli kart", "variant": "warning",
-                   "text": "Bu pencerede lot veya seri satırı girilemez; takipli kartın hareketi sunucuda reddedilir. Takipli girişler mal kabul, üretim ve transfer belgeleriyle yapılır.",
-                   "visibleWhen": "liste.seciliSatir.stockItem.trackingMode != 'None'", "slot": "dialog" } },
-      { "id": "hareketFormu", "type": "formCard", "name": "hareketFormu",
-        "props": { "columns": 2, "inputs": ["hareketYonu", "hareketTarihi", "hareketBirimi", "hareketMiktari", "hareketKonumu", "birimMaliyet", "hareketAciklamasi"],
-                   "slot": "dialog" } },
-      { "id": "hareketYonu", "type": "input", "name": "hareketYonu",
-        "props": { "inputType": "lookup", "label": "Yön", "staticOptions": ["Receipt=Giriş", "Issue=Çıkış"], "minChars": 0, "required": true,
-                   "defaultValue": "Receipt", "slot": "dialog" } },
-      { "id": "hareketTarihi", "type": "input", "name": "hareketTarihi",
-        "props": { "inputType": "date", "label": "Tarih", "required": true, "defaultValue": "{{bugun}}", "slot": "dialog" } },
-      { "id": "hareketBirimi", "type": "input", "name": "hareketBirimi",
-        "props": { "inputType": "lookup", "label": "Birim", "optionsQuery": "birimler", "optionValueColumn": "unitCode",
-                   "optionLabelColumn": "unitCode", "minChars": 0, "allowClear": true,
-                   "placeholder": "Ana birim ({{liste.seciliSatir.balance.unitCode}})", "slot": "dialog" } },
-      { "id": "hareketMiktari", "type": "input", "name": "hareketMiktari",
-        "props": { "inputType": "number", "label": "Miktar", "required": true, "min": 0.0001, "step": 0.0001, "slot": "dialog" } },
-      { "id": "hareketAciklamasi", "type": "input", "name": "hareketAciklamasi",
-        "props": { "inputType": "text", "label": "Açıklama", "required": true, "maxLength": 240, "slot": "dialog" } },
-      { "id": "hareketKonumu", "type": "input", "name": "hareketKonumu",
-        "props": { "inputType": "lookup", "label": "Depo konumu", "optionsQuery": "konumlar", "optionValueColumn": "id",
-                   "optionLabelColumn": "name", "optionDescriptionColumn": "code", "minChars": 0, "allowClear": true,
-                   "visibleWhen": "konumlar.rows[0].id != null", "slot": "dialog" } },
-      { "id": "birimMaliyet", "type": "input", "name": "birimMaliyet",
-        "props": { "inputType": "number", "label": "Birim maliyet", "min": 0, "visibleWhen": "hareketYonu.value == 'Receipt'", "slot": "dialog" } }
+          {
+            "id": "detayDurum",
+            "type": "badge",
+            "name": "detayDurum",
+            "props": {
+              "text": "{{liste.seciliSatir.status}}",
+              "toneMap": [
+                "Minimum altı=danger",
+                "Maliyetsiz=warning",
+                "Yeterli=success",
+                "Pasif=info"
+              ],
+              "visibleWhen": "liste.seciliSatir.stockItem.id != null"
+            }
+          },
+          {
+            "id": "detayLot",
+            "type": "badge",
+            "name": "detayLot",
+            "props": {
+              "text": "Lot takipli",
+              "visibleWhen": "liste.seciliSatir.stockItem.trackingMode == 'Lot'"
+            }
+          },
+          {
+            "id": "detaySeri",
+            "type": "badge",
+            "name": "detaySeri",
+            "props": {
+              "text": "Seri no takipli",
+              "visibleWhen": "liste.seciliSatir.stockItem.trackingMode == 'Serial'"
+            }
+          },
+          {
+            "id": "detayBos",
+            "type": "text",
+            "name": "detayBos",
+            "props": {
+              "text": "Bir stok kartı seçin; ayrıntıları burada görün.",
+              "visibleWhen": "liste.seciliSatir.stockItem.id == null"
+            }
+          },
+          {
+            "id": "ozetBakiye",
+            "type": "metric",
+            "name": "ozetBakiye",
+            "props": {
+              "title": "Depo bakiyesi",
+              "value": "{{liste.seciliSatir.balance.quantityOnHand}}",
+              "format": "number",
+              "description": "{{liste.seciliSatir.balance.unitCode}}",
+              "icon": "box",
+              "visibleWhen": "liste.seciliSatir.stockItem.id != null"
+            }
+          },
+          {
+            "id": "ozetKullanilabilir",
+            "type": "metric",
+            "name": "ozetKullanilabilir",
+            "props": {
+              "title": "Kullanılabilir",
+              "value": "{{liste.seciliSatir.balance.availableQuantity}}",
+              "format": "number",
+              "description": "{{liste.seciliSatir.balance.unitCode}}",
+              "variant": "success",
+              "icon": "check",
+              "visibleWhen": "liste.seciliSatir.stockItem.id != null"
+            }
+          },
+          {
+            "id": "ozetPaneli",
+            "type": "contextPanel",
+            "name": "ozetPaneli",
+            "props": {
+              "table": "liste",
+              "visibleWhen": "liste.seciliSatir.stockItem.id != null",
+              "fields": [
+                "balance.reservedQuantity=Rezerve",
+                "balance.minimumStock=Minimum",
+                "balance.valuationAmountBase=Stok değeri",
+                "balance.unvaluedQuantity=Maliyetsiz miktar",
+                "stockItem.category=Kategori",
+                "balance.unitCode=Birim"
+              ]
+            }
+          },
+          {
+            "id": "detayHareketGir",
+            "type": "button",
+            "name": "detayHareketGir",
+            "props": {
+              "text": "Hareket gir",
+              "actionType": "openDialog",
+              "dialogId": "hareketPenceresi",
+              "visibleWhen": "liste.seciliSatir.stockItem.id != null",
+              "disabledWhen": "suzgec.warehouseId == null",
+              "disabledReason": "Hareket için önce bir depo seçin."
+            }
+          },
+          {
+            "id": "detayHareketler",
+            "type": "button",
+            "name": "detayHareketler",
+            "props": {
+              "text": "Hareketler ›",
+              "actionType": "page",
+              "pageCode": "@inventory-stock-movements",
+              "target": "newTab",
+              "params": [
+                "stockItemId={{liste.seciliSatir.stockItem.id}}",
+                "warehouseId={{suzgec.warehouseId}}"
+              ],
+              "visibleWhen": "liste.seciliSatir.stockItem.id != null"
+            }
+          },
+          {
+            "id": "detayDevreDisi",
+            "type": "button",
+            "name": "detayDevreDisi",
+            "props": {
+              "text": "Devre dışı bırak",
+              "actionType": "query",
+              "queryId": "pasifeAl",
+              "confirmEnabled": true,
+              "confirmText": "“{{liste.seciliSatir.balance.name}}” devre dışı bırakılsın mı? Bakiyesi sıfır olmayan veya açık siparişte kullanılan kart devre dışı bırakılamaz.",
+              "successMessage": "Stok kartı devre dışı bırakıldı.",
+              "refreshQueries": [
+                "bakiye"
+              ],
+              "visibleWhen": "liste.seciliSatir.stockItem.isActive == true"
+            }
+          },
+          {
+            "id": "detayEtkinlestir",
+            "type": "button",
+            "name": "detayEtkinlestir",
+            "props": {
+              "text": "Etkinleştir",
+              "actionType": "query",
+              "queryId": "aktifEt",
+              "confirmEnabled": true,
+              "confirmText": "“{{liste.seciliSatir.balance.name}}” yeniden etkinleştirilsin mi?",
+              "successMessage": "Stok kartı etkinleştirildi.",
+              "refreshQueries": [
+                "bakiye"
+              ],
+              "visibleWhen": "liste.seciliSatir.stockItem.isActive == false"
+            }
+          }
+        ]
+      },
+      {
+        "id": "devreDisiBirak",
+        "type": "button",
+        "name": "devreDisiBirak",
+        "props": {
+          "text": "Devre dışı bırak",
+          "actionType": "query",
+          "queryId": "pasifeAl",
+          "confirmEnabled": true,
+          "confirmText": "“{{liste.seciliSatir.balance.name}}” devre dışı bırakılsın mı? Bakiyesi sıfır olmayan veya açık siparişte kullanılan kart devre dışı bırakılamaz.",
+          "successMessage": "Stok kartı devre dışı bırakıldı.",
+          "refreshQueries": [
+            "bakiye"
+          ],
+          "visibleWhen": "liste.seciliSatir.stockItem.isActive == true",
+          "slot": "actions"
+        }
+      },
+      {
+        "id": "etkinlestir",
+        "type": "button",
+        "name": "etkinlestir",
+        "props": {
+          "text": "Etkinleştir",
+          "actionType": "query",
+          "queryId": "aktifEt",
+          "confirmEnabled": true,
+          "confirmText": "“{{liste.seciliSatir.balance.name}}” yeniden etkinleştirilsin mi?",
+          "successMessage": "Stok kartı etkinleştirildi.",
+          "refreshQueries": [
+            "bakiye"
+          ],
+          "visibleWhen": "liste.seciliSatir.stockItem.isActive == false",
+          "slot": "actions"
+        }
+      },
+      {
+        "id": "hareketGirDugmesi",
+        "type": "button",
+        "name": "hareketGirDugmesi",
+        "props": {
+          "text": "Hareket gir",
+          "actionType": "openDialog",
+          "dialogId": "hareketPenceresi",
+          "visibleWhen": "liste.seciliSatir.stockItem.id != null",
+          "disabledWhen": "suzgec.warehouseId == null",
+          "disabledReason": "Hareket için önce bir depo seçin.",
+          "slot": "actions"
+        }
+      },
+      {
+        "id": "hareketlerDugmesi",
+        "type": "button",
+        "name": "hareketlerDugmesi",
+        "props": {
+          "text": "Hareketler",
+          "actionType": "page",
+          "pageCode": "@inventory-stock-movements",
+          "target": "newTab",
+          "params": [
+            "stockItemId={{liste.seciliSatir.stockItem.id}}",
+            "warehouseId={{suzgec.warehouseId}}"
+          ],
+          "visibleWhen": "liste.seciliSatir.stockItem.id != null",
+          "slot": "actions"
+        }
+      },
+      {
+        "id": "hareketPenceresi",
+        "type": "dialog",
+        "name": "hareketPenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "md",
+          "title": "Stok hareketi · {{liste.seciliSatir.balance.code}} · {{suzgec.seciliSatir.warehouseId.name}}",
+          "contains": [
+            "hareketFormu",
+            "izlemeSatirlari"
+          ],
+          "saveQuery": "hareketEkle",
+          "saveLabel": "Kaydet",
+          "closeOnSave": true,
+          "resetOnOpen": true,
+          "refreshQueries": [
+            "bakiye"
+          ],
+          "slot": "dialogs"
+        }
+      },
+      {
+        "id": "hareketFormu",
+        "type": "formCard",
+        "name": "hareketFormu",
+        "props": {
+          "columns": 2,
+          "inputs": [
+            "hareketYonu",
+            "hareketTarihi",
+            "hareketBirimi",
+            "hareketMiktari",
+            "hareketKonumu",
+            "birimMaliyet",
+            "hareketAciklamasi"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "hareketYonu",
+        "type": "input",
+        "name": "hareketYonu",
+        "props": {
+          "inputType": "lookup",
+          "label": "Yön",
+          "staticOptions": [
+            "Receipt=Giriş",
+            "Issue=Çıkış"
+          ],
+          "minChars": 0,
+          "required": true,
+          "defaultValue": "Receipt",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "hareketTarihi",
+        "type": "input",
+        "name": "hareketTarihi",
+        "props": {
+          "inputType": "date",
+          "label": "Tarih",
+          "required": true,
+          "defaultValue": "{{bugun}}",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "hareketBirimi",
+        "type": "input",
+        "name": "hareketBirimi",
+        "props": {
+          "inputType": "lookup",
+          "label": "Birim",
+          "optionsQuery": "birimler",
+          "optionValueColumn": "unitCode",
+          "optionLabelColumn": "unitCode",
+          "minChars": 0,
+          "allowClear": true,
+          "placeholder": "Ana birim ({{liste.seciliSatir.balance.unitCode}})",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "hareketMiktari",
+        "type": "input",
+        "name": "hareketMiktari",
+        "props": {
+          "inputType": "number",
+          "label": "Miktar",
+          "required": true,
+          "min": 0.0001,
+          "step": 0.0001,
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "hareketAciklamasi",
+        "type": "input",
+        "name": "hareketAciklamasi",
+        "props": {
+          "inputType": "text",
+          "label": "Açıklama",
+          "required": true,
+          "maxLength": 240,
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "hareketKonumu",
+        "type": "input",
+        "name": "hareketKonumu",
+        "props": {
+          "inputType": "lookup",
+          "label": "Depo konumu",
+          "optionsQuery": "konumlar",
+          "optionValueColumn": "id",
+          "optionLabelColumn": "name",
+          "optionDescriptionColumn": "code",
+          "minChars": 0,
+          "allowClear": true,
+          "visibleWhen": "konumlar.rows[0].id != null",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "birimMaliyet",
+        "type": "input",
+        "name": "birimMaliyet",
+        "props": {
+          "inputType": "number",
+          "label": "Birim maliyet",
+          "min": 0,
+          "visibleWhen": "hareketYonu.value == 'Receipt'",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "izlemeSatirlari",
+        "type": "editableGrid",
+        "name": "izlemeSatirlari",
+        "props": {
+          "slot": "dialog",
+          "gridMode": "list",
+          "title": "Lot / seri satırları",
+          "description": "Takipli stok hareketlerinde kod ve miktarı satır satır girin.",
+          "gridColumns": [
+            "trackingCode|Lot / seri kodu|text|required,unique,maxLength:80",
+            "quantity|Miktar|number|required,min:0.0001",
+            "expiryDate|Son kullanma tarihi|date"
+          ],
+          "minRows": 1,
+          "maxRows": 200,
+          "addLabel": "Satır ekle",
+          "visibleWhen": "liste.seciliSatir.stockItem.trackingMode != 'None'"
+        }
+      }
     ],
     "queries": [
-      { "id": "bakiye", "name": "bakiye", "kind": "read", "operation": "stok.bakiye.sayfa", "runOn": "load",
+      {
+        "id": "bakiye",
+        "name": "bakiye",
+        "kind": "read",
+        "operation": "stok.bakiye.sayfa",
+        "runOn": "load",
         "parameters": [
-          { "name": "warehouseId", "binding": "{{suzgec.warehouseId}}", "type": "guid" },
-          { "name": "q", "binding": "{{suzgec.q}}", "type": "text" },
-          { "name": "belowMinimumOnly", "binding": "{{suzgec.belowMinimumOnly}}", "type": "bool" },
-          { "name": "includeInactive", "binding": "{{suzgec.includeInactive}}", "type": "bool" },
-          { "name": "page", "binding": "{{liste.sayfa}}", "type": "int" },
-          { "name": "pageSize", "binding": "{{liste.sayfaBoyutu}}", "type": "int" } ] },
-      { "id": "depolar", "name": "depolar", "kind": "read", "operation": "depo.listele", "runOn": "load", "parameters": [] },
-      { "id": "kart", "name": "kart", "kind": "read", "operation": "stok.kart.getir", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{liste.seciliSatir.stockItem.id}}", "type": "guid" } ] },
-      { "id": "kartSil", "name": "kartSil", "kind": "delete", "operation": "stok.kart.sil", "runOn": "manual",
-        "parameters": [ { "name": "id", "binding": "{{liste.seciliSatir.stockItem.id}}", "type": "guid" } ] },
-      { "id": "pasifeAl", "name": "pasifeAl", "kind": "update", "operation": "stok.kart.pasifeAl", "runOn": "manual",
-        "parameters": [ { "name": "id", "binding": "{{kart.rows[0].id}}", "type": "guid" } ] },
-      { "id": "aktifEt", "name": "aktifEt", "kind": "update", "operation": "stok.kart.aktifEt", "runOn": "manual",
-        "parameters": [ { "name": "id", "binding": "{{kart.rows[0].id}}", "type": "guid" } ] },
-      { "id": "negatifStok", "name": "negatifStok", "kind": "read", "operation": "ayar.negatifStok", "runOn": "load", "parameters": [] },
-      { "id": "birimler", "name": "birimler", "kind": "read", "operation": "stok.kart.birimleri", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{liste.seciliSatir.stockItem.id}}", "type": "guid" } ] },
-      { "id": "konumlar", "name": "konumlar", "kind": "read", "operation": "depo.konumlari", "runOn": "load",
-        "parameters": [ { "name": "warehouseId", "binding": "{{suzgec.warehouseId}}", "type": "guid" } ] },
-      { "id": "hareketEkle", "name": "hareketEkle", "kind": "insert", "operation": "stok.hareket.ekle", "runOn": "manual",
+          {
+            "name": "warehouseId",
+            "binding": "{{suzgec.warehouseId}}",
+            "type": "guid"
+          },
+          {
+            "name": "q",
+            "binding": "{{suzgec.q}}",
+            "type": "text"
+          },
+          {
+            "name": "belowMinimumOnly",
+            "binding": "{{suzgec.belowMinimumOnly}}",
+            "type": "bool"
+          },
+          {
+            "name": "includeInactive",
+            "binding": "{{suzgec.includeInactive}}",
+            "type": "bool"
+          },
+          {
+            "name": "page",
+            "binding": "{{liste.sayfa}}",
+            "type": "int"
+          },
+          {
+            "name": "pageSize",
+            "binding": "{{liste.sayfaBoyutu}}",
+            "type": "int"
+          }
+        ]
+      },
+      {
+        "id": "depolar",
+        "name": "depolar",
+        "kind": "read",
+        "operation": "depo.listele",
+        "runOn": "load",
+        "parameters": []
+      },
+      {
+        "id": "kart",
+        "name": "kart",
+        "kind": "read",
+        "operation": "stok.kart.getir",
+        "runOn": "load",
         "parameters": [
-          { "name": "warehouseId", "binding": "{{suzgec.warehouseId}}", "type": "guid" },
-          { "name": "stockItemId", "binding": "{{liste.seciliSatir.stockItem.id}}", "type": "guid" },
-          { "name": "entryDate", "binding": "{{hareketTarihi.value}}", "type": "date" },
-          { "name": "direction", "binding": "{{hareketYonu.value}}", "type": "text" },
-          { "name": "quantity", "binding": "{{hareketMiktari.value}}", "type": "decimal" },
-          { "name": "description", "binding": "{{hareketAciklamasi.value}}", "type": "text" },
-          { "name": "unitCostBase", "binding": "{{birimMaliyet.value}}", "type": "decimal" },
-          { "name": "unitCode", "binding": "{{hareketBirimi.value}}", "type": "text" },
-          { "name": "storageLocationId", "binding": "{{hareketKonumu.value}}", "type": "guid" } ] }
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.stockItem.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "kartSil",
+        "name": "kartSil",
+        "kind": "delete",
+        "operation": "stok.kart.sil",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.stockItem.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "pasifeAl",
+        "name": "pasifeAl",
+        "kind": "update",
+        "operation": "stok.kart.pasifeAl",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{kart.rows[0].id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "aktifEt",
+        "name": "aktifEt",
+        "kind": "update",
+        "operation": "stok.kart.aktifEt",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{kart.rows[0].id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "negatifStok",
+        "name": "negatifStok",
+        "kind": "read",
+        "operation": "ayar.negatifStok",
+        "runOn": "load",
+        "parameters": []
+      },
+      {
+        "id": "birimler",
+        "name": "birimler",
+        "kind": "read",
+        "operation": "stok.kart.birimleri",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.stockItem.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "konumlar",
+        "name": "konumlar",
+        "kind": "read",
+        "operation": "depo.konumlari",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "warehouseId",
+            "binding": "{{suzgec.warehouseId}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "hareketEkle",
+        "name": "hareketEkle",
+        "kind": "insert",
+        "operation": "stok.hareket.ekle",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "warehouseId",
+            "binding": "{{suzgec.warehouseId}}",
+            "type": "guid"
+          },
+          {
+            "name": "stockItemId",
+            "binding": "{{liste.seciliSatir.stockItem.id}}",
+            "type": "guid"
+          },
+          {
+            "name": "entryDate",
+            "binding": "{{hareketTarihi.value}}",
+            "type": "date"
+          },
+          {
+            "name": "direction",
+            "binding": "{{hareketYonu.value}}",
+            "type": "text"
+          },
+          {
+            "name": "quantity",
+            "binding": "{{hareketMiktari.value}}",
+            "type": "decimal"
+          },
+          {
+            "name": "description",
+            "binding": "{{hareketAciklamasi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "unitCostBase",
+            "binding": "{{birimMaliyet.value}}",
+            "type": "decimal"
+          },
+          {
+            "name": "unitCode",
+            "binding": "{{hareketBirimi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "storageLocationId",
+            "binding": "{{hareketKonumu.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "tracking",
+            "binding": "{{izlemeSatirlari.satirlar}}",
+            "type": "list"
+          }
+        ]
+      }
     ],
-    "template": { "name": "list" }
+    "template": {
+      "name": "list"
+    }
   }
 }

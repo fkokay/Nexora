@@ -117,7 +117,7 @@ function setup(role = 'TenantAdmin') {
     if (endpoint === '/api/system-pages/inventory-stock/published') {
       return {
         id: 'sp', code: '@inventory-stock', name: standard.title, description: null, revision: 1, forms: [],
-        rights: { view: true, insert: true, update: true, delete: true }, screenKey: 'inventory-stock', source: 'standard', standardVersion: 2,
+        rights: { view: true, insert: true, update: true, delete: true }, screenKey: 'inventory-stock', source: 'standard', standardVersion: 3,
         definitionJson: JSON.stringify(standard.definition),
       };
     }
@@ -410,7 +410,7 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     expect(writes()[0].url).toBe(`/api/warehouses/${W}/stock/${S1}/transactions`);
     const body = JSON.parse(writes()[0].body!) as Record<string, unknown>;
     expect(body).toMatchObject({ direction: 'Receipt', quantity: 3, description: 'Sayım farkı' });
-    expect(body.tracking).toBeUndefined();
+    expect(body.tracking ?? []).toEqual([]);
     await waitFor(() => expect(screen.queryByRole('dialog', { name: /^Stok hareketi/ })).toBeNull(), T);
     // Liste (bakiye) yenilenir; aynı kimlikli satır seçili kalır.
     await waitFor(() => expect(gets(`/api/warehouses/${W}/balances/page`).length).toBeGreaterThan(1), T);
@@ -419,14 +419,25 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     expect(calls.some((call) => call.url.includes('/reverse'))).toBe(false);
   });
 
-  it('a lot / serial tracked card shows the note that its movement cannot be entered in this window', async () => {
+  it('tracked stock movement captures multiple lot rows and submits tracking allocations', async () => {
     setup();
     await chooseWarehouse();
     await waitFor(() => expect(gets(`/api/warehouses/${W}/balances/page`)).toHaveLength(1), T);
     await selectCard('Defter', S2);
     fireEvent.click(await menuItem(/Hareket gir/));
     const dialog = await screen.findByRole('dialog', { name: 'Stok hareketi · DFT · Merkez' }, T);
-    expect(within(dialog).getByText('Lot / seri takipli kart')).toBeTruthy();
+    expect(within(dialog).getByText('Lot / seri satırları')).toBeTruthy();
+    const add = within(dialog).getByRole('button', { name: 'Satır ekle' });
+    for (let i = 0; i < 3 && !within(dialog).queryByLabelText('Lot / seri kodu (satır 2)'); i++) fireEvent.click(add);
+    fireEvent.change(within(dialog).getByLabelText('Lot / seri kodu (satır 1)'), { target: { value: 'LOT-001' } });
+    fireEvent.change(within(dialog).getByLabelText('Miktar (satır 1)'), { target: { value: '2' } });
+    fireEvent.change(within(dialog).getByLabelText('Lot / seri kodu (satır 2)'), { target: { value: 'LOT-002' } });
+    fireEvent.change(within(dialog).getByLabelText('Miktar (satır 2)'), { target: { value: '3' } });
+    type('hareketMiktari', '5');
+    type('hareketAciklamasi', 'Lotlu giriş');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    await waitFor(() => expect(writes()).toHaveLength(1), T);
+    expect(JSON.parse(writes()[0].body!).tracking).toEqual(expect.arrayContaining([expect.objectContaining({ trackingCode: 'LOT-001' }), expect.objectContaining({ trackingCode: 'LOT-002' })]));
   });
 
   it('deactivate confirms and shows server conflict text', async () => {

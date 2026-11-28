@@ -5,7 +5,7 @@ using System.Text.Json.Nodes;
 using Xunit;
 
 /// <summary>
-/// "Stok Kartları" standard (inventory-stock, Liste kalıbı, version 2): the embedded envelope, as loaded by
+/// "Stok Kartları" standard (inventory-stock, Liste kalıbı, version 3): the embedded envelope, as loaded by
 /// <see cref="SystemPageStandards"/>, pins the ids, bindings and workflow of the screen: four indicators, one filter bar, the list
 /// with its card group, the state commands, and the "Hareket gir" window (entry only; history and reversal live on
 /// inventory-stock-movements).
@@ -15,16 +15,31 @@ public sealed class InventoryStockStandardTests
     private const string Key = "inventory-stock";
 
     [Fact]
-    public void Header_is_preview_version_2_list_template()
+    public void Header_is_preview_version_3_list_template()
     {
         var standard = SystemPageStandards.All[Key];
-        Assert.Equal(2, standard.Version);
+        Assert.Equal(3, standard.Version);
         Assert.Equal("preview", standard.Stage);
         Assert.Equal("Stok Kartları", standard.Title);
         Assert.Equal("Stok & Depo", standard.Module);
         Assert.Equal("list", (string)Definition()["template"]!["name"]!);
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
-        Assert.All(standard.Items, x => Assert.True(x.Since == 1 && x.Label.Length is > 0 and <= 80, x.Key));
+        Assert.All(standard.Items, x => Assert.True(x.Since is >= 1 and <= 3 && x.Label.Length is > 0 and <= 80, x.Key));
+    }
+
+    [Fact]
+    public void Movement_window_contains_lot_serial_grid_and_binds_tracking_list()
+    {
+        var standard = SystemPageStandards.All[Key];
+        Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
+        var components = Definition()["components"]!.AsArray();
+        var grid = Assert.Single(components.Where(x => (string?)x!["id"] == "izlemeSatirlari"));
+        Assert.Equal("editableGrid", (string?)grid!["type"]);
+        Assert.Equal("list", (string?)grid["props"]!["gridMode"]);
+        Assert.Equal(200, (int)grid["props"]!["maxRows"]!);
+        Assert.Contains("izlemeSatirlari", components.Single(x => (string?)x!["id"] == "hareketPenceresi")!["props"]!["contains"]!.AsArray().Select(v => (string?)v).ToArray());
+        var query = Definition()["queries"]!.AsArray().Single(x => (string?)x!["id"] == "hareketEkle");
+        Assert.Contains(query!["parameters"]!.AsArray(), p => (string?)p!["binding"] == "{{izlemeSatirlari.satirlar}}" && (string?)p["type"] == "list");
     }
 
     [Fact]

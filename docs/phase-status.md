@@ -1793,3 +1793,7 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
 - **Karşılıksız kalan:** `fixed-asset-create` özetinde "Aylık amortisman" hesaplanan göstergesi yok (kalıpta özet alanları hesap ifadesi bilmiyor; maliyet ve ömür gösterilir). Kaydetten sonra kıymet kartı açılmıyor: kalıbın "kayıttan sonra" komutu sayfa parametresi taşımadığı için kayıt sonrası kıymet listesi açılır. `fixed-assets` durum süzgeci seçenekleri yüklü satırlardan gelir (sunucuya giden seçimli süzgeç).
 - **Doğrulanan (yerel):** Üç standart yüklenir ve şemadan geçer; ilgili .NET testleri (`FixedAssetSystemPagesTests`, `FinanceSystemPagesTests`, `SystemPageStandardsTests`) ile ERP ve Studio standart vitest dosyaları kalıba uyarlandı ve geçti.
 - **Doğrulanmayan:** Ekranların canlıda gerçek firma kopyasıyla ve tarayıcıda görsel olarak denenmesi; eski firma kopyalarının standarda sıfırlanması bu işte yok.
+
+### Stok lot/seri satırları (2026-11-28)
+
+Stok hareket penceresinde takipli kartlar için lot/seri kodu, miktar ve son kullanma tarihi satır tablosu eklendi. Satırlar `stok.hareket.ekle` işleminin `tracking` liste parametresine bağlanır; sunucu miktar toplamı doğrulaması korunmuştur.
